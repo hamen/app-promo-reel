@@ -83,3 +83,15 @@ def decode_audio(path, sr, mono=True):
     cmd.append("-")
     raw = subprocess.run(cmd, capture_output=True, check=True).stdout
     return np.frombuffer(raw, dtype=np.float32).copy()
+
+
+def attack_index(snd, rel=0.05):
+    """First sample louder than `rel` of the peak (about -26 dB): where the sound is heard."""
+    import numpy as np
+    peak = float(np.max(np.abs(snd))) if len(snd) else 0.0
+    return int(np.argmax(np.abs(snd) > rel * peak)) if peak > 0 else 0
+
+
+def attack_seconds(path, sr=48000):
+    """Seconds of near-silence before a sound file's attack."""
+    return attack_index(decode_audio(path, sr)) / sr

@@ -10,8 +10,10 @@
 4. Picture check: codec, size, frame count and duration of the video stream are unchanged,
    and the duration matches project.json within one frame.
 5. Sync report: for each cue in cues.realized.json (the cues build.py actually mixed) with
-   "sync": true, the strongest onset in the final audio within +-150 ms. A delta over one
-   frame, or no onset in the window, is flagged.
+   "sync": true, the cue's own sound is located within +-150 ms by a matched filter
+   (normalised cross-correlation with the SFX file) on the final audio minus the music bed.
+   A found cue more than one frame off fails the check. A cue not found is "masked" (under
+   a louder sound) and is reported; fewer than half of the cues found fails the check.
 6. Contact sheet of frames from the final MP4.
 
 Any failed check exits 1 and renames the output to ...-v<N>-failed.mp4.
@@ -31,15 +33,15 @@ import numpy as np
 import scipy.signal as ss
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from common import decode_audio, die, load_project  # noqa: E402
+from common import attack_index, decode_audio, die, load_project  # noqa: E402
 
 SR = 48000
 TARGET_I, TARGET_TP, TARGET_LRA = -14.0, -2.0, 11.0
 MAX_LAG = 0.005
 SYNC_WINDOW = 0.150
-ONSET_HOP = 0.001
-ONSET_WIN = 0.004
-ONSET_MIN_DB = 3.0
+TEMPLATE_LEN = 0.25  # seconds of each SFX used as the matched-filter template
+MIN_MATCH = 0.2      # normalised correlation below this = the sound is not in the window
+MIN_FOUND = 0.5      # fewer cues found than this fraction = the sync check cannot vouch
 
 
 def run(cmd):
@@ -95,36 +97,72 @@ def lag_seconds(a, b, sr=SR, max_lag=0.1):
     return (int(np.argmax(seg)) - k) / sr
 
 
-def onset_curve(y, sr=SR):
-    """Rise in log energy between consecutive short frames (dB). Returns (curve, times)."""
-    hop, win = int(ONSET_HOP * sr), int(ONSET_WIN * sr)
-    n = (len(y) - win) // hop
-    idx = np.arange(n)[:, None] * hop + np.arange(win)[None, :]
-    e = 10 * np.log10(np.mean(y[idx] ** 2, axis=1) + 1e-10)
-    rise = np.maximum(0, e[1:] - e[:-1])
-    # compare each frame with the one 2 frames earlier as well, for smeared attacks
-    rise2 = np.maximum(0, e[2:] - e[:-2])
-    curve = np.maximum(rise[1:], rise2)
-    t = (np.arange(len(curve)) + 2) * hop / sr
-    return curve, t
+def locate(y, tmpl, t, window=SYNC_WINDOW, sr=SR):
+    """Matched filter: where does `tmpl` (the cue's own sound) start in y, within t +- window?
+    Returns (start_time, normalised correlation 0-1). Music does not correlate with the SFX
+    waveform, so the peak marks the SFX even inside a full mix; the gain of loudnorm cancels."""
+    n = len(tmpl)
+    a = max(0, int(round((t - window) * sr)))
+    seg = y[a:int(round((t + window) * sr)) + n]
+    if len(seg) < n:
+        return None, 0.0
+    num = ss.correlate(seg, tmpl, mode="valid", method="fft")
+    energy = np.convolve(seg.astype(np.float64) ** 2, np.ones(n), mode="valid")
+    ncc = num / (np.sqrt(np.maximum(energy, 1e-12)) * np.linalg.norm(tmpl) + 1e-12)
+    k = int(np.argmax(ncc))
+    return (a + k) / sr, float(ncc[k])
 
 
-def sync_report(y, realized, fps, sr=SR):
-    curve, t = onset_curve(y, sr)
+def required_match(n, sr=SR, window=SYNC_WINDOW):
+    """Correlation a sound must reach to count as found. Noise alone reaches about
+    sqrt(2 ln(lags) / n) by chance, which is high for very short sounds."""
+    lags = 2 * window * sr + 1
+    return max(MIN_MATCH, 1.5 * np.sqrt(2 * np.log(lags) / max(n, 1)))
+
+
+def remove_bed(y, bed):
+    """Subtract the music bed (least-squares gain) so quiet SFX stand out for matching."""
+    n = min(len(y), len(bed))
+    if n == 0 or not np.any(bed[:n]):
+        return y
+    g = float(np.dot(y[:n], bed[:n]) / np.dot(bed[:n], bed[:n]))
+    out = y.astype(np.float64).copy()
+    out[:n] -= g * bed[:n]
+    return out
+
+
+def sync_report(y, realized, fps, project_dir, sr=SR):
+    """Per cue: found (with delta), off by more than one frame, or masked (not found: usually
+    under a louder sound). Returns (rows, problems)."""
     frame = 1.0 / fps
-    rows = []
+    bed_path = Path(project_dir) / "assets" / "audio" / "bgm.wav"
+    if bed_path.is_file():
+        y = remove_bed(y, decode_audio(bed_path, sr))
+    templates, rows = {}, []
     for cue in realized:
         if not cue.get("sync", True):
             continue
-        m = (t >= cue["time"] - SYNC_WINDOW) & (t <= cue["time"] + SYNC_WINDOW)
-        if not m.any() or curve[m].max() < ONSET_MIN_DB:
-            rows.append({**cue, "onset": None, "delta_ms": None, "flag": "no onset"})
+        if cue["file"] not in templates:
+            snd = decode_audio(Path(project_dir) / cue["file"], sr)
+            lead = attack_index(snd)
+            templates[cue["file"]] = (snd[lead:lead + int(TEMPLATE_LEN * sr)], lead / sr)
+        tmpl, lead = templates[cue["file"]]
+        expected = cue["time"] + lead  # where the audible attack should be
+        found, score = locate(y, tmpl, expected, sr=sr)
+        base = {**cue, "lead_ms": round(lead * 1000, 1), "match": round(score, 3)}
+        if found is None or score < required_match(len(tmpl), sr):
+            rows.append({**base, "found": None, "delta_ms": None, "flag": "masked"})
             continue
-        onset = float(t[m][np.argmax(curve[m])])
-        delta = onset - cue["time"]
-        rows.append({**cue, "onset": round(onset, 4), "delta_ms": round(delta * 1000, 1),
+        delta = found - expected
+        rows.append({**base, "found": round(found, 4), "delta_ms": round(delta * 1000, 1),
                      "flag": "off by more than one frame" if abs(delta) > frame else None})
-    return rows
+    problems = [f"cue {r['id']} at {r['time']:.3f}s: off by more than one frame ({r['delta_ms']:+.1f} ms)"
+                for r in rows if r["flag"] == "off by more than one frame"]
+    found = [r for r in rows if r["found"] is not None]
+    if rows and len(found) < MIN_FOUND * len(rows):
+        problems.append(f"only {len(found)} of {len(rows)} cues found in the final audio; the sync check "
+                        f"cannot vouch for this file (masked: {[r['id'] for r in rows if r['found'] is None]})")
+    return rows, problems
 
 
 def contact_sheet(mp4, times, dest):
@@ -183,10 +221,8 @@ def finish(project_dir, raw_mp4, frames=None):
     if abs(vi_out["duration"] - project["duration"]) > frame + 1e-6:
         problems.append(f"video is {vi_out['duration']}s, project.json says {project['duration']:g}s")
 
-    rows = sync_report(decode_audio(out, SR), realized, project["fps"])
-    flagged = [r for r in rows if r["flag"]]
-    problems += [f"cue {r['id']} at {r['time']:.3f}s: {r['flag']}"
-                 + (f" ({r['delta_ms']:+.1f} ms)" if r["delta_ms"] is not None else "") for r in flagged]
+    rows, sync_problems = sync_report(decode_audio(out, SR), realized, project["fps"], pdir)
+    problems += sync_problems
 
     dur = project["duration"]
     times = frames or [round(dur * i / 9, 2) for i in range(9)] + [round(dur - 0.1, 2)]
@@ -205,8 +241,16 @@ def finish(project_dir, raw_mp4, frames=None):
     out.with_name(out.stem + "-report.json").write_text(json.dumps(report, indent=1) + "\n")
 
     if rows:
-        worst = max((abs(r["delta_ms"]) for r in rows if r["delta_ms"] is not None), default=0)
-        print(f"sync: {len(rows)} cues, {len(flagged)} flagged, worst {worst:.1f} ms")
+        found = [r for r in rows if r["delta_ms"] is not None]
+        worst = max((abs(r["delta_ms"]) for r in found), default=0)
+        masked = [r["id"] for r in rows if r["delta_ms"] is None]
+        print(f"sync: {len(found)} of {len(rows)} cues found, worst {worst:.1f} ms"
+              + (f"; masked by louder sounds: {', '.join(masked)}" if masked else ""))
+        late = {r["file"]: r["lead_ms"] for r in rows
+                if r.get("align") == "start" and r["lead_ms"] > 1000 / project["fps"]}
+        for f, ms in late.items():
+            print(f"warning: {f} starts with {ms:.0f} ms of silence and its cues use align \"start\", so it "
+                  f"sounds {ms:.0f} ms after the cue time; use align \"attack\" or trim the file", file=sys.stderr)
     else:
         print("sync: no cues (no SFX mixed)")
     print(f"loudness {final['input_i']} LUFS, true peak {final['input_tp']} dBTP; loudnorm lag {lag * 1000:.2f} ms; video {vi_out}")

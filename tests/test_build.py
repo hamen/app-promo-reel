@@ -68,6 +68,22 @@ def test_sfx_tracks_never_overlap_and_missing_file_is_skipped(tmp_path, capsys):
     assert len(lines) == 4
 
 
+def test_attack_alignment_skips_leading_silence(tmp_path):
+    import numpy as np
+    import soundfile as sf
+    audio = tmp_path / "assets" / "audio"
+    audio.mkdir(parents=True)
+    sr = 48000
+    snd = np.concatenate([np.zeros(int(0.1 * sr)), 0.5 * np.ones(int(0.2 * sr))])
+    sf.write(audio / "late.wav", snd, sr)
+    doc = {"sfx": {"late": "late.wav"}, "cues": [{"id": "att", "sfx": "late", "at": "D(1)"},
+                                                 {"id": "raw", "sfx": "late", "at": "D(2)", "align": "start"}]}
+    _, realized = sfx_tags(tmp_path, doc, GRID, 30.0)
+    by_id = {r["id"]: r for r in realized}
+    assert abs(by_id["att"]["time"] - (GRID.D(1) - 0.1)) < 0.001 and by_id["att"]["align"] == "attack"
+    assert by_id["raw"]["time"] == GRID.D(2)
+
+
 def test_build_without_sfx_succeeds_and_realizes_nothing(project):
     (project / "src.html.tmpl").write_text("<div data-duration='{{DURATION}}'>{{D 1}}</div>\n<!--SFX-->\n")
     (project / "cues.json").write_text(json.dumps({"sfx": {"a": "a.mp3"}, "cues": [{"id": "x", "sfx": "a", "at": "D(0)"}]}))

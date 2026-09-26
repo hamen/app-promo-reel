@@ -23,8 +23,8 @@ Rules:
 The drop bar is chosen in the storyboard first (template: bar 6). Then:
 - If the chosen seed has a detected lift (`lift_at` in the rank table) on a downbeat in bars
   4-8, move the storyboard's drop to that bar.
-- Otherwise build a synthetic lift: `make_bed.py --drop-bar <drop bar>` (and `--riser` with a
-  riser tail if you have one), so the full band hits on the drop downbeat.
+- Otherwise build a synthetic lift: `make_bed.py --drop-bar <drop bar>`, so the full band hits
+  on the drop downbeat. The riser tail comes from the `riser` cue in cues.json.
 
 ## Hook / angle menu (one per variant, never repeat)
 
@@ -44,3 +44,9 @@ DESIGN.md colours.
 Whoosh into each scene cut, impact on slams, pop on items, click on taps, chime on the value
 line, a riser tail ending on the drop (`"align": "end"`), a big impact on the drop and the logo.
 Keep volumes 0.25-0.85; the drop and the logo loudest.
+
+A cue's `at` is when the sound is HEARD: build.py skips the leading silence of each file
+(`"align": "attack"`, the default). Many stock SFX start with 50-400 ms of silence; without
+this, a pop on the beat sounds a tenth of a second late. finish.py reports cues that are
+"masked" (hidden under a louder sound, e.g. a pop inside the drop's impact tail): that is
+normal, but more than half masked fails the check.

@@ -36,8 +36,13 @@ def proj(tmp_path):
 
 
 def realize(p, cues):
+    audio = p / "assets" / "audio"
+    audio.mkdir(parents=True, exist_ok=True)
+    sf.write(audio / "click.wav", click(SR), SR)  # the same sound the fixture mixes in
     (p / "cues.realized.json").write_text(json.dumps(
-        [{"id": f"c{i}", "file": "x", "time": t, "volume": 1, "track": 21, "sync": s} for i, (t, s) in enumerate(cues)]))
+        [{"id": f"c{i}", "file": "assets/audio/click.wav", "time": t, "volume": 1, "track": 21, "align": "start",
+          "sync": s}
+         for i, (t, s) in enumerate(cues)]))
 
 
 def test_sync_ok_versioned_and_never_overwritten(tmp_path, proj):
@@ -68,12 +73,13 @@ def test_cue_100ms_off_is_flagged(tmp_path, proj):
     assert finish.next_version_path(proj / "renders", "demo-a").name == "demo-a-v2.mp4"
 
 
-def test_no_onset_in_window_is_flagged(tmp_path, proj):
+def test_sound_missing_from_window_is_flagged(tmp_path, proj):
     raw = make_raw_mp4(tmp_path)
     realize(proj, [(2.0, True)])  # nothing within +-150 ms
     assert finish.finish(proj, raw) == 1
     report = json.loads((proj / "renders" / "demo-a-v1-report.json").read_text())
-    assert report["sync"][0]["flag"] == "no onset"
+    assert report["sync"][0]["flag"] == "masked"
+    assert any("cannot vouch" in p for p in report["problems"])
 
 
 def test_no_cues_passes(tmp_path, proj):
@@ -86,6 +92,32 @@ def test_wrong_duration_fails(tmp_path, proj):
     raw = make_raw_mp4(tmp_path, seconds=3.0)
     realize(proj, [])
     assert finish.finish(proj, raw) == 1
+
+
+def test_matched_filter_finds_sfx_under_louder_music():
+    rng = np.random.default_rng(7)
+    t = np.arange(4 * SR) / SR
+    music = 0.3 * np.sin(2 * np.pi * 110 * t) + 0.1 * rng.standard_normal(len(t))
+    for k in np.arange(0.5, 4, 0.25):  # loud transients every 250 ms, like hats and kicks
+        a = int(k * SR)
+        music[a:a + 400] += 0.8 * rng.standard_normal(400)
+    sfx = click(SR, dur=0.03, freq=1800, amp=0.25)
+    at = 1.9  # 100 ms from the nearest music transients at 1.75 and 2.0
+    y = music.copy()
+    y[int(at * SR):int(at * SR) + len(sfx)] += sfx
+    found, score = finish.locate(y, sfx, at + 0.02)
+    assert abs(found - at) < 0.001 and score > finish.MIN_MATCH
+
+
+def test_leading_silence_in_sfx_is_measured_from_the_attack(tmp_path, proj, capsys):
+    raw = make_raw_mp4(tmp_path)
+    realize(proj, [(t - 0.2, True) for t in CLICKS])  # cue times 200 ms before each click ...
+    audio = proj / "assets" / "audio"
+    sf.write(audio / "click.wav", np.concatenate([np.zeros(int(0.2 * SR)), click(SR)]), SR)  # ... after 200 ms of silence
+    assert finish.finish(proj, raw) == 0
+    report = json.loads((proj / "renders" / "demo-a-v1-report.json").read_text())
+    assert all(abs(r["delta_ms"]) < 2 and r["lead_ms"] == 200.0 for r in report["sync"])
+    assert "starts with 200 ms of silence" in capsys.readouterr().err
 
 
 def test_lag_detects_a_shift():

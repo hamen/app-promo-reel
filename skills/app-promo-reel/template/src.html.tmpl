@@ -586,8 +586,11 @@
         if (v === undefined) throw new Error(`CONFIG has no value for "${path}"`);
         return v;
       };
+      // an empty string hides the element (e.g. a screen with no bottom button, a row with no chip)
       document.querySelectorAll("[data-cfg]").forEach((el) => {
-        el.textContent = String(cfgGet(el.dataset.cfg));
+        const v = String(cfgGet(el.dataset.cfg));
+        el.textContent = v;
+        if (v === "") el.style.display = "none";
       });
       const css = document.documentElement.style;
       const C = CONFIG.colors;
@@ -599,6 +602,7 @@
       if (CONFIG.end.icon) {
         const icon = document.getElementById("icon");
         icon.textContent = "";
+        icon.style.display = ""; // iconText is "" when an image is used; show the tile again
         const img = document.createElement("img");
         img.src = CONFIG.end.icon;
         img.alt = "";

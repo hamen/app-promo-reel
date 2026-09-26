@@ -43,13 +43,15 @@ $PY $S/music_gen.py --duration 30 --seeds 5,17,23 --out $P/work/music \
   --prompt "upbeat indie pop, punchy four on the floor kick, crisp handclaps on the backbeat, 118 bpm, clear steady beat, energetic from the first bar"
 $PY $S/music_rank.py --duration 30 --json $P/work/music/rank.json $P/work/music/bgm_*.wav
 $PY $S/beat_grid.py $P/work/music/bgm_5.wav $P
-$PY $S/make_bed.py $P/work/music/bgm_5.wav $P --drop-bar 6 [--riser $P/assets/audio/riser-tail.mp3]
+$PY $S/make_bed.py $P/work/music/bgm_5.wav $P --drop-bar 6
 ```
 - One music_gen.py at a time (GPU memory); exit 2 = a hard failure, no file written.
 - Prompt: name the tempo (110-128 bpm), a steady kick, and "clear steady beat". At ~120 bpm a
   30 s video has 15 bars — the template's scenes assume bars 0-14.
 - Seeds with a real lift: note `lift_at` from the rank table (drop rule: storyboard.md).
 - Run `make_bed.py` after `beat_grid.py` (the lift window needs beats.json).
+- The template's cues.json already ends a riser tail on the drop. Use `make_bed.py --riser`
+  only when you remove that cue, or the riser plays twice.
 
 ## 4. Build
 
@@ -71,6 +73,7 @@ cd $P && npx --yes hyperframes@0.8.78 render -o renders/raw.mp4 -q delivery --qu
 $PY $S/finish.py $P renders/raw.mp4
 ```
 finish.py: two-pass loudnorm to -14 LUFS / -2 dBTP (linear), A/V lag check on the PCM before
-AAC (< 5 ms), video stream copied and compared, sync report (±150 ms window, flag > 1 frame or
-no onset), contact sheet, versioned output that never overwrites. Exit 1 → output renamed
+AAC (< 5 ms), video stream copied and compared, sync report (each cue's own sound located by a
+matched filter within ±150 ms on the audio minus the bed; fail on a found cue > 1 frame off, or
+fewer than half of the cues found), contact sheet, versioned output that never overwrites. Exit 1 → output renamed
 `…-v<N>-failed.mp4` and the report lists the problems.

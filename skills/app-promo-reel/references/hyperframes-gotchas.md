@@ -33,8 +33,10 @@ Pin the version: `npx --yes hyperframes@0.8.78 …` (the project's package.json 
   `data-volume`. build.py allocates SFX tracks so two sounds never share a track at once.
 
 ## Check, snapshot, render
-- `check` must end with 0 errors. "info" items at transition times (overlap, overflow of an
-  element that is sliding out) are expected.
+- `check` must end with 0 errors. Expected and safe to keep: 7 lint warnings
+  (`composition_file_too_large`, `nested_structure_needs_subcomposition` for each scene — the
+  single-file template is deliberate) and "info" items at transition times (overlap, overflow
+  of an element that is sliding out).
 - `snapshot --at t1,t2,… --describe false --no-end -o snapshots/rN` — always a new folder per
   round (the shell may refuse a recursive delete of old snapshots).
 - Verify on frames from the **final MP4** (finish.py contact sheet), not only on snapshots.

@@ -16,9 +16,10 @@ Tokens (the `{{ }}` delimiter never appears in CSS, so @font-face/@media/@keyfra
 SFX: cues.json -> <audio> tags in place of `<!--SFX-->`, plus cues.realized.json, the list of
 cues actually mixed (finish.py checks sync against that list only). A cue whose file is
 missing is skipped with a warning. Cue fields: id, sfx (key in the "sfx" map), at (a calc
-expression), offset (s, default 0), volume (default 0.5), align ("start" default, or "end":
-the sound ends at `at`, e.g. a riser tail into the drop), sync (default true, false for
-align "end": finish.py checks only cues with a sharp attack).
+expression), offset (s, default 0), volume (default 0.5), align ("attack" default: the
+sound's audible attack lands on `at`, skipping any leading silence in the file; "start": the
+file starts at `at`; "end": the sound ends at `at`, e.g. a riser tail into the drop), sync
+(default true, false for align "end": finish.py checks only cues with a sharp attack).
 
 Usage: build.py <project_dir>
 """
@@ -30,7 +31,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from common import Grid, die, load_project, media_duration  # noqa: E402
+from common import Grid, attack_seconds, die, load_project, media_duration  # noqa: E402
 
 TOKEN = re.compile(r"\{\{\s*([A-Za-z_]+)\s*(.*?)\s*\}\}", re.S)
 SFX_FIRST_TRACK = 21
@@ -124,7 +125,7 @@ def sfx_tags(project_dir, cues_doc, grid, duration, durations=None):
     """Return (html_lines, realized) for the cues whose sound file exists."""
     audio_dir = Path(project_dir) / "assets" / "audio"
     files = cues_doc.get("sfx", {})
-    lines, realized, track_end = [], [], {}
+    lines, realized, track_end, leads = [], [], {}, {}
     durations = {} if durations is None else durations
     for cue in cues_doc.get("cues", []):
         cid, key = cue["id"], cue["sfx"]
@@ -140,7 +141,13 @@ def sfx_tags(project_dir, cues_doc, grid, duration, durations=None):
             die(f"cue {cid!r}: {e}")
         if path not in durations:
             durations[path] = media_duration(path)
-        if cue.get("align", "start") == "end":
+            leads[path] = attack_seconds(path)
+        align = cue.get("align", "attack")
+        if align not in ("attack", "start", "end"):
+            die(f"cue {cid!r}: align must be attack, start or end")
+        if align == "attack":
+            t -= leads[path]  # the audible attack, not the file's leading silence, lands on `at`
+        elif align == "end":
             t -= durations[path]
         if not 0 <= t < duration:
             print(f"warning: skipping cue {cid!r}: time {t:.3f} is outside 0-{duration:g}", file=sys.stderr)
@@ -154,8 +161,9 @@ def sfx_tags(project_dir, cues_doc, grid, duration, durations=None):
         rel = f"assets/audio/{files[key]}"
         lines.append(f'      <audio id="sfx-{cid}" src="{rel}" data-start="{t:.3f}" data-duration="{d:.3f}" '
                      f'data-track-index="{track}" data-volume="{vol:g}"></audio>')
-        sync = bool(cue.get("sync", cue.get("align", "start") != "end"))
-        realized.append({"id": cid, "file": rel, "time": round(t, 4), "volume": vol, "track": track, "sync": sync})
+        sync = bool(cue.get("sync", align != "end"))
+        realized.append({"id": cid, "file": rel, "time": round(t, 4), "volume": vol, "track": track,
+                         "align": align, "sync": sync})
     return lines, realized
 
 
