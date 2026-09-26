@@ -155,7 +155,7 @@ def test_lift_edges_are_ramped_on_low_frequency_material():
     sr = 32000
     t = np.arange(10 * sr) / sr
     y = 0.5 * np.sin(2 * np.pi * 50 * t)  # almost nothing survives the 600 Hz high-pass
-    a, b = 3 * sr, 5 * sr
+    a, b = int(3.005 * sr), int(5.005 * sr)  # edges on a sine peak, not a zero crossing
     out = mb.apply_lift(y, sr, a, b)
     step = np.max(np.abs(np.diff(y)))
     for edge in (a, b):
