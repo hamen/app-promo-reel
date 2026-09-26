@@ -1,0 +1,188 @@
+#!/usr/bin/env python3
+"""Build <project>/index.html from <project>/src.html.tmpl.
+
+Tokens (the `{{ }}` delimiter never appears in CSS, so @font-face/@media/@keyframes are safe):
+  {{D bar}} / {{D bar beat}}   time of that beat (see common.py for the addressing)
+  {{E bar}} / {{E bar beat}}   the "and" after that beat
+  {{LEN a b}}                  D(b) - D(a)
+  {{TO_END bar}}               duration - D(bar)
+  {{calc <expr>}}              arithmetic: numbers, + - * /, parentheses, D(), E(), DURATION
+  {{BEATS}}                    JSON array of every beat time
+  {{DOWNBEAT_INDEX}}           index in BEATS of the first downbeat
+  {{BEATS_PER_BAR}}            from project.json
+  {{DURATION}}                 from project.json
+  {{STORES}}                   JSON array of the project's stores (project.json)
+
+SFX: cues.json -> <audio> tags in place of `<!--SFX-->`, plus cues.realized.json, the list of
+cues actually mixed (finish.py checks sync against that list only). A cue whose file is
+missing is skipped with a warning. Cue fields: id, sfx (key in the "sfx" map), at (a calc
+expression), offset (s, default 0), volume (default 0.5), align ("start" default, or "end":
+the sound ends at `at`, e.g. a riser tail into the drop), sync (default true, false for
+align "end": finish.py checks only cues with a sharp attack).
+
+Usage: build.py <project_dir>
+"""
+import ast
+import json
+import operator
+import re
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from common import Grid, die, load_project, media_duration  # noqa: E402
+
+TOKEN = re.compile(r"\{\{\s*([A-Za-z_]+)\s*(.*?)\s*\}\}", re.S)
+SFX_FIRST_TRACK = 21
+_OPS = {ast.Add: operator.add, ast.Sub: operator.sub, ast.Mult: operator.mul, ast.Div: operator.truediv}
+
+
+class CalcError(ValueError):
+    pass
+
+
+def calc(expr, grid, duration):
+    """Evaluate arithmetic over D()/E()/DURATION without eval()."""
+    try:
+        tree = ast.parse(expr.strip(), mode="eval")
+    except SyntaxError as e:
+        raise CalcError(f"bad expression {expr!r}: {e.msg}") from None
+
+    def ev(node):
+        if isinstance(node, ast.Expression):
+            return ev(node.body)
+        if isinstance(node, ast.Constant) and type(node.value) in (int, float):
+            return node.value
+        if isinstance(node, ast.BinOp) and type(node.op) in _OPS:
+            return _OPS[type(node.op)](ev(node.left), ev(node.right))
+        if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.USub, ast.UAdd)):
+            v = ev(node.operand)
+            return -v if isinstance(node.op, ast.USub) else v
+        if isinstance(node, ast.Name) and node.id == "DURATION":
+            return duration
+        if (isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in ("D", "E")
+                and not node.keywords and 1 <= len(node.args) <= 2):
+            args = [ev(a) for a in node.args]
+            if any(a != int(a) for a in args):
+                raise CalcError(f"{node.func.id}() takes whole numbers in {expr!r}")
+            return getattr(grid, node.func.id)(*[int(a) for a in args])
+        raise CalcError(f"not allowed in calc: {ast.dump(node)[:60]} in {expr!r}")
+
+    try:
+        return float(ev(tree))
+    except ValueError as e:
+        raise CalcError(str(e)) from None
+
+
+def _ints(name, args, n_min, n_max):
+    parts = args.split()
+    if not n_min <= len(parts) <= n_max or not all(re.fullmatch(r"-?\d+", p) for p in parts):
+        raise CalcError(f"{{{{{name} {args}}}}} needs {n_min}-{n_max} whole-number arguments")
+    return [int(p) for p in parts]
+
+
+def substitute(src, grid, project):
+    duration = project["duration"]
+
+    def sub(m):
+        name, args = m.group(1), m.group(2)
+        if name in ("D", "E"):
+            return f"{getattr(grid, name)(*_ints(name, args, 1, 2)):.3f}"
+        if name == "LEN":
+            a, b = _ints(name, args, 2, 2)
+            return f"{grid.D(b) - grid.D(a):.3f}"
+        if name == "TO_END":
+            (a,) = _ints(name, args, 1, 1)
+            return f"{duration - grid.D(a):.3f}"
+        if name == "calc":
+            return f"{calc(args, grid, duration):.3f}"
+        if args:
+            raise CalcError(f"{{{{{name}}}}} takes no arguments")
+        if name == "BEATS":
+            return json.dumps([round(b, 3) for b in grid.beats])
+        if name == "DOWNBEAT_INDEX":
+            return str(grid.first)
+        if name == "BEATS_PER_BAR":
+            return str(grid.bpb)
+        if name == "DURATION":
+            return f"{duration:g}"
+        if name == "STORES":
+            return json.dumps(project["stores"])
+        raise CalcError(f"unknown token {{{{{name}}}}}")
+
+    try:
+        out = TOKEN.sub(sub, src)
+    except ValueError as e:
+        die(str(e))
+    left = re.search(r"\{\{.*?\}\}", out, re.S)
+    if left:
+        die(f"leftover token after build: {left.group(0)[:60]!r}")
+    return out
+
+
+def sfx_tags(project_dir, cues_doc, grid, duration, durations=None):
+    """Return (html_lines, realized) for the cues whose sound file exists."""
+    audio_dir = Path(project_dir) / "assets" / "audio"
+    files = cues_doc.get("sfx", {})
+    lines, realized, track_end = [], [], {}
+    durations = {} if durations is None else durations
+    for cue in cues_doc.get("cues", []):
+        cid, key = cue["id"], cue["sfx"]
+        if key not in files:
+            die(f"cue {cid!r} uses sfx {key!r}, which is not in the cues.json sfx map")
+        path = audio_dir / files[key]
+        if not path.is_file():
+            print(f"warning: skipping cue {cid!r}: {path} not found", file=sys.stderr)
+            continue
+        try:
+            t = calc(cue["at"], grid, duration) + float(cue.get("offset", 0))
+        except CalcError as e:
+            die(f"cue {cid!r}: {e}")
+        if path not in durations:
+            durations[path] = media_duration(path)
+        if cue.get("align", "start") == "end":
+            t -= durations[path]
+        if not 0 <= t < duration:
+            print(f"warning: skipping cue {cid!r}: time {t:.3f} is outside 0-{duration:g}", file=sys.stderr)
+            continue
+        d = min(durations[path], duration - t)
+        track = SFX_FIRST_TRACK
+        while track_end.get(track, -1.0) > t:
+            track += 1
+        track_end[track] = t + d
+        vol = float(cue.get("volume", 0.5))
+        rel = f"assets/audio/{files[key]}"
+        lines.append(f'      <audio id="sfx-{cid}" src="{rel}" data-start="{t:.3f}" data-duration="{d:.3f}" '
+                     f'data-track-index="{track}" data-volume="{vol:g}"></audio>')
+        sync = bool(cue.get("sync", cue.get("align", "start") != "end"))
+        realized.append({"id": cid, "file": rel, "time": round(t, 4), "volume": vol, "track": track, "sync": sync})
+    return lines, realized
+
+
+def build(project_dir):
+    project_dir = Path(project_dir)
+    project = load_project(project_dir)
+    tmpl = project_dir / "src.html.tmpl"
+    beats = project_dir / "beats.json"
+    for p in (tmpl, beats):
+        if not p.is_file():
+            die(f"{p} not found")
+    grid = Grid.load(beats, project["beats_per_bar"])
+    out = substitute(tmpl.read_text(), grid, project)
+    cues_path = project_dir / "cues.json"
+    cues_doc = json.loads(cues_path.read_text()) if cues_path.is_file() else {}
+    lines, realized = sfx_tags(project_dir, cues_doc, grid, project["duration"])
+    if "<!--SFX-->" in out:
+        out = out.replace("<!--SFX-->", "\n".join(lines).lstrip() if lines else "")
+    elif lines:
+        die("src.html.tmpl has no <!--SFX--> marker for the SFX tags")
+    (project_dir / "index.html").write_text(out)
+    (project_dir / "cues.realized.json").write_text(json.dumps(realized, indent=1) + "\n")
+    print(f"built {project_dir / 'index.html'}: {len(realized)} SFX cues mixed; downbeats "
+          f"{[round(b, 2) for b in grid.beats[grid.first::grid.bpb]]}")
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        die(__doc__.strip().splitlines()[-1])
+    build(sys.argv[1])

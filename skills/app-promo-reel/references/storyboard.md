@@ -1,0 +1,46 @@
+# Storyboard — bars, scenes, variants
+
+## Structure (30 s, ~120 bpm, 15 bars)
+
+| Bars | Scene (template id) | Job |
+|---|---|---|
+| 0-1 | s1 hook | 4 hook words slam on beats 0 and 2 of bars 0-1; one real app item card |
+| 2-5 | s2 the app | phone with two rebuilt screens; rows pop on beats; a tap on beat 3 |
+| 6-7 | s3 the drop | the strongest real feature, slammed on the drop downbeat, flash + shake |
+| 8-9 | s4 benefits | three short true benefits, one per half bar |
+| 10-11 | s5 value | a two-part value word, a true one-line claim |
+| 12-end | s6 end card | icon, name, tagline, CTA, only the stores the app is on, URL |
+
+Rules:
+- Every change lands on a beat. Words slam on downbeats or beat 2. Scene cuts start ~0.3 s
+  before a downbeat so the new scene is settled on it.
+- One idea per scene. Text a viewer must read stays on screen ≥ 0.8 s (a sentence: ~0.3 s per
+  word).
+- A different tempo means a different bar count: re-map the scenes, never squeeze text.
+
+## Drop placement
+
+The drop bar is chosen in the storyboard first (template: bar 6). Then:
+- If the chosen seed has a detected lift (`lift_at` in the rank table) on a downbeat in bars
+  4-8, move the storyboard's drop to that bar.
+- Otherwise build a synthetic lift: `make_bed.py --drop-bar <drop bar>` (and `--riser` with a
+  riser tail if you have one), so the full band hits on the drop downbeat.
+
+## Hook / angle menu (one per variant, never repeat)
+
+1. **The problem, in the viewer's words** — "FORGOT IT / IN THE BACK / OF THE FRIDGE?"
+2. **The moment of use** — the single screen people open the app for, from second one.
+3. **Before → after** — the messy way, then the app's way (only if the app shows both).
+4. **The one feature** — the most distinctive real feature as the hook.
+5. **Question to the viewer** — "STILL DOING X BY HAND?"
+6. **Speed** — how few taps the core action takes (count them in the real app).
+7. **For who** — families / students / a hobby, if the listing names that audience.
+
+Colour mood per variant: e.g. brand colour vs a light surface vs a warm accent — always from
+DESIGN.md colours.
+
+## SFX (cues.json)
+
+Whoosh into each scene cut, impact on slams, pop on items, click on taps, chime on the value
+line, a riser tail ending on the drop (`"align": "end"`), a big impact on the drop and the logo.
+Keep volumes 0.25-0.85; the drop and the logo loudest.

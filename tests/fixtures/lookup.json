@@ -1,0 +1,7 @@
+{"resultCount": 1, "results": [{"trackName": "Example App", "sellerName": "Example Ltd", "bundleId": "com.example.app",
+ "description": "Does one thing well.", "version": "3.2", "formattedPrice": "Free", "genres": ["Productivity"],
+ "averageUserRating": 4.9, "userRatingCount": 1234,
+ "artworkUrl512": "https://is1-ssl.mzstatic.com/image/thumb/Purple/v4/aa/icon/512x512bb.jpg",
+ "screenshotUrls": ["https://is1-ssl.mzstatic.com/image/thumb/PurpleSource/v4/aa/1.png/392x696bb.png",
+                    "https://is2-ssl.mzstatic.com/image/thumb/PurpleSource/v4/bb/2.jpg/300x0w.jpg"],
+ "trackViewUrl": "https://apps.apple.com/app/id1"}]}
