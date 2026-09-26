@@ -72,8 +72,8 @@ def calc(expr, grid, duration):
 
     try:
         return float(ev(tree))
-    except ValueError as e:
-        raise CalcError(str(e)) from None
+    except (ValueError, ArithmeticError) as e:  # ArithmeticError: 1/0, overflow
+        raise CalcError(f"{e} in {expr!r}") from None
 
 
 def _ints(name, args, n_min, n_max):
@@ -173,9 +173,17 @@ def sfx_tags(project_dir, cues_doc, grid, duration, durations=None):
 def check_scenes(html_out, duration):
     """Every clip must start inside the video: a scene past the end is silently never shown."""
     bad = []
-    for m in re.finditer(r'<section[^>]*\bid="([^"]+)"[^>]*\bdata-start="([-\d.]+)"', html_out):
-        if not 0 <= float(m.group(2)) < duration:
-            bad.append(f"{m.group(1)} at {float(m.group(2)):.2f}s")
+    for tag in re.findall(r"<section\b[^>]*>", html_out):
+        start = re.search(r'\bdata-start="([^"]*)"', tag)
+        if not start:
+            continue
+        name = re.search(r'\bid="([^"]*)"', tag)
+        try:
+            t = float(start.group(1))
+        except ValueError:
+            t = float("nan")
+        if not 0 <= t < duration:
+            bad.append(f"{name.group(1) if name else tag[:40]} at {start.group(1)}s")
     if bad:
         die(f"scenes outside the {duration:g}s video: {', '.join(bad)}. The storyboard needs fewer bars at "
             f"this tempo/duration: re-map the scenes (references/storyboard.md)")

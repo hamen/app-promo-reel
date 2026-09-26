@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Finish a rendered reel: loudness, checks, contact sheet, versioned output.
 
-1. Two-pass loudnorm (I=-14 LUFS, TP=-2 dBTP) on the 48 kHz WAV of the raw render.
+1. Two-pass loudnorm (I=-14 LUFS, TP=-2 dBTP) on the 48 kHz WAV of the raw render. The final
+   AAC file must measure within 1 LU of -14 LUFS and at most -1 dBTP, or the run fails.
 2. A/V check before the AAC encode: the cross-correlation lag between the WAV before and
    after loudnorm must be < 5 ms.
 3. Mux: video stream copied (-c:v copy), audio AAC. Output name
@@ -38,6 +39,9 @@ from common import attack_index, decode_audio, die, load_project  # noqa: E402
 
 SR = 48000
 TARGET_I, TARGET_TP, TARGET_LRA = -14.0, -2.0, 11.0
+# gate on the final AAC file: AAC adds a few tenths of a dB of inter-sample peak on top of the
+# -2 dBTP PCM target, so the delivered file is held to -1 dBTP (the usual platform ceiling)
+MAX_LU_OFF, MAX_FINAL_TP = 1.0, -1.0
 MAX_LAG = 0.005
 SYNC_WINDOW = 0.150
 TEMPLATE_LEN = 0.25  # seconds of each SFX used as the matched-filter template
@@ -131,6 +135,16 @@ def remove_bed(y, bed):
     g = float(np.dot(y[:n], bed[:n]) / np.dot(bed[:n], bed[:n]))
     out = y.astype(np.float64).copy()
     out[:n] -= g * bed[:n]
+    return out
+
+
+def loudness_problems(final):
+    i, tp = float(final["input_i"]), float(final["input_tp"])
+    out = []
+    if abs(i - TARGET_I) > MAX_LU_OFF:
+        out.append(f"final loudness {i:.2f} LUFS is more than {MAX_LU_OFF:g} LU from {TARGET_I:g}")
+    if tp > MAX_FINAL_TP:
+        out.append(f"final true peak {tp:.2f} dBTP is above {MAX_FINAL_TP:g} dBTP")
     return out
 
 
@@ -238,6 +252,7 @@ def finish(project_dir, raw_mp4, frames=None):
     contact_sheet(out, [min(t, last) for t in times], sheet)
 
     final = measure(out)
+    problems += loudness_problems(final)
     report = {"output": str(out), "sheet": str(sheet), "loudnorm_input": meas, "final_lufs": final["input_i"],
               "final_tp": final["input_tp"], "lag_ms": round(lag * 1000, 2),
               "video": vi_out, "sync": rows, "problems": problems}

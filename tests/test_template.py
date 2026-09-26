@@ -2,6 +2,7 @@
 import json
 import re
 
+import numpy as np
 import pytest
 
 from conftest import run_script, steady_grid
@@ -85,3 +86,18 @@ def test_scene_past_the_end_fails_the_build(tmp_path):
     grid = steady_grid(first=0.5, iv=0.75, n=60, phase=0)  # 80 bpm: bar 12 starts at 36.5 s
     _, err = build(tmp_path, grid=grid, expect=2)
     assert "scenes outside the 30s video" in err and "s6" in err
+
+
+def test_worst_case_tempo_grid_from_beat_grid_covers_the_end_card(tmp_path):
+    # 98 bpm with the last scene starting just before the end: s6 at D(12) - 0.3 = 29.95 s passes
+    # check_scenes, and the end card addresses D(14) at ~35.1 s; beat_grid's own extend() must reach it
+    import beat_grid as bg
+    iv = 60 / 98
+    first_downbeat = 30.25 - 12 * 4 * iv
+    beats = bg.extend(np.arange(first_downbeat, 20, iv), 30.0, beats_past_end=4 * 4)
+    phase = int(np.argmin(np.abs(beats - first_downbeat)))
+    grid = {"beats": [round(float(b), 4) for b in beats], "downbeat_phase": phase,
+            "downbeats": [round(float(b), 3) for b in beats[phase::4]]}
+    p, html = build(tmp_path, grid=grid)
+    assert max(float(x) for x in re.findall(r'<section[^>]*data-start="([\d.]+)"', html)) < 30
+    assert len(beats) > phase + 14 * 4 + 1  # D(14) and the beat after it exist

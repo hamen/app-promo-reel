@@ -36,11 +36,13 @@ def main():
     ap.add_argument("points")
     ap.add_argument("--box", type=float, default=0.006, help="half box size, as a fraction of width")
     a = ap.parse_args()
-    with open(a.points) as f:
-        points = json.load(f)
     try:
+        with open(a.points) as f:
+            points = json.load(f)
+        if not isinstance(points, dict):
+            raise ValueError(f"{a.points} must hold a JSON object of name: [x, y]")
         print(json.dumps(sample(Image.open(a.image), points, a.box), indent=1))
-    except ValueError as e:
+    except (OSError, ValueError) as e:  # a missing / unreadable image or points file, bad JSON
         print(f"error: {e}", file=sys.stderr)
         sys.exit(2)
 

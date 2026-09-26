@@ -46,10 +46,16 @@ def main(argv=None):
     ap.add_argument("--out", required=True)
     ap.add_argument("--guidance", type=float, default=3.5)
     a = ap.parse_args(argv)
-    max_new = tokens_for(a.duration)
-    seeds = [int(s) for s in a.seeds.split(",")]
+    try:
+        seeds = [int(s) for s in a.seeds.split(",")]
+    except ValueError:
+        fail(f"--seeds must be comma-separated integers, got {a.seeds!r}")
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
+    # an old bgm_<seed>.wav from an earlier run must not survive a failure and get ranked
+    for seed in seeds:
+        (out / f"bgm_{seed}.wav").unlink(missing_ok=True)
+    max_new = tokens_for(a.duration)
 
     try:
         lock = open(LOCK, "a")
@@ -58,10 +64,6 @@ def main(argv=None):
         fail(f"another music_gen.py is running (lock {LOCK}); run one at a time")
     except OSError as e:
         fail(f"cannot use the lock file {LOCK}: {e}")
-
-    # an old bgm_<seed>.wav from an earlier run must not survive a failure and get ranked
-    for seed in seeds:
-        (out / f"bgm_{seed}.wav").unlink(missing_ok=True)
 
     try:
         import soundfile as sf

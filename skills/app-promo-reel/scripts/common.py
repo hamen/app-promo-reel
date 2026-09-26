@@ -35,6 +35,7 @@ def load_project(project_dir):
     if missing:
         die(f"{path} has no {' / '.join(missing)}")
     data["duration"] = float(data["duration"])
+    data["fps"] = int(data["fps"])
     bad = [s for s in data["stores"] if s not in KNOWN_STORES]
     if bad or not data["stores"]:
         die(f"project.json stores must be a non-empty subset of {list(KNOWN_STORES)}, got {data['stores']}")
@@ -53,6 +54,8 @@ class Grid:
         return cls(g["beats"], g["downbeat_phase"], beats_per_bar)
 
     def _index(self, bar, beat):
+        if not 0 <= int(beat) < self.bpb:
+            raise ValueError(f"D({bar}, {beat}): beat must be 0-{self.bpb - 1} (beats_per_bar {self.bpb})")
         i = self.first + int(bar) * self.bpb + int(beat)
         if not 0 <= i < len(self.beats):
             raise ValueError(f"D({bar}, {beat}) is outside the beat grid ({len(self.beats)} beats, "

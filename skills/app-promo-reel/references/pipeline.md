@@ -72,7 +72,8 @@ npx --yes hyperframes@0.8.78 snapshot --at 1.0,2.4,4.6,... --describe false --no
 cd $P && npx --yes hyperframes@0.8.78 render -o renders/raw.mp4 -q delivery --quiet
 $PY $S/finish.py $P renders/raw.mp4
 ```
-finish.py: two-pass loudnorm to -14 LUFS / -2 dBTP (linear), A/V lag check on the PCM before
+finish.py: two-pass loudnorm to -14 LUFS / -2 dBTP (linear; the final AAC file must measure
+within 1 LU of -14 and at most -1 dBTP), A/V lag check on the PCM before
 AAC (< 5 ms), video stream copied and compared, sync report (each cue's own sound located by a
 matched filter within ±150 ms on the audio minus the bed; fail on a cue > 1 frame off, or on
 any checked cue not found — mark a cue that sits under a louder sound `"sync": false` in

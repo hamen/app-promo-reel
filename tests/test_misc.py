@@ -131,3 +131,47 @@ def test_repo_root_from_a_linked_worktree(tmp_path):
     subprocess.run(["git", "-C", str(main), "worktree", "add", "-q", str(wt)], check=True)
     assert new_project.repo_root(wt) == main.resolve()
     assert new_project.is_inside(main / "reels", new_project.repo_root(wt))
+
+
+def test_sample_colors_cli_bad_files_exit_2(tmp_path):
+    img = tmp_path / "i.png"
+    Image.new("RGB", (100, 200), "#123456").save(img)
+    pts = tmp_path / "p.json"
+    pts.write_text('{"x": [0.5, 0.5]}')
+    junk = tmp_path / "junk.png"
+    junk.write_bytes(b"not an image")
+    lst = tmp_path / "l.json"
+    lst.write_text("[1, 2]")
+    for args in ((tmp_path / "missing.png", pts), (junk, pts), (img, tmp_path / "missing.json"), (img, lst)):
+        r = run_script("sample_colors.py", *args)
+        assert r.returncode == 2 and "Traceback" not in r.stderr, (args, r.stderr)
+
+
+def test_music_gen_bad_duration_still_removes_stale_files(tmp_path, monkeypatch):
+    out = tmp_path / "o"
+    out.mkdir()
+    (out / "bgm_1.wav").write_bytes(b"old")
+    monkeypatch.setattr(music_gen, "LOCK", tmp_path / "lock")
+    with pytest.raises(SystemExit) as e:
+        music_gen.main(["--prompt", "x", "--duration", "90", "--seeds", "1", "--out", str(out)])
+    assert e.value.code == 2 and not (out / "bgm_1.wav").exists()
+    with pytest.raises(SystemExit) as e:
+        music_gen.main(["--prompt", "x", "--duration", "30", "--seeds", "a,b", "--out", str(out)])
+    assert e.value.code == 2
+
+
+def test_linked_worktree_of_this_repo_is_refused_even_with_force(tmp_path, monkeypatch):
+    main = tmp_path / "main"
+    subprocess.run(["git", "init", "-q", str(main)], check=True)
+    subprocess.run(["git", "-C", str(main), "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q",
+                    "--allow-empty", "-m", "x"], check=True)
+    skill = main / "skills" / "app-promo-reel"
+    skill.mkdir(parents=True)
+    elsewhere = tmp_path / "elsewhere"
+    subprocess.run(["git", "-C", str(main), "worktree", "add", "-q", str(elsewhere)], check=True)
+    monkeypatch.setattr(new_project, "SKILL_DIR", skill)
+    with pytest.raises(SystemExit):
+        new_project.check_out_dir(elsewhere / "reels", force=True)
+    other = tmp_path / "other"
+    subprocess.run(["git", "init", "-q", str(other)], check=True)
+    new_project.check_out_dir(other / "reels", force=True)  # another repo: allowed with --force

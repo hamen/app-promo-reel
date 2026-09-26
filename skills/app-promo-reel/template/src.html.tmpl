@@ -619,11 +619,13 @@
       const BPB = {{BEATS_PER_BAR}};
       const DURATION = {{DURATION}};
       const D = (bar, beat = 0) => {
+        if (beat < 0 || beat >= BPB) throw new Error(`D(${bar}, ${beat}): beat must be 0-${BPB - 1}`);
         const t = BEATS[FIRST + bar * BPB + beat];
         if (t === undefined) throw new Error(`D(${bar}, ${beat}) is outside the beat grid`);
         return t;
       };
       const E = (bar, beat = 0) => {
+        if (beat < 0 || beat >= BPB) throw new Error(`E(${bar}, ${beat}): beat must be 0-${BPB - 1}`);
         const next = BEATS[FIRST + bar * BPB + beat + 1];
         if (next === undefined) throw new Error(`E(${bar}, ${beat}) is outside the beat grid`);
         return (D(bar, beat) + next) / 2;

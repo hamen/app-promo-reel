@@ -161,3 +161,19 @@ def test_loudnorm_that_moves_audio_fails(tmp_path, proj, monkeypatch):
     assert finish.finish(proj, raw) == 1
     report = json.loads((proj / "renders" / "demo-a-v1-report.json").read_text())
     assert any("loudnorm moved audio" in x for x in report["problems"])
+
+
+def test_loudness_gate():
+    assert finish.loudness_problems({"input_i": "-14.21", "input_tp": "-1.58"}) == []
+    assert finish.loudness_problems({"input_i": "-15.2", "input_tp": "-2.0"})
+    assert finish.loudness_problems({"input_i": "-12.9", "input_tp": "-2.0"})
+    assert finish.loudness_problems({"input_i": "-14.0", "input_tp": "-0.9"})
+
+
+def test_loudness_miss_fails_the_run(tmp_path, proj, monkeypatch):
+    raw = make_raw_mp4(tmp_path)
+    realize(proj, [(t, True) for t in CLICKS])
+    monkeypatch.setattr(finish, "MAX_FINAL_TP", -40.0)  # no real file can meet this ceiling
+    assert finish.finish(proj, raw) == 1
+    report = json.loads((proj / "renders" / "demo-a-v1-report.json").read_text())
+    assert any("true peak" in p for p in report["problems"])

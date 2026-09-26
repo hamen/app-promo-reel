@@ -59,7 +59,7 @@ def is_inside(child, parent):
 
 def check_out_dir(out, force):
     repo = repo_root(SKILL_DIR)
-    if repo and is_inside(out, repo):
+    if repo and (is_inside(out, repo) or repo_root(out) == repo):
         die(f"{out} is inside the app-promo-reel repo ({repo}); pick a folder outside it")
     top = git_toplevel(out)
     if top and not force:

@@ -102,3 +102,24 @@ def test_bad_cue_id_exits_2(tmp_path):
         sfx_tags(tmp_path, {"sfx": {"a": "a.wav"}, "cues": [{"id": 'x" onload="y', "sfx": "a", "at": "D(0)"}]},
                  GRID, 30.0)
     assert e.value.code == 2
+
+
+def test_division_by_zero_in_calc_is_a_calc_error():
+    with pytest.raises(CalcError):
+        calc("D(1)/0", GRID, 30.0)
+
+
+def test_beat_outside_the_bar_is_refused():
+    with pytest.raises(CalcError):
+        calc("D(2, 5)", GRID, 30.0)
+    with pytest.raises(ValueError):
+        GRID.D(2, -1)
+
+
+def test_check_scenes_sees_either_attribute_order():
+    from build import check_scenes
+    check_scenes('<section id="a" data-start="1.0"></section>', 30.0)
+    for tag in ('<section data-start="31.0" id="late">', '<section class="x" data-start="-1" id="neg">',
+                '<section id="bad" data-start="x">'):
+        with pytest.raises(SystemExit):
+            check_scenes(tag, 30.0)

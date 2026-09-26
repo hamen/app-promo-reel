@@ -82,9 +82,9 @@ def test_refine_never_moves_more_than_the_window():
     assert out[0] == 2.0
 
 
-def test_extend_covers_duration_plus_two_bars():
-    beats = bg.extend(np.arange(1.0, 10.0, 0.5), 30.0)
-    assert beats[0] <= 0.7 and beats[-1] >= 30.0 + 8 * 0.5
+def test_extend_covers_duration_plus_extra_beats():
+    beats = bg.extend(np.arange(1.0, 10.0, 0.5), 30.0, beats_past_end=16)
+    assert beats[0] <= 0.7 and beats[-1] >= 30.0 + 16 * 0.5
     assert np.allclose(np.diff(beats), 0.5)
 
 
@@ -210,7 +210,7 @@ def test_beat_grid_main_writes_beats_json(tmp_path):
     g = json.loads((p / "beats.json").read_text())
     assert set(g) == {"beats", "downbeat_phase", "downbeats"}
     assert g["downbeats"] == [round(b, 3) for b in g["beats"][g["downbeat_phase"]::4]]
-    assert g["beats"][-1] >= 20 + 8 * 0.49
+    assert g["beats"][-1] >= 20 + 16 * 0.49  # four bars past the end
     assert abs(np.median(np.diff(g["beats"])) - 0.5) < 0.005
 
 
@@ -231,3 +231,32 @@ def test_music_rank_main_orders_and_exits_1_when_all_rejected(tmp_path):
     junk.write_bytes(b"not audio")
     r = run_script("music_rank.py", "--duration", "20", junk)
     assert r.returncode == 2 and "Traceback" not in r.stderr
+
+
+def test_beat_grid_and_make_bed_refuse_unreadable_audio(tmp_path):
+    p = write_project(tmp_path, duration=10)
+    (p / "beats.json").write_text(json.dumps(steady_grid()))
+    junk = tmp_path / "junk.wav"
+    junk.write_bytes(b"not audio")
+    for script in ("beat_grid.py", "make_bed.py"):
+        r = run_script(script, junk, p)
+        assert r.returncode == 2 and "Traceback" not in r.stderr, (script, r.stderr)
+
+
+def test_riser_tail_ends_on_the_drop():
+    sr = 1000
+    y = np.zeros(10 * sr)
+    riser = np.linspace(0.1, 1.0, 2 * sr)
+    out = mb.add_riser(y.copy(), sr, riser, 5.0, 0.5)
+    nz = np.nonzero(out)[0]
+    assert nz[0] == 3 * sr and nz[-1] == 5 * sr - 1 and out[5 * sr - 1] == 0.5
+
+
+def test_long_riser_is_cut_with_a_ramp_and_never_past_the_bed():
+    sr = 1000
+    riser = np.ones(4 * sr)
+    out = mb.add_riser(np.zeros(10 * sr), sr, riser, 1.0, 1.0)  # 4 s riser, 1 s before the drop
+    assert out[0] == 0.0 and np.max(np.abs(np.diff(out[:sr]))) < 0.1
+    assert np.allclose(out[100:sr], 1.0) and not out[sr:].any()
+    near_end = mb.add_riser(np.zeros(10 * sr), sr, riser, 11.0, 1.0)  # drop past the bed end
+    assert len(near_end) == 10 * sr and near_end[-1] == 1.0

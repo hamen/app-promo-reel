@@ -57,10 +57,17 @@ def fades(y, sr):
     return y * (env[:, None] if y.ndim == 2 else env)
 
 
-def add_riser(y, sr, riser, end_t, gain):
-    end = int(round(end_t * sr))
+def add_riser(y, sr, riser, end_t, gain, ramp=0.012):
+    """Mix `riser` so its last sample lands on end_t. A riser longer than the time before end_t
+    is cut at the start, with a short ramp so the cut does not click; a drop near the end of the
+    bed never writes past it."""
+    end = min(int(round(end_t * sr)), len(y))
     start = end - len(riser)
     r = riser[max(0, -start):] * gain
+    r = r[:end - max(0, start)].astype(np.float64)
+    if start < 0:
+        n = min(int(ramp * sr), len(r))
+        r[:n] *= np.linspace(0, 1, n)
     start = max(0, start)
     if y.ndim == 2:
         r = r[:, None]
@@ -78,7 +85,10 @@ def main():
     a = ap.parse_args()
     pdir = Path(a.project_dir)
     project = load_project(pdir)
-    y, sr = sf.read(a.seed, always_2d=False)
+    try:
+        y, sr = sf.read(a.seed, always_2d=False)
+    except (OSError, RuntimeError) as e:
+        die(f"cannot read {a.seed}: {e}")
     n = int(round(project["duration"] * sr))
     if len(y) < n:
         die(f"{a.seed} is {len(y) / sr:.2f}s, shorter than the {project['duration']:g}s video")

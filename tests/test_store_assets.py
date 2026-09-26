@@ -41,8 +41,12 @@ def test_download_falls_back_to_original_on_404(tmp_path):
 def test_parse_play_exact_labels():
     got = sa.parse_play((FIXTURES / "play-en.html").read_text(), "en")
     assert got["contains_ads"] and got["in_app_purchases"] and got["description"] == "Does one thing & well."
+    assert got["title"] == "Example App"  # og:title "Example App - Apps on Google Play"
     noads = sa.parse_play((FIXTURES / "play-noads.html").read_text(), "en")
     assert "contains_ads" not in noads and noads["in_app_purchases"]
+    assert sa.strip_store_suffix("Example App - Apps on Google Play") == "Example App"
+    assert sa.strip_store_suffix("Dispensa - Lista spesa - App su Google Play") == "Dispensa - Lista spesa"
+    assert sa.strip_store_suffix("Example App") == "Example App"
     changed = sa.parse_play((FIXTURES / "play-changed.html").read_text(), "en")
     assert changed == {}  # no label, no title, no description: nothing guessed, nothing null
     assert "contains_ads" not in sa.parse_play((FIXTURES / "play-en.html").read_text(), "xx")

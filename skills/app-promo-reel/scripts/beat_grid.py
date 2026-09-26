@@ -85,8 +85,9 @@ def smooth(beats, half=4):
 
 
 def extend(beats, duration, lead=0.2, beats_past_end=8):
-    """Extrapolate whole beats so the grid covers 0-duration plus `beats_past_end` beats (two
-    bars of 4/4), so a template that addresses a bar ending just after the video still builds."""
+    """Extrapolate whole beats so the grid covers 0-duration plus `beats_past_end` beats.
+    analyse() passes four bars: the template's last scene starts on D(12) (build.py refuses a
+    scene after the end) and its end card addresses up to D(14), two bars later."""
     beats = list(beats)
     iv = float(np.median(np.diff(beats)))
     while beats[-1] < duration + beats_past_end * iv:
@@ -111,7 +112,7 @@ def analyse(y, sr, duration, bpb=4):
     hi, _ = band_envelope(y, sr, 2500)
     beats, shifted, on = phase_check(beats, kick, t_env)
     beats = smooth(refine(beats, kick, hi, t_env, on))
-    beats = extend(beats, duration, beats_past_end=2 * bpb)
+    beats = extend(beats, duration, beats_past_end=4 * bpb)
     rms = lambda b: float(np.sqrt(np.mean(y[int(b * sr):int(b * sr) + 2000] ** 2))) if b * sr < len(y) else 0.0
     strengths = [peak_near(kick, t_env, b) + 25 * rms(b) for b in beats]
     phase = downbeat_phase(strengths, bpb)
@@ -127,7 +128,10 @@ def main():
     audio, project_dir = sys.argv[1], Path(sys.argv[2])
     project = load_project(project_dir)
     import librosa
-    y, sr = librosa.load(audio, sr=SR, mono=True)
+    try:
+        y, sr = librosa.load(audio, sr=SR, mono=True)
+    except (OSError, RuntimeError, ValueError) as e:
+        die(f"cannot read {audio}: {e}")
     bpb = project["beats_per_bar"]
     beats, phase = analyse(y, sr, project["duration"], bpb)
     doc = {"beats": [round(float(b), 4) for b in beats], "downbeat_phase": phase,

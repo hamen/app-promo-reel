@@ -103,6 +103,11 @@ def _meta(page, attr, name):
     return html.unescape(m.group(1)) if m else None
 
 
+def strip_store_suffix(title):
+    """og:title is "Name - Apps on Google Play" (localised); keep the app name only."""
+    return re.sub(r"\s+[-\u2013\u2014]\s+[^-\u2013\u2014]*Google Play\s*$", "", title)
+
+
 def parse_play(page, lang):
     """Facts from a Play Store page. Labels only on an exact match; unknown lang -> no labels."""
     out = {}
@@ -111,7 +116,7 @@ def parse_play(page, lang):
         if value is None:
             log(f"note: Play {key} not found on the page (layout changed?); not written")
         else:
-            out[key] = value
+            out[key] = strip_store_suffix(value) if key == "title" else value
     labels = PLAY_LABELS.get(lang)
     if labels is None:
         log(f"note: no known Play label strings for lang {lang!r}; labels not checked")
