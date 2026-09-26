@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -28,6 +29,14 @@ def write_project(tmp_path, duration=30, stores=("app_store", "google_play"), bp
 
 def steady_grid(first=0.5, iv=0.5, n=70, phase=0):
     return {"beats": [round(first + i * iv, 4) for i in range(n)], "downbeat_phase": phase}
+
+
+@pytest.fixture(autouse=True)
+def no_git_env(monkeypatch):
+    """bin/ci runs inside the pre-push hook, where git exports GIT_DIR and friends. Tests that
+    run git (or scripts that do) must not act on this repository."""
+    for k in [k for k in os.environ if k.startswith("GIT_")]:
+        monkeypatch.delenv(k)
 
 
 @pytest.fixture
