@@ -105,7 +105,13 @@ def _meta(page, attr, name):
 
 def parse_play(page, lang):
     """Facts from a Play Store page. Labels only on an exact match; unknown lang -> no labels."""
-    out = {"title": _meta(page, "property", "og:title"), "description": _meta(page, "name", "description")}
+    out = {}
+    for key, attr, name in (("title", "property", "og:title"), ("description", "name", "description")):
+        value = _meta(page, attr, name)
+        if value is None:
+            log(f"note: Play {key} not found on the page (layout changed?); not written")
+        else:
+            out[key] = value
     labels = PLAY_LABELS.get(lang)
     if labels is None:
         log(f"note: no known Play label strings for lang {lang!r}; labels not checked")
@@ -149,15 +155,20 @@ def main(argv=None, fetch_fn=fetch):
         shots.mkdir(exist_ok=True)
         saved = []
         for i, s in enumerate(app["screenshots"], 1):
-            saved.append(str(download_screenshot(s, shots / f"{i:02d}.png", fetch_fn)))
+            try:
+                saved.append(str(download_screenshot(s, shots / f"{i:02d}.png", fetch_fn)))
+            except (urllib.error.URLError, OSError, ValueError) as e:
+                log(f"error: screenshot download failed ({s}: {e}); ask the user for screenshots or re-run")
+                return 2
         app["saved_screenshots"] = saved
         meta["app_store"] = app
 
     if a.play:
-        url = f"https://play.google.com/store/apps/details?id={a.play}&hl={a.lang}&gl={a.country.upper()}"
+        q = urllib.parse.urlencode({"id": a.play, "hl": a.lang, "gl": a.country.upper()})
+        url = f"https://play.google.com/store/apps/details?{q}"
         try:
             meta["google_play"] = {"package": a.play, **parse_play(fetch_fn(url).decode("utf-8", "replace"), a.lang)}
-        except urllib.error.URLError as e:
+        except (urllib.error.URLError, OSError, ValueError) as e:
             log(f"note: Play page fetch failed ({e}); no Play facts written")
 
     (out / "metadata.json").write_text(json.dumps(meta, indent=1, ensure_ascii=False) + "\n")

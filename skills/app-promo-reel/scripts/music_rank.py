@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 """Rank MusicGen seeds for a beat-synced reel.
 
-Per file: per-second RMS drop-outs, beat-interval sd, tempo wobble (largest deviation of a
-beat interval from the median), and the percussive-energy lift (the "drop"), if any.
+Per file: per-second RMS drop-outs, beat-interval sd, tempo wobble, and the percussive-energy lift (the "drop"), if any.
+Tempo wobble is the larger of two numbers, each a fraction of the median beat interval:
+  drift   the largest deviation of an interval of the SMOOTHED beats (the same local fit
+          beat_grid.py uses), so a slow tempo change counts but frame jitter does not;
+  glitch  the largest deviation of a RAW interval, minus the tracker's own error (two
+          analysis frames, 32 ms), so a stutter of one or two beats counts.
 A file is REJECTED when it has a drop-out, is shorter than the target duration, or wobbles.
 Ranking of accepted files: lowest wobble, then lowest interval sd.
 
@@ -14,9 +18,13 @@ import sys
 
 import numpy as np
 
+from beat_grid import smooth
+from common import die
+
 SR = 32000
 DROPOUT_RATIO = 0.15   # a second quieter than this fraction of the median second
 WOBBLE_MAX = 0.05      # 5 % tempo deviation
+TRACKER_ERROR = 2 * 512 / SR  # librosa beat times sit on 512-sample frames: +-1 frame each end
 LIFT_RATIO = 1.6       # percussive RMS after / before
 
 
@@ -37,8 +45,10 @@ def dropouts(y, sr):
 def beat_stats(beats):
     iv = np.diff(np.asarray(beats, dtype=float))
     med = float(np.median(iv))
+    drift = np.max(np.abs(np.diff(smooth(beats)) - med))
+    glitch = max(0.0, np.max(np.abs(iv - med)) - TRACKER_ERROR)
     return {"tempo": round(60 / med, 1), "interval_sd_ms": round(float(iv.std()) * 1000, 2),
-            "wobble": round(float(np.max(np.abs(iv - med)) / med), 4)}
+            "wobble": round(float(max(drift, glitch)) / med, 4)}
 
 
 def lift_time(perc, sr, win=0.5, span=2.0, min_t=4.0):
@@ -60,7 +70,10 @@ def lift_time(perc, sr, win=0.5, span=2.0, min_t=4.0):
 
 def rank_file(path, duration):
     import librosa
-    y, sr = librosa.load(path, sr=SR, mono=True)
+    try:
+        y, sr = librosa.load(path, sr=SR, mono=True)
+    except (OSError, RuntimeError, ValueError) as e:
+        die(f"cannot read {path}: {e}")
     length = len(y) / sr
     _, beats = librosa.beat.beat_track(y=y, sr=sr, units="time")
     stats = beat_stats(beats) if len(beats) > 8 else {"tempo": 0, "interval_sd_ms": 999, "wobble": 1.0}

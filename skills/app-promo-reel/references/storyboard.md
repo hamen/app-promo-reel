@@ -17,6 +17,7 @@ Rules:
 - One idea per scene. Text a viewer must read stays on screen ≥ 0.8 s (a sentence: ~0.3 s per
   word).
 - A different tempo means a different bar count: re-map the scenes, never squeeze text.
+  build.py fails when a scene would start after the end of the video.
 
 ## Drop placement
 
@@ -47,6 +48,9 @@ Keep volumes 0.25-0.85; the drop and the logo loudest.
 
 A cue's `at` is when the sound is HEARD: build.py skips the leading silence of each file
 (`"align": "attack"`, the default). Many stock SFX start with 50-400 ms of silence; without
-this, a pop on the beat sounds a tenth of a second late. finish.py reports cues that are
-"masked" (hidden under a louder sound, e.g. a pop inside the drop's impact tail): that is
-normal, but more than half masked fails the check.
+this, a pop on the beat sounds a tenth of a second late.
+
+finish.py checks every cue and fails on one it cannot find in the final audio ("masked").
+A cue placed under a louder sound on purpose (a pop inside the drop's impact tail, a spark
+under a whoosh) cannot be checked: mark it `"sync": false` with a `"why"` in cues.json. The
+template's cues.json already marks the ones it layers.

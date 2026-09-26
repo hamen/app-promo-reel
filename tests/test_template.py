@@ -7,17 +7,17 @@ import pytest
 from conftest import run_script, steady_grid
 
 
-def build(tmp_path, stores="app_store,google_play", edit=None):
+def build(tmp_path, stores="app_store,google_play", edit=None, grid=None, expect=0):
     out = tmp_path / "out"
     r = run_script("new_project.py", "--app", "demo", "--variant", "a", "--out", out, "--force", "--stores", stores)
     assert r.returncode == 0, r.stderr
     p = out / "demo-a"
-    (p / "beats.json").write_text(json.dumps(steady_grid(first=0.7, iv=0.5, n=64, phase=1)))
+    (p / "beats.json").write_text(json.dumps(grid or steady_grid(first=0.7, iv=0.5, n=64, phase=1)))
     if edit:
         edit(p)
     r = run_script("build.py", p)
-    assert r.returncode == 0, r.stderr
-    return p, (p / "index.html").read_text()
+    assert r.returncode == expect, r.stderr
+    return (p, (p / "index.html").read_text()) if expect == 0 else (p, r.stderr)
 
 
 def config_of(html):
@@ -69,3 +69,19 @@ def test_app_text_lives_only_in_config(tmp_path):
 def test_stores_come_from_project(tmp_path, stores):
     _, html = build(tmp_path, stores=stores)
     assert config_of(html)["stores"] == stores.split(",")
+
+
+def test_slow_tempo_still_builds_with_end_card_inside_the_video(tmp_path):
+    # 110 bpm, first downbeat at 1.0 s: bar 14 starts at 31.5 s, after the 30 s video
+    grid = steady_grid(first=1.0 - 4 * 0.5455, iv=0.5455, n=70, phase=4)
+    p, html = build(tmp_path, grid=grid)
+    starts = [float(x) for x in re.findall(r'<section[^>]*data-start="([\d.]+)"', html)]
+    assert max(starts) < 30
+    assert "const END = (t) => Math.min(t, DURATION - 0.6);" in html
+    assert re.search(r"END\(D\(14, 0\) - 0\.1\)\)", html)
+
+
+def test_scene_past_the_end_fails_the_build(tmp_path):
+    grid = steady_grid(first=0.5, iv=0.75, n=60, phase=0)  # 80 bpm: bar 12 starts at 36.5 s
+    _, err = build(tmp_path, grid=grid, expect=2)
+    assert "scenes outside the 30s video" in err and "s6" in err

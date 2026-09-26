@@ -79,7 +79,26 @@ def test_sound_missing_from_window_is_flagged(tmp_path, proj):
     assert finish.finish(proj, raw) == 1
     report = json.loads((proj / "renders" / "demo-a-v1-report.json").read_text())
     assert report["sync"][0]["flag"] == "masked"
-    assert any("cannot vouch" in p for p in report["problems"])
+    assert any("not found in the final audio" in p for p in report["problems"])
+
+
+def test_one_masked_cue_among_found_ones_fails(tmp_path, proj):
+    raw = make_raw_mp4(tmp_path)
+    realize(proj, [(t, True) for t in CLICKS] + [(2.0, True)])  # four found, one with no sound
+    assert finish.finish(proj, raw) == 1
+
+
+def test_cue_marked_unsynced_is_not_checked(tmp_path, proj):
+    raw = make_raw_mp4(tmp_path)
+    realize(proj, [(t, True) for t in CLICKS] + [(2.0, False)])
+    assert finish.finish(proj, raw) == 0
+
+
+def test_missing_realized_cues_exits_2(tmp_path, proj):
+    raw = make_raw_mp4(tmp_path)
+    with pytest.raises(SystemExit) as e:
+        finish.finish(proj, raw)
+    assert e.value.code == 2
 
 
 def test_no_cues_passes(tmp_path, proj):

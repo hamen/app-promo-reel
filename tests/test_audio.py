@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 import numpy as np
 import soundfile as sf
@@ -81,9 +82,9 @@ def test_refine_never_moves_more_than_the_window():
     assert out[0] == 2.0
 
 
-def test_extend_covers_duration():
+def test_extend_covers_duration_plus_two_bars():
     beats = bg.extend(np.arange(1.0, 10.0, 0.5), 30.0)
-    assert beats[0] <= 0.7 and beats[-1] >= 30.0
+    assert beats[0] <= 0.7 and beats[-1] >= 30.0 + 8 * 0.5
     assert np.allclose(np.diff(beats), 0.5)
 
 
@@ -108,10 +109,23 @@ def test_short_file_rejected(tmp_path):
 
 
 def test_tempo_wobble_flagged():
-    beats = list(np.arange(0, 10, 0.5))
-    beats[10:] = [b + 0.05 for b in beats[10:]]  # one interval 10 % long
+    beats = np.concatenate([np.arange(0, 10, 0.5), 10 + np.arange(0, 10, 0.55)])  # 120 -> 109 bpm
     assert mr.beat_stats(beats)["wobble"] > mr.WOBBLE_MAX
     assert mr.beat_stats(np.arange(0, 10, 0.5))["wobble"] < 0.001
+
+
+def test_one_beat_stutter_flagged():
+    beats = np.arange(0, 30, 0.5)
+    beats[46:] += 0.1  # one interval +20 %: too short for the smoothed drift to see
+    assert np.max(np.abs(np.diff(mr.smooth(beats)) - 0.5)) / 0.5 < mr.WOBBLE_MAX
+    assert mr.beat_stats(beats)["wobble"] > mr.WOBBLE_MAX
+
+
+def test_frame_jitter_is_not_wobble():
+    rng = np.random.default_rng(5)
+    beats = np.arange(0, 30, 0.5)
+    jittered = np.round((beats + rng.uniform(-0.008, 0.008, len(beats))) / 0.016) * 0.016
+    assert mr.beat_stats(jittered)["wobble"] < 0.02
 
 
 def test_lift_found_at_percussion_step():
@@ -184,3 +198,36 @@ def test_bed_has_exact_duration_and_drop(tmp_path):
     short = tmp_path / "short.wav"
     sf.write(short, np.zeros(9 * SR, dtype=np.float32), SR)
     assert run_script("make_bed.py", short, p).returncode == 2
+
+
+def test_beat_grid_main_writes_beats_json(tmp_path):
+    p = write_project(tmp_path, duration=20)
+    true = np.arange(0.5, 21.0, 0.5)
+    f = tmp_path / "clicks.wav"
+    sf.write(f, kick_track(true, 21.0), SR)
+    r = run_script("beat_grid.py", f, p)
+    assert r.returncode == 0, r.stderr
+    g = json.loads((p / "beats.json").read_text())
+    assert set(g) == {"beats", "downbeat_phase", "downbeats"}
+    assert g["downbeats"] == [round(b, 3) for b in g["beats"][g["downbeat_phase"]::4]]
+    assert g["beats"][-1] >= 20 + 8 * 0.49
+    assert abs(np.median(np.diff(g["beats"])) - 0.5) < 0.005
+
+
+def test_music_rank_main_orders_and_exits_1_when_all_rejected(tmp_path):
+    good = tmp_path / "good.wav"
+    sf.write(good, kick_track(np.arange(0.5, 21.0, 0.5), 21.0), SR)
+    bad = tmp_path / "bad.wav"
+    y = kick_track(np.arange(0.5, 21.0, 0.5), 21.0)
+    y[5 * SR:6 * SR] = 0
+    sf.write(bad, y, SR)
+    out = tmp_path / "rank.json"
+    r = run_script("music_rank.py", "--duration", "20", "--json", out, bad, good)
+    assert r.returncode == 0, r.stderr
+    ranked = json.loads(out.read_text())
+    assert [Path(x["file"]).name for x in ranked] == ["good.wav", "bad.wav"] and ranked[1]["rejected"]
+    assert run_script("music_rank.py", "--duration", "20", bad).returncode == 1
+    junk = tmp_path / "junk.wav"
+    junk.write_bytes(b"not audio")
+    r = run_script("music_rank.py", "--duration", "20", junk)
+    assert r.returncode == 2 and "Traceback" not in r.stderr

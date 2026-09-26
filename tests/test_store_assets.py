@@ -44,7 +44,7 @@ def test_parse_play_exact_labels():
     noads = sa.parse_play((FIXTURES / "play-noads.html").read_text(), "en")
     assert "contains_ads" not in noads and noads["in_app_purchases"]
     changed = sa.parse_play((FIXTURES / "play-changed.html").read_text(), "en")
-    assert "contains_ads" not in changed and "in_app_purchases" not in changed
+    assert changed == {}  # no label, no title, no description: nothing guessed, nothing null
     assert "contains_ads" not in sa.parse_play((FIXTURES / "play-en.html").read_text(), "xx")
 
 
@@ -83,3 +83,21 @@ def test_country_and_lang_are_separate(tmp_path):
     assert sa.main(["--out", str(tmp_path), "--app-store-id", "1", "--country", "de", "--lang", "en"], f) == 0
     assert "country=de" in urls[0] and "lang=en" in urls[0]
     assert len(list(Path(tmp_path, "screens").iterdir())) == 2
+
+
+def test_screenshot_download_error_exits_2(tmp_path):
+    def f(url):
+        if "itunes.apple.com" in url:
+            return (FIXTURES / "lookup.json").read_bytes()
+        raise urllib.error.URLError("network down")
+    assert sa.main(["--out", str(tmp_path), "--app-store-id", "1"], f) == 2
+
+
+def test_play_package_is_url_encoded(tmp_path):
+    urls = []
+
+    def f(url):
+        urls.append(url)
+        return (FIXTURES / "play-en.html").read_bytes()
+    sa.main(["--out", str(tmp_path), "--play", "com.x&hl=zz"], f)
+    assert "id=com.x%26hl%3Dzz" in urls[0] and urls[0].count("hl=") == 1

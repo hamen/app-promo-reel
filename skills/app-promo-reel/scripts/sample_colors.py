@@ -9,6 +9,7 @@ Prints {"screen_bg": "#F7FBF2", ...}.
 """
 import argparse
 import json
+import sys
 
 import numpy as np
 from PIL import Image
@@ -37,7 +38,11 @@ def main():
     a = ap.parse_args()
     with open(a.points) as f:
         points = json.load(f)
-    print(json.dumps(sample(Image.open(a.image), points, a.box), indent=1))
+    try:
+        print(json.dumps(sample(Image.open(a.image), points, a.box), indent=1))
+    except ValueError as e:
+        print(f"error: {e}", file=sys.stderr)
+        sys.exit(2)
 
 
 if __name__ == "__main__":

@@ -28,15 +28,25 @@ TEMPLATE = SKILL_DIR / "template"
 AUDIO_EXT = {".mp3", ".wav", ".ogg", ".m4a", ".flac"}
 
 
-def git_toplevel(path):
+def _git(path, *args):
     p = Path(path).resolve()
     while not p.exists():
         p = p.parent
     # a caller's GIT_DIR / GIT_WORK_TREE (e.g. inside a git hook) would answer for the wrong repo
     env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
-    r = subprocess.run(["git", "-C", str(p), "rev-parse", "--show-toplevel"], capture_output=True, text=True,
-                       env=env)
-    return Path(r.stdout.strip()).resolve() if r.returncode == 0 else None
+    r = subprocess.run(["git", "-C", str(p), *args], capture_output=True, text=True, env=env)
+    return r.stdout.strip() if r.returncode == 0 else None
+
+
+def git_toplevel(path):
+    top = _git(path, "rev-parse", "--show-toplevel")
+    return Path(top).resolve() if top else None
+
+
+def repo_root(path):
+    """The main checkout of the repo that holds `path`, also when `path` is in a linked worktree."""
+    common = _git(path, "rev-parse", "--path-format=absolute", "--git-common-dir")
+    return Path(common).resolve().parent if common else None
 
 
 def is_inside(child, parent):
@@ -48,7 +58,7 @@ def is_inside(child, parent):
 
 
 def check_out_dir(out, force):
-    repo = git_toplevel(SKILL_DIR)
+    repo = repo_root(SKILL_DIR)
     if repo and is_inside(out, repo):
         die(f"{out} is inside the app-promo-reel repo ({repo}); pick a folder outside it")
     top = git_toplevel(out)

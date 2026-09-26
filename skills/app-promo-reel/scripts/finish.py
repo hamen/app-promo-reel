@@ -12,8 +12,9 @@
 5. Sync report: for each cue in cues.realized.json (the cues build.py actually mixed) with
    "sync": true, the cue's own sound is located within +-150 ms by a matched filter
    (normalised cross-correlation with the SFX file) on the final audio minus the music bed.
-   A found cue more than one frame off fails the check. A cue not found is "masked" (under
-   a louder sound) and is reported; fewer than half of the cues found fails the check.
+   A found cue more than one frame off fails the check, and so does a cue that is not found
+   ("masked": under a louder sound, or missing). A cue that is meant to sit under a louder
+   sound is marked "sync": false in cues.json and is not checked.
 6. Contact sheet of frames from the final MP4.
 
 Any failed check exits 1 and renames the output to ...-v<N>-failed.mp4.
@@ -41,11 +42,13 @@ MAX_LAG = 0.005
 SYNC_WINDOW = 0.150
 TEMPLATE_LEN = 0.25  # seconds of each SFX used as the matched-filter template
 MIN_MATCH = 0.2      # normalised correlation below this = the sound is not in the window
-MIN_FOUND = 0.5      # fewer cues found than this fraction = the sync check cannot vouch
 
 
 def run(cmd):
-    return subprocess.run(cmd, capture_output=True, text=True, check=True)
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    if r.returncode:
+        die(f"{cmd[0]} failed ({' '.join(map(str, cmd[1:6]))} ...):\n{r.stderr[-800:]}")
+    return r
 
 
 def next_version_path(renders, stem):
@@ -143,7 +146,10 @@ def sync_report(y, realized, fps, project_dir, sr=SR):
         if not cue.get("sync", True):
             continue
         if cue["file"] not in templates:
-            snd = decode_audio(Path(project_dir) / cue["file"], sr)
+            path = Path(project_dir) / cue["file"]
+            if not path.is_file():
+                die(f"{path} (cue {cue['id']}) is gone since build.py ran; rebuild and render again")
+            snd = decode_audio(path, sr)
             lead = attack_index(snd)
             templates[cue["file"]] = (snd[lead:lead + int(TEMPLATE_LEN * sr)], lead / sr)
         tmpl, lead = templates[cue["file"]]
@@ -158,10 +164,9 @@ def sync_report(y, realized, fps, project_dir, sr=SR):
                      "flag": "off by more than one frame" if abs(delta) > frame else None})
     problems = [f"cue {r['id']} at {r['time']:.3f}s: off by more than one frame ({r['delta_ms']:+.1f} ms)"
                 for r in rows if r["flag"] == "off by more than one frame"]
-    found = [r for r in rows if r["found"] is not None]
-    if rows and len(found) < MIN_FOUND * len(rows):
-        problems.append(f"only {len(found)} of {len(rows)} cues found in the final audio; the sync check "
-                        f"cannot vouch for this file (masked: {[r['id'] for r in rows if r['found'] is None]})")
+    problems += [f"cue {r['id']} at {r['time']:.3f}s: not found in the final audio (masked by a louder sound, "
+                 f"or missing). If it is meant to sit under a louder sound, set \"sync\": false on it in "
+                 f"cues.json and rebuild" for r in rows if r["flag"] == "masked"]
     return rows, problems
 
 
@@ -193,7 +198,9 @@ def finish(project_dir, raw_mp4, frames=None):
     if not raw_mp4.is_file():
         die(f"{raw_mp4} not found")
     realized_path = pdir / "cues.realized.json"
-    realized = json.loads(realized_path.read_text()) if realized_path.is_file() else []
+    if not realized_path.is_file():
+        die(f"{realized_path} not found: run build.py before finish.py")
+    realized = json.loads(realized_path.read_text())
     renders = pdir / "renders"
     renders.mkdir(exist_ok=True)
     stem = f"{project['app']}-{project['variant']}"
@@ -244,8 +251,8 @@ def finish(project_dir, raw_mp4, frames=None):
         found = [r for r in rows if r["delta_ms"] is not None]
         worst = max((abs(r["delta_ms"]) for r in found), default=0)
         masked = [r["id"] for r in rows if r["delta_ms"] is None]
-        print(f"sync: {len(found)} of {len(rows)} cues found, worst {worst:.1f} ms"
-              + (f"; masked by louder sounds: {', '.join(masked)}" if masked else ""))
+        print(f"sync: {len(found)} of {len(rows)} checked cues found, worst {worst:.1f} ms"
+              + (f"; not found: {', '.join(masked)}" if masked else ""))
         late = {r["file"]: r["lead_ms"] for r in rows
                 if r.get("align") == "start" and r["lead_ms"] > 1000 / project["fps"]}
         for f, ms in late.items():

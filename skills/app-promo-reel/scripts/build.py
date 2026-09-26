@@ -24,6 +24,7 @@ file starts at `at`; "end": the sound ends at `at`, e.g. a riser tail into the d
 Usage: build.py <project_dir>
 """
 import ast
+import html
 import json
 import operator
 import re
@@ -129,6 +130,8 @@ def sfx_tags(project_dir, cues_doc, grid, duration, durations=None):
     durations = {} if durations is None else durations
     for cue in cues_doc.get("cues", []):
         cid, key = cue["id"], cue["sfx"]
+        if not re.fullmatch(r"[A-Za-z0-9_-]+", str(cid)):
+            die(f"cue id {cid!r} must use only letters, digits, - and _")
         if key not in files:
             die(f"cue {cid!r} uses sfx {key!r}, which is not in the cues.json sfx map")
         path = audio_dir / files[key]
@@ -159,12 +162,23 @@ def sfx_tags(project_dir, cues_doc, grid, duration, durations=None):
         track_end[track] = t + d
         vol = float(cue.get("volume", 0.5))
         rel = f"assets/audio/{files[key]}"
-        lines.append(f'      <audio id="sfx-{cid}" src="{rel}" data-start="{t:.3f}" data-duration="{d:.3f}" '
+        lines.append(f'      <audio id="sfx-{cid}" src="{html.escape(rel, quote=True)}" data-start="{t:.3f}" data-duration="{d:.3f}" '
                      f'data-track-index="{track}" data-volume="{vol:g}"></audio>')
         sync = bool(cue.get("sync", align != "end"))
         realized.append({"id": cid, "file": rel, "time": round(t, 4), "volume": vol, "track": track,
                          "align": align, "sync": sync})
     return lines, realized
+
+
+def check_scenes(html_out, duration):
+    """Every clip must start inside the video: a scene past the end is silently never shown."""
+    bad = []
+    for m in re.finditer(r'<section[^>]*\bid="([^"]+)"[^>]*\bdata-start="([-\d.]+)"', html_out):
+        if not 0 <= float(m.group(2)) < duration:
+            bad.append(f"{m.group(1)} at {float(m.group(2)):.2f}s")
+    if bad:
+        die(f"scenes outside the {duration:g}s video: {', '.join(bad)}. The storyboard needs fewer bars at "
+            f"this tempo/duration: re-map the scenes (references/storyboard.md)")
 
 
 def build(project_dir):
@@ -184,6 +198,7 @@ def build(project_dir):
         out = out.replace("<!--SFX-->", "\n".join(lines).lstrip() if lines else "")
     elif lines:
         die("src.html.tmpl has no <!--SFX--> marker for the SFX tags")
+    check_scenes(out, project["duration"])
     (project_dir / "index.html").write_text(out)
     (project_dir / "cues.realized.json").write_text(json.dumps(realized, indent=1) + "\n")
     print(f"built {project_dir / 'index.html'}: {len(realized)} SFX cues mixed; downbeats "

@@ -74,6 +74,7 @@ $PY $S/finish.py $P renders/raw.mp4
 ```
 finish.py: two-pass loudnorm to -14 LUFS / -2 dBTP (linear), A/V lag check on the PCM before
 AAC (< 5 ms), video stream copied and compared, sync report (each cue's own sound located by a
-matched filter within ±150 ms on the audio minus the bed; fail on a found cue > 1 frame off, or
-fewer than half of the cues found), contact sheet, versioned output that never overwrites. Exit 1 → output renamed
+matched filter within ±150 ms on the audio minus the bed; fail on a cue > 1 frame off, or on
+any checked cue not found — mark a cue that sits under a louder sound `"sync": false` in
+cues.json), contact sheet, versioned output that never overwrites. Exit 1 → output renamed
 `…-v<N>-failed.mp4` and the report lists the problems.

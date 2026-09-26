@@ -31,6 +31,9 @@ def load_project(project_dir):
     if not path.is_file():
         die(f"{path} not found (is this a project folder made by new_project.py?)")
     data = {**PROJECT_DEFAULTS, **json.loads(path.read_text())}
+    missing = [k for k in ("app", "variant") if not data.get(k)]
+    if missing:
+        die(f"{path} has no {' / '.join(missing)}")
     data["duration"] = float(data["duration"])
     bad = [s for s in data["stores"] if s not in KNOWN_STORES]
     if bad or not data["stores"]:
@@ -68,10 +71,11 @@ class Grid:
 
 def media_duration(path):
     """Duration in seconds of an audio or video file, read with ffprobe."""
-    out = subprocess.run(
-        ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "json", str(path)],
-        capture_output=True, text=True, check=True).stdout
-    return float(json.loads(out)["format"]["duration"])
+    r = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "json", str(path)],
+                       capture_output=True, text=True)
+    if r.returncode:
+        die(f"ffprobe could not read {path}:\n{r.stderr[-400:]}")
+    return float(json.loads(r.stdout)["format"]["duration"])
 
 
 def decode_audio(path, sr, mono=True):
@@ -81,8 +85,10 @@ def decode_audio(path, sr, mono=True):
     if mono:
         cmd += ["-ac", "1"]
     cmd.append("-")
-    raw = subprocess.run(cmd, capture_output=True, check=True).stdout
-    return np.frombuffer(raw, dtype=np.float32).copy()
+    r = subprocess.run(cmd, capture_output=True)
+    if r.returncode:
+        die(f"ffmpeg could not decode {path}:\n{r.stderr.decode(errors='replace')[-600:]}")
+    return np.frombuffer(r.stdout, dtype=np.float32).copy()
 
 
 def attack_index(snd, rel=0.05):

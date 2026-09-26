@@ -22,7 +22,7 @@ MODEL = "facebook/musicgen-small"
 FRAME_RATE = 50          # musicgen audio tokens per second
 HEADROOM = 1.2           # extra seconds generated past the video length
 MAX_TOKENS = 1560        # the longest generation this script accepts (31.2 s)
-LOCK = Path(tempfile.gettempdir()) / "app-promo-reel-music-gen.lock"
+LOCK = Path(tempfile.gettempdir()) / f"app-promo-reel-music-gen-{os.getuid()}.lock"
 
 
 def fail(msg):
@@ -51,11 +51,17 @@ def main(argv=None):
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
 
-    lock = open(LOCK, "w")
     try:
+        lock = open(LOCK, "a")
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except BlockingIOError:
         fail(f"another music_gen.py is running (lock {LOCK}); run one at a time")
+    except OSError as e:
+        fail(f"cannot use the lock file {LOCK}: {e}")
+
+    # an old bgm_<seed>.wav from an earlier run must not survive a failure and get ranked
+    for seed in seeds:
+        (out / f"bgm_{seed}.wav").unlink(missing_ok=True)
 
     try:
         import soundfile as sf

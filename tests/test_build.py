@@ -92,3 +92,13 @@ def test_build_without_sfx_succeeds_and_realizes_nothing(project):
     assert "skipping cue 'x'" in r.stderr
     assert json.loads((project / "cues.realized.json").read_text()) == []
     assert "{{" not in (project / "index.html").read_text()
+
+
+def test_bad_cue_id_exits_2(tmp_path):
+    audio = tmp_path / "assets" / "audio"
+    audio.mkdir(parents=True)
+    tone_file(audio / "a.wav")
+    with pytest.raises(SystemExit) as e:
+        sfx_tags(tmp_path, {"sfx": {"a": "a.wav"}, "cues": [{"id": 'x" onload="y', "sfx": "a", "at": "D(0)"}]},
+                 GRID, 30.0)
+    assert e.value.code == 2

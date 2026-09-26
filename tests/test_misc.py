@@ -41,7 +41,7 @@ def test_new_project_ignores_a_callers_git_dir(tmp_path):
 
 def test_new_project_always_refuses_its_own_repo():
     inside = new_project.SKILL_DIR / "reels-test-should-not-exist"
-    if new_project.git_toplevel(new_project.SKILL_DIR) is None:
+    if new_project.repo_root(new_project.SKILL_DIR) is None:
         pytest.skip("skill is not inside a git checkout")
     try:
         r = run_script("new_project.py", "--app", "x", "--variant", "a", "--out", inside, "--force")
@@ -85,3 +85,49 @@ def test_music_gen_without_torch_exits_2(tmp_path, monkeypatch):
         music_gen.main(["--prompt", "x", "--duration", "30", "--seeds", "1", "--out", str(tmp_path / "o")])
     assert e.value.code == 2
     assert not list((tmp_path / "o").glob("*.wav"))
+
+
+def test_sample_colors_cli_rejects_absolute_coords(tmp_path):
+    img = tmp_path / "i.png"
+    Image.new("RGB", (100, 200), "#123456").save(img)
+    pts = tmp_path / "p.json"
+    pts.write_text('{"x": [50, 20]}')
+    r = run_script("sample_colors.py", img, pts)
+    assert r.returncode == 2 and "0-1" in r.stderr and "Traceback" not in r.stderr
+
+
+def test_music_gen_removes_stale_seed_files_on_failure(tmp_path, monkeypatch):
+    out = tmp_path / "o"
+    out.mkdir()
+    (out / "bgm_1.wav").write_bytes(b"old")
+    (out / "bgm_9.wav").write_bytes(b"other seed")
+    monkeypatch.setitem(sys.modules, "torch", None)
+    monkeypatch.setattr(music_gen, "LOCK", tmp_path / "lock")
+    with pytest.raises(SystemExit):
+        music_gen.main(["--prompt", "x", "--duration", "30", "--seeds", "1", "--out", str(out)])
+    assert not (out / "bgm_1.wav").exists() and (out / "bgm_9.wav").exists()
+
+
+def test_music_gen_second_process_exits_2(tmp_path, monkeypatch):
+    import fcntl
+    lock = tmp_path / "lock"
+    monkeypatch.setattr(music_gen, "LOCK", lock)
+    with open(lock, "a") as held:
+        fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        r = subprocess.run([sys.executable, "-c",
+                            "import sys, music_gen; from pathlib import Path; "
+                            f"music_gen.LOCK = Path({str(lock)!r}); "
+                            f"music_gen.main(['--prompt', 'x', '--duration', '30', '--seeds', '1', '--out', {str(tmp_path / 'o')!r}])"],
+                           capture_output=True, text=True, cwd=str(music_gen.__file__.rsplit('/', 1)[0]))
+    assert r.returncode == 2 and "another music_gen.py is running" in r.stderr
+
+
+def test_repo_root_from_a_linked_worktree(tmp_path):
+    main = tmp_path / "main"
+    subprocess.run(["git", "init", "-q", str(main)], check=True)
+    subprocess.run(["git", "-C", str(main), "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q",
+                    "--allow-empty", "-m", "x"], check=True)
+    wt = main / ".claude" / "worktrees" / "w"
+    subprocess.run(["git", "-C", str(main), "worktree", "add", "-q", str(wt)], check=True)
+    assert new_project.repo_root(wt) == main.resolve()
+    assert new_project.is_inside(main / "reels", new_project.repo_root(wt))
