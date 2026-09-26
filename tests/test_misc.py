@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import subprocess
 import sys
 
@@ -35,9 +36,12 @@ def test_new_project_always_refuses_its_own_repo():
     inside = new_project.SKILL_DIR / "reels-test-should-not-exist"
     if new_project.git_toplevel(new_project.SKILL_DIR) is None:
         pytest.skip("skill is not inside a git checkout")
-    r = run_script("new_project.py", "--app", "x", "--variant", "a", "--out", inside, "--force")
-    assert r.returncode == 2 and "app-promo-reel repo" in r.stderr
-    assert not inside.exists()
+    try:
+        r = run_script("new_project.py", "--app", "x", "--variant", "a", "--out", inside, "--force")
+        assert r.returncode == 2 and "app-promo-reel repo" in r.stderr
+        assert not inside.exists()
+    finally:
+        shutil.rmtree(inside, ignore_errors=True)
 
 
 def test_new_project_copies_sfx_and_works_without(tmp_path):

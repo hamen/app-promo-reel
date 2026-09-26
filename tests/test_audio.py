@@ -151,6 +151,17 @@ def test_lift_window_high_passes_and_has_no_clicks():
         assert np.max(np.abs(np.diff(seg))) <= typical * 1.2
 
 
+def test_lift_edges_are_ramped_on_low_frequency_material():
+    sr = 32000
+    t = np.arange(10 * sr) / sr
+    y = 0.5 * np.sin(2 * np.pi * 50 * t)  # almost nothing survives the 600 Hz high-pass
+    a, b = 3 * sr, 5 * sr
+    out = mb.apply_lift(y, sr, a, b)
+    step = np.max(np.abs(np.diff(y)))
+    for edge in (a, b):
+        assert np.max(np.abs(np.diff(out[edge - 50:edge + 50]))) < 3 * step
+
+
 def test_lift_window_outside_bed_is_refused(tmp_path):
     p = write_project(tmp_path, duration=10)
     (p / "beats.json").write_text(json.dumps(steady_grid()))

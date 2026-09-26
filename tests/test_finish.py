@@ -94,3 +94,19 @@ def test_lag_detects_a_shift():
     b = np.concatenate([np.zeros(480), a[:-480]])  # 10 ms late
     assert abs(finish.lag_seconds(a, b) - 0.010) < 1e-4
     assert finish.lag_seconds(a, a) == 0
+
+
+def test_loudnorm_that_moves_audio_fails(tmp_path, proj, monkeypatch):
+    raw = make_raw_mp4(tmp_path)
+    realize(proj, [])
+    real = finish.loudnorm
+
+    def shifted(src, dst):
+        meas = real(src, dst)
+        y, sr = sf.read(dst)
+        sf.write(dst, np.concatenate([np.zeros((480, y.shape[1])), y[:-480]]), sr, subtype="PCM_16")
+        return meas
+    monkeypatch.setattr(finish, "loudnorm", shifted)
+    assert finish.finish(proj, raw) == 1
+    report = json.loads((proj / "renders" / "demo-a-v1-report.json").read_text())
+    assert any("loudnorm moved audio" in x for x in report["problems"])
