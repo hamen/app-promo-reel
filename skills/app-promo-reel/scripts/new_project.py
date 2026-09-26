@@ -32,7 +32,10 @@ def git_toplevel(path):
     p = Path(path).resolve()
     while not p.exists():
         p = p.parent
-    r = subprocess.run(["git", "-C", str(p), "rev-parse", "--show-toplevel"], capture_output=True, text=True)
+    # a caller's GIT_DIR / GIT_WORK_TREE (e.g. inside a git hook) would answer for the wrong repo
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+    r = subprocess.run(["git", "-C", str(p), "rev-parse", "--show-toplevel"], capture_output=True, text=True,
+                       env=env)
     return Path(r.stdout.strip()).resolve() if r.returncode == 0 else None
 
 

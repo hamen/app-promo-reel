@@ -32,6 +32,13 @@ def test_new_project_refuses_git_tree_without_force(tmp_path):
     assert r.returncode == 0, r.stderr
 
 
+def test_new_project_ignores_a_callers_git_dir(tmp_path):
+    subprocess.run(["git", "init", "-q", str(tmp_path / "other")], check=True)
+    env = {**os.environ, "GIT_DIR": str(tmp_path / "other" / ".git")}  # as inside a git hook
+    r = run_script("new_project.py", "--app", "x", "--variant", "a", "--out", tmp_path / "plain", env=env)
+    assert r.returncode == 0, r.stderr
+
+
 def test_new_project_always_refuses_its_own_repo():
     inside = new_project.SKILL_DIR / "reels-test-should-not-exist"
     if new_project.git_toplevel(new_project.SKILL_DIR) is None:
