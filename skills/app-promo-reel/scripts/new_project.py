@@ -8,7 +8,7 @@ in it are COPIED (not linked) into assets/audio/ so the renderer sees real files
 The default <out> is ~/app-promo-reels. An <out> inside a git work tree is refused unless
 --force; an <out> inside the app-promo-reel repo itself is always refused.
 
-Usage: new_project.py --app smart-pantry --variant a [--out DIR] [--lang en]
+Usage: new_project.py --app my-app --variant a [--out DIR] [--lang en]
                       [--stores app_store,google_play] [--duration 30] [--force]
 """
 import argparse
