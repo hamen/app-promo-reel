@@ -133,20 +133,6 @@
         opacity: 0;
         pointer-events: none;
       }
-      #ai-label {
-        position: absolute;
-        right: 44px;
-        bottom: 40px;
-        z-index: 100;
-        padding: 10px 22px;
-        border-radius: 999px;
-        background: rgba(0, 0, 0, 0.62);
-        border: 1px solid rgba(255, 255, 255, 0.35);
-        font-size: 24px;
-        font-weight: 700;
-        letter-spacing: 0.04em;
-        color: #ffffff;
-      }
 
       /* ---------- shared ---------- */
       .scene {
@@ -574,7 +560,7 @@
       </section>
 
       <div id="flash"></div>
-      <div id="ai-label" data-cfg="aiLabel"></div>
+      <!-- the AI-generated label (CONFIG.aiLabel) is added by build.py's script at the end of the page -->
 
       <audio id="bgm" src="assets/audio/bgm.wav" data-start="0" data-duration="{{DURATION}}" data-track-index="20" data-volume="1"></audio>
       <!--SFX-->

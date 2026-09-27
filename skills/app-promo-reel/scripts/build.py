@@ -28,8 +28,8 @@ import html
 import json
 import operator
 import re
+import secrets
 import sys
-from html.parser import HTMLParser
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -213,47 +213,46 @@ def check_scenes(html_out, duration):
             f"this tempo/duration: re-map the scenes (references/storyboard.md)")
 
 
-class _LiveTags(HTMLParser):
-    """Start tags of the parsed page: markup inside <!-- comments --> is not an element."""
-
-    def __init__(self):
-        super().__init__()
-        self.tags = []
-
-    def handle_starttag(self, tag, attrs):
-        self.tags.append(dict(attrs))
-
-
-# Injected by build.py as the LAST script of the page, so no template edit can remove, comment out
-# or reorder it. It runs after the template's scripts have filled the page from CONFIG, and throws
-# (hyperframes check: page_error; render: nothing) when the label is missing, empty or not visible.
+# Injected by build.py as the LAST script of the page. The label is not part of the template: this
+# script creates it from CONFIG.aiLabel, with an id drawn at build time (no Math.random in the page:
+# HyperFrames needs deterministic scripts) that no template rule or tween can know, and
+# every visual property inline !important (which no stylesheet rule overrides), as the last child
+# of the composition root. It then checks the label's box and every ancestor, and throws
+# (hyperframes check: page_error; render: nothing) when the label would not be seen.
 AI_LABEL_GUARD = r"""<script data-ai-label-guard>
 (() => {
-  const fail = (why) => { throw new Error(`the AI-generated label (#ai-label) ${why}: it must stay on screen`); };
-  const el = document.getElementById("ai-label");
-  if (!el || !el.textContent.trim()) fail("is missing or empty");
-  // the runtime hides every [data-start] element with !important until its first seek, so the
-  // label inherits visibility: hidden at load: show its ancestors for one synchronous read of
-  // the label's own style and box, then restore each exactly
-  const saved = [];
-  for (let n = el.parentElement; n; n = n.parentElement) {
-    saved.push([n.style, n.style.getPropertyValue("visibility"), n.style.getPropertyPriority("visibility")]);
-    n.style.setProperty("visibility", "visible", "important");
+  const fail = (why) => { throw new Error(`the AI-generated label ${why}: it must stay on screen`); };
+  const text = typeof CONFIG === "object" && CONFIG !== null ? CONFIG.aiLabel : undefined;
+  if (typeof text !== "string" || !text.trim()) fail("(CONFIG.aiLabel) is missing or empty");
+  const root = document.querySelector("[data-composition-id]");
+  if (!root) fail("has no composition root to sit in");
+  const el = document.createElement("div");
+  el.id = "__AI_LABEL_ID__";
+  el.textContent = text;
+  const look = {
+    display: "block", position: "absolute", right: "44px", bottom: "40px", "z-index": "2147483647",
+    margin: "0", padding: "10px 22px", "border-radius": "999px", background: "rgba(0, 0, 0, 0.62)",
+    border: "1px solid rgba(255, 255, 255, 0.35)", color: "#ffffff", "font-family": "var(--font, system-ui, sans-serif)",
+    "font-size": "24px", "font-weight": "700", "letter-spacing": "0.04em", "line-height": "1.25",
+    "white-space": "nowrap", visibility: "visible", opacity: "1", transform: "none", filter: "none",
+    "clip-path": "none", "pointer-events": "none",
+  };
+  for (const [k, v] of Object.entries(look)) el.style.setProperty(k, v, "important");
+  root.appendChild(el);
+  // the label's own inline visibility: visible wins over any hidden ancestor (the runtime hides
+  // [data-start] elements until its first seek), so ancestors can only hide it by display,
+  // opacity, filter or clip-path: check each one up to <html>
+  const dim = (filter) => [...filter.matchAll(/(opacity|brightness)\(\s*([\d.]+)(%?)\s*\)/g)]
+    .reduce((f, m) => f * (parseFloat(m[2]) / (m[3] ? 100 : 1)), 1);
+  let opacity = 1;
+  for (let n = el; n; n = n.parentElement) {
+    const cs = getComputedStyle(n);
+    if (cs.display === "none") fail("sits in an element with display: none");
+    if (cs.clipPath !== "none") fail("is clipped");
+    opacity *= parseFloat(cs.opacity) * dim(cs.filter);
   }
-  const live = getComputedStyle(el);  // a live object: copy the values before the restore below
-  const cs = { display: live.display, visibility: live.visibility, opacity: live.opacity, clipPath: live.clipPath,
-               fontSize: live.fontSize, color: live.color };
-  const box = el.getBoundingClientRect();
-  const root = el.closest("[data-composition-id]") || document.documentElement;
-  const frame = root.getBoundingClientRect();
-  const alpha = parseFloat((cs.color.match(/rgba?\(([^)]*)\)/) || ["", "0,0,0,0"])[1].split(/[ ,/]+/)[3] ?? "1");
-  for (const [style, value, priority] of saved) {
-    if (value) style.setProperty("visibility", value, priority);
-    else style.removeProperty("visibility");
-  }
-  if (cs.display === "none" || cs.visibility === "hidden" || parseFloat(cs.opacity) < 0.5) fail("is hidden");
-  if (cs.clipPath !== "none") fail("is clipped");
-  if (parseFloat(cs.fontSize) < 16 || alpha < 0.5) fail("text is too small or transparent");
+  if (opacity < 0.5) fail("is faded out (opacity or filter of the label and its ancestors)");
+  const box = el.getBoundingClientRect(), frame = root.getBoundingClientRect();
   if (box.width < 1 || box.height < 1 || box.left < frame.left || box.top < frame.top ||
       box.right > frame.right || box.bottom > frame.bottom) fail("is not fully inside the frame");
 })();
@@ -262,13 +261,8 @@ AI_LABEL_GUARD = r"""<script data-ai-label-guard>
 
 
 def check_ai_label(html_out):
-    """The AI-generated label (EU AI Act) must be in the page and non-empty. Static half: the
-    parsed page (a commented-out element is not one) and CONFIG.aiLabel. Runtime half: the
-    AI_LABEL_GUARD that add_ai_label_guard() puts at the end of the page."""
-    parser = _LiveTags()
-    parser.feed(html_out)
-    if not any(a.get("id") == "ai-label" and a.get("data-cfg") == "aiLabel" for a in parser.tags):
-        die('the page has no <div id="ai-label" data-cfg="aiLabel">: the AI-generated label must stay in the video')
+    """Static half of the AI-generated label (EU AI Act): CONFIG.aiLabel must be a non-empty
+    string. The runtime half, AI_LABEL_GUARD, creates the label and checks it can be seen."""
     m = re.search(r'"aiLabel"\s*:\s*"((?:[^"\\]|\\.)*)"', html_out)
     if not m or not m.group(1).strip():
         die("CONFIG.aiLabel is missing or empty: the AI-generated label must stay on screen (SKILL.md rule 7)")
@@ -278,7 +272,8 @@ def add_ai_label_guard(html_out):
     end = html_out.rfind("</body>")
     if end < 0:
         die("the page has no </body>: build.py puts the AI-generated label check just before it")
-    return html_out[:end] + AI_LABEL_GUARD + html_out[end:]
+    guard = AI_LABEL_GUARD.replace("__AI_LABEL_ID__", "ai-label-" + secrets.token_hex(6))
+    return html_out[:end] + guard + html_out[end:]
 
 
 def build(project_dir):

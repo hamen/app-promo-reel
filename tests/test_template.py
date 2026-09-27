@@ -101,8 +101,6 @@ def test_slow_tempo_fails_the_build_with_the_re_map_message(tmp_path, bpm, first
     lambda s: s.replace('"aiLabel": "AI-generated"', '"aiLabel": ""'),
     lambda s: s.replace('"aiLabel": "AI-generated"', '"aiLabel": "   "'),
     lambda s: s.replace('"aiLabel": "AI-generated"', '"aiText": "AI-generated"'),
-    lambda s: s.replace('<div id="ai-label" data-cfg="aiLabel"></div>', ""),
-    lambda s: s.replace('<div id="ai-label" data-cfg="aiLabel"></div>', '<!-- <div id="ai-label" data-cfg="aiLabel"></div> -->'),
 ])
 def test_ai_label_cannot_be_removed(tmp_path, edit):
     def change(p):
@@ -118,12 +116,18 @@ def test_build_puts_the_label_guard_last_in_the_page(tmp_path):
     _, html = build(tmp_path)
     guard = html[html.index("<script data-ai-label-guard>"):]
     assert guard.index("</script>") < guard.index("</body>") and "<script" not in guard[8:guard.index("</body>")]
-    for check in ("!el.textContent.trim()", 'cs.display === "none"', 'cs.visibility === "hidden"',
-                  "parseFloat(cs.opacity) < 0.5", 'cs.clipPath !== "none"', "parseFloat(cs.fontSize) < 16",
-                  "alpha < 0.5", "box.right > frame.right", 'n.style.setProperty("visibility", "visible", "important")',
-                  "const cs = { display: live.display, visibility: live.visibility",
-                  'style.removeProperty("visibility")'):
+    for check in ('typeof text !== "string" || !text.trim()', 'el.id = "ai-label-',
+                  'el.style.setProperty(k, v, "important")', '"z-index": "2147483647"', 'visibility: "visible"',
+                  "root.appendChild(el)", 'cs.display === "none"', 'cs.clipPath !== "none"',
+                  "opacity *= parseFloat(cs.opacity) * dim(cs.filter)", "opacity < 0.5", "box.right > frame.right"):
         assert check in guard, check
+
+
+def test_the_template_does_not_own_the_label(tmp_path):
+    # a template element or CSS rule for the label could hide it: the page script makes it
+    _, html = build(tmp_path)
+    body = html[:html.index("<script data-ai-label-guard>")]
+    assert 'id="ai-label' not in body and "#ai-label" not in body
 
 
 def test_template_cannot_disable_the_guard(tmp_path):
@@ -141,3 +145,13 @@ def test_page_without_body_end_fails_the_build(tmp_path):
         t.write_text(t.read_text().replace("</body>", ""))
     _, err = build(tmp_path, edit=change, expect=2)
     assert "</body>" in err
+
+
+def test_label_id_changes_with_every_build(tmp_path):
+    import re as _re
+    ids = set()
+    for i in range(2):
+        _, html = build(tmp_path / str(i))
+        assert "Math.random" not in html and "__AI_LABEL_ID__" not in html
+        ids.add(_re.search(r'el\.id = "(ai-label-[0-9a-f]{12})"', html).group(1))
+    assert len(ids) == 2
