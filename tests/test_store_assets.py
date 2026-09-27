@@ -158,3 +158,12 @@ def test_app_store_and_play_both_failing_leave_no_listing(tmp_path):
 @pytest.mark.parametrize("body", [b"[]", b'"x"', b'{"resultCount": 1, "results": 1}', b'{"resultCount": 1, "results": [1]}'])
 def test_lookup_that_is_not_the_lookup_object_exits_2(tmp_path, body):
     assert sa.main(["--out", str(tmp_path), "--app-store-id", "1"], lambda url: body) == 2
+
+
+def test_app_store_failure_and_an_empty_play_page_leave_no_listing(tmp_path):
+    def f(url):
+        if "itunes.apple.com" in url:
+            raise urllib.error.URLError("network down")
+        return b"<html><body>nothing useful</body></html>"
+    assert sa.main(["--out", str(tmp_path), "--app-store-id", "1", "--play", "com.example", "--lang", "xx"], f) == 2
+    assert not (tmp_path / "metadata.json").exists()

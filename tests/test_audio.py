@@ -305,6 +305,15 @@ def test_a_mostly_silent_seed_is_rejected():
     assert mr.dropouts(y, SR) == list(range(20))
 
 
+def test_a_mostly_silent_seed_is_rejected_by_rank(tmp_path):
+    y = kick_track(np.arange(20.5, 30.5, 0.5), 31.0)
+    y[:20 * SR] = 0
+    f = tmp_path / "quiet.wav"
+    sf.write(f, y, SR)
+    r = mr.rank_file(f, 30)
+    assert r["rejected"] and any("drop-out" in x for x in r["reasons"])
+
+
 def test_downbeat_phase_needs_a_bar_of_accents():
     with pytest.raises(SystemExit) as e:
         bg.downbeat_phase([1.0, 2.0, 3.0], 4)

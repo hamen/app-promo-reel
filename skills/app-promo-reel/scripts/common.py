@@ -6,6 +6,7 @@ Beat addressing (one signature everywhere, see references/pipeline.md):
   E(bar, beat=0)  the "and": halfway between D(bar, beat) and the next beat.
 """
 import json
+import math
 import subprocess
 import sys
 from pathlib import Path
@@ -22,8 +23,9 @@ KNOWN_STORES = ("app_store", "google_play")
 
 
 def is_number(v):
-    """A JSON number: int or float, not bool (True is an int in Python)."""
-    return isinstance(v, (int, float)) and not isinstance(v, bool)
+    """A finite JSON number: int or float, not bool (True is an int in Python), not NaN/Infinity
+    (Python's json accepts both)."""
+    return isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
 
 
 def die(msg, code=2):

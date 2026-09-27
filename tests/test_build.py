@@ -185,7 +185,7 @@ def test_cue_fields_are_checked(tmp_path):
     assert realized[0]["time"] == 5.0  # a plain number is a time in seconds
     for bad in ([base, base], [{**base, "volume": None}], [{**base, "offset": "x"}], [{**base, "offset": "0.1"}],
                 [{**base, "volume": True}], [{**base, "volume": -0.5}], [{**base, "sync": "false"}],
-                [{**base, "sync": 0}]):
+                [{**base, "sync": 0}], [{**base, "sync": None}]):
         with pytest.raises(SystemExit) as e:
             sfx_tags(tmp_path, {"sfx": {"a": "a.wav"}, "cues": bad}, GRID, 30.0)
         assert e.value.code == 2, bad
@@ -318,10 +318,16 @@ def test_project_json_numbers_are_not_coerced(tmp_path, fields, msg):
     assert r.returncode == 2 and msg in r.stderr, r.stderr
 
 
-def test_fractional_fps_is_kept():
-    import tempfile
-    from pathlib import Path
+def test_fractional_fps_is_kept(tmp_path):
     from common import load_project
-    d = Path(tempfile.mkdtemp())
-    (d / "project.json").write_text(json.dumps({"app": "x", "variant": "a", "fps": 29.97}))
-    assert load_project(d)["fps"] == 29.97
+    (tmp_path / "project.json").write_text(json.dumps({"app": "x", "variant": "a", "fps": 29.97}))
+    assert load_project(tmp_path)["fps"] == 29.97
+
+
+def test_project_json_nan_and_infinity_are_refused(tmp_path):
+    from conftest import write_project
+    p = write_project(tmp_path)
+    for text in ('"duration": NaN', '"duration": Infinity', '"fps": -Infinity'):
+        (p / "project.json").write_text('{"app": "x", "variant": "a", %s}' % text)
+        r = run_script("build.py", p)
+        assert r.returncode == 2 and "JSON numbers" in r.stderr and "Traceback" not in r.stderr, text

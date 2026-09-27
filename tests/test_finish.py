@@ -258,7 +258,11 @@ def test_failed_report_write_leaves_no_report(tmp_path, proj, monkeypatch):
     monkeypatch.setattr(Path, "write_text", half_write)
     with pytest.raises(OSError):
         finish.finish(proj, raw)
-    assert not (proj / "renders" / "demo-a-v1-report.json").exists()
+    r = proj / "renders"
+    assert not (r / "demo-a-v1-report.json").exists() and not list(r.glob(".*partial*"))
+    # the run did not complete, so nothing keeps a delivery name
+    assert (r / "demo-a-v1-failed.mp4").is_file() and not (r / "demo-a-v1.mp4").exists()
+    assert not (r / "demo-a-v1-sheet.jpg").exists()
 
 
 @pytest.mark.parametrize("doc, expect", [
@@ -277,6 +281,8 @@ def test_video_info_falls_back_to_the_format_duration(monkeypatch):
     doc = {"streams": [{"codec_name": "h264", "width": 1, "height": 1, "nb_read_packets": "120"}],
            "format": {"duration": "4.000"}}
     monkeypatch.setattr(finish, "run", lambda cmd: subprocess.CompletedProcess(cmd, 0, json.dumps(doc), ""))
+    assert finish.video_info("x.mp4")["duration"] == 4.0
+    doc["streams"][0]["duration"] = "N/A"  # what ffprobe writes when the stream has none
     assert finish.video_info("x.mp4")["duration"] == 4.0
 
 
@@ -307,3 +313,17 @@ def test_window_energy_matches_the_direct_sum():
     y[int(0.5 * SR):int(0.5 * SR) + len(tmpl)] += tmpl
     found, score = finish.locate(y, tmpl, 0.52)
     assert abs(found - 0.5) < 1e-3 and score > 0.99
+
+
+def test_error_in_the_warning_step_leaves_only_a_failed_file(tmp_path, proj, monkeypatch):
+    raw = make_raw_mp4(tmp_path)
+    realize(proj, [(t, True) for t in CLICKS])
+
+    def broken(*a, **k):
+        raise RuntimeError("cannot decode")
+    monkeypatch.setattr(finish, "late_starts", broken)
+    with pytest.raises(RuntimeError):
+        finish.finish(proj, raw)
+    r = proj / "renders"
+    assert (r / "demo-a-v1-failed.mp4").is_file() and not (r / "demo-a-v1.mp4").exists()
+    assert not (r / "demo-a-v1-report.json").exists()

@@ -164,7 +164,7 @@ def sfx_tags(project_dir, cues_doc, grid, duration):
         if vol < 0:
             die(f"cue {cid!r}: volume must be 0 or more, got {vol}")
         sync = cue.get("sync")
-        if sync is not None and not isinstance(sync, bool):
+        if "sync" in cue and not isinstance(sync, bool):
             die(f'cue {cid!r}: "sync" must be true or false (no quotes), got {sync!r}')
         if not re.fullmatch(r"[A-Za-z0-9_-]+", str(cid)):
             die(f"cue id {cid!r} must use only letters, digits, - and _")
@@ -199,7 +199,7 @@ def sfx_tags(project_dir, cues_doc, grid, duration):
         rel = f"assets/audio/{files[key]}"
         lines.append(f'      <audio id="sfx-{cid}" src="{html.escape(rel, quote=True)}" data-start="{t:.3f}" data-duration="{d:.3f}" '
                      f'data-track-index="{track}" data-volume="{vol:g}"></audio>')
-        sync = align != "end" if sync is None else sync
+        sync = sync if "sync" in cue else align != "end"
         realized.append({"id": cid, "file": rel, "time": round(t, 4), "volume": vol, "track": track,
                          "align": align, "sync": sync})
     return lines, realized

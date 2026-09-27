@@ -195,7 +195,11 @@ def main(argv=None, fetch_fn=fetch):
         q = urllib.parse.urlencode({"id": a.play, "hl": a.lang, "gl": a.country.upper()})
         url = f"https://play.google.com/store/apps/details?{q}"
         try:
-            meta["google_play"] = {"package": a.play, **parse_play(fetch_fn(url).decode("utf-8", "replace"), a.lang)}
+            play = parse_play(fetch_fn(url).decode("utf-8", "replace"), a.lang)
+            if play or not app_store_error:
+                meta["google_play"] = {"package": a.play, **play}
+            else:
+                log("note: the Play page gave no facts; nothing to write without the App Store part")
         except (urllib.error.URLError, OSError, ValueError) as e:
             log(f"note: Play page fetch failed ({e}); no Play facts written")
 

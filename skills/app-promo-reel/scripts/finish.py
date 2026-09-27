@@ -75,12 +75,21 @@ def video_info(path):
     if not streams:
         die(f"{path} has no video stream")
     s = streams[0]
-    # some containers keep the duration on the format, not the stream
-    duration = s.get("duration") or doc.get("format", {}).get("duration")
+    # some containers keep the duration on the format, not the stream; ffprobe writes "N/A" when
+    # it has none
+    duration = next((d for d in (_seconds(s.get("duration")), _seconds(doc.get("format", {}).get("duration")))
+                     if d is not None), None)
     if duration is None:
         die(f"ffprobe gives no duration for {path}")
     return {"codec": s["codec_name"], "width": s["width"], "height": s["height"],
-            "frames": int(s["nb_read_packets"]), "duration": round(float(duration), 3)}
+            "frames": int(s["nb_read_packets"]), "duration": round(duration, 3)}
+
+
+def _seconds(v):
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
 
 
 LOUDNORM = f"loudnorm=I={TARGET_I}:TP={TARGET_TP}:LRA={TARGET_LRA}"
@@ -293,24 +302,26 @@ def finish(project_dir, raw_mp4, frames=None):
     checking = out.with_name(out.stem + ".checking.mp4")
     sheet = out.with_name(out.stem + ".checking-sheet.jpg")
     failed, failed_sheet = out.with_name(out.stem + "-failed.mp4"), out.with_name(out.stem + "-failed-sheet.jpg")
-    try:
-        problems, report = _checks(pdir, project, raw_mp4, realized, checking, sheet, frames)
-    except BaseException:
-        # an error or Ctrl-C after the mux: the file was never fully checked, so it must not look
-        # delivered; no report is written
-        if checking.exists():
-            checking.rename(failed)
-        if sheet.exists():
-            sheet.rename(failed_sheet)
-        raise
-    final_mp4, final_sheet = (failed, failed_sheet) if problems else (out, out.with_name(out.stem + "-sheet.jpg"))
-    checking.rename(final_mp4)
-    sheet.rename(final_sheet)
-    report = {"output": str(final_mp4), "sheet": str(final_sheet), **report}
+    good_sheet = out.with_name(out.stem + "-sheet.jpg")
     report_path = out.with_name(out.stem + "-report.json")
     partial = report_path.with_name("." + report_path.name + ".partial")
-    partial.write_text(json.dumps(report, indent=1) + "\n")
-    os.replace(partial, report_path)
+    try:
+        problems, report = _checks(pdir, project, raw_mp4, realized, checking, sheet, frames)
+        late = late_starts(pdir, realized, project["fps"])
+        final_mp4, final_sheet = (failed, failed_sheet) if problems else (out, good_sheet)
+        checking.rename(final_mp4)
+        sheet.rename(final_sheet)
+        report = {"output": str(final_mp4), "sheet": str(final_sheet), **report}
+        partial.write_text(json.dumps(report, indent=1) + "\n")
+        os.replace(partial, report_path)
+    except BaseException:
+        # an error or Ctrl-C anywhere after the mux, up to the report: the run did not complete, so
+        # nothing may keep a delivery name; no report is left
+        for src, dst in ((checking, failed), (out, failed), (sheet, failed_sheet), (good_sheet, failed_sheet)):
+            if src.exists():
+                src.rename(dst)
+        partial.unlink(missing_ok=True)
+        raise
 
     rows, vi_out = report["sync"], report["video"]
     if rows:
@@ -321,7 +332,7 @@ def finish(project_dir, raw_mp4, frames=None):
               + (f"; not found: {', '.join(masked)}" if masked else ""))
     else:
         print("sync: no cues (no SFX mixed)")
-    for f, ms in late_starts(pdir, realized, project["fps"]).items():
+    for f, ms in late.items():
         print(f"warning: {f} starts with {ms:.0f} ms of silence and its cues use align \"start\", so it "
               f"sounds {ms:.0f} ms after the cue time; use align \"attack\" or trim the file", file=sys.stderr)
     print(f"loudness {report['final_lufs']} LUFS, true peak {report['final_tp']} dBTP; loudnorm lag "
