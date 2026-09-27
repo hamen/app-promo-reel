@@ -54,8 +54,9 @@ def load_project(project_dir):
         die(f"{path}: duration, fps and beats_per_bar must be numbers")
     if data["duration"] <= 1 or data["fps"] <= 0 or data["beats_per_bar"] <= 0:
         die(f"{path}: duration must be above 1 s (the bed fades take 0.8 s), fps and beats_per_bar above 0")
-    bad = [s for s in data["stores"] if s not in KNOWN_STORES]
-    if bad or not data["stores"]:
+    stores = data["stores"]
+    bad = [s for s in stores if s not in KNOWN_STORES] if isinstance(stores, list) else [stores]
+    if bad or not stores:
         die(f"project.json stores must be a non-empty subset of {list(KNOWN_STORES)}, got {data['stores']}")
     return data
 

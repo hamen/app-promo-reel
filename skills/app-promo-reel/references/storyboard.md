@@ -17,6 +17,9 @@ Rules:
 - One idea per scene. Text a viewer must read stays on screen ≥ 0.8 s (a sentence: ~0.3 s per
   word).
 - A different tempo means a different bar count: re-map the scenes, never squeeze text.
+  The template's last lines (store badges, URL) enter on D(13, 3) and need 1.1 s to settle
+  and be read: with a 30 s video that is about 116 bpm or faster (the first downbeat
+  moves it a little). A slower seed fails the build with the re-map message.
   build.py fails when a scene would start less than 2 s before the end of the video.
 
 ## Drop placement

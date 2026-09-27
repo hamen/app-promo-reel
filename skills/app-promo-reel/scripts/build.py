@@ -98,6 +98,14 @@ def substitute(src, grid, project):
             return f"{duration - grid.D(a):.3f}"
         if name == "calc":
             return f"{calc(args, grid, duration):.3f}"
+        if name == "BEFORE_END":
+            margin, _, expr = args.partition(" ")
+            t = calc(expr, grid, duration)
+            if t > duration - float(margin):
+                die(f"{expr} is at {t:.2f}s; the template needs it at least {float(margin):g}s before the "
+                    f"{duration:g}s end so the text after it can be read. The storyboard needs fewer bars at "
+                    f"this tempo/duration: re-map the scenes (references/storyboard.md)")
+            return ""
         if args:
             raise CalcError(f"{{{{{name}}}}} takes no arguments")
         if name == "BEATS":
@@ -128,12 +136,19 @@ def sfx_tags(project_dir, cues_doc, grid, duration, durations=None):
     files, cues = cues_doc.get("sfx", {}), cues_doc.get("cues", [])
     if not isinstance(files, dict) or not isinstance(cues, list):
         die('cues.json: "sfx" must be an object and "cues" an array')
-    lines, realized, track_end, leads = [], [], {}, {}
+    lines, realized, track_end, leads, seen = [], [], {}, {}, set()
     durations = {} if durations is None else durations
     for cue in cues:
         if not isinstance(cue, dict) or any(k not in cue for k in ("id", "sfx", "at")):
             die(f"cues.json: every cue needs id, sfx and at, got {str(cue)[:80]}")
         cid, key = cue["id"], cue["sfx"]
+        if cid in seen:
+            die(f"cues.json: cue id {cid!r} is used twice")
+        seen.add(cid)
+        try:
+            at, offset, vol = str(cue["at"]), float(cue.get("offset", 0)), float(cue.get("volume", 0.5))
+        except (TypeError, ValueError):
+            die(f"cue {cid!r}: offset and volume must be numbers")
         if not re.fullmatch(r"[A-Za-z0-9_-]+", str(cid)):
             die(f"cue id {cid!r} must use only letters, digits, - and _")
         if key not in files:
@@ -143,8 +158,8 @@ def sfx_tags(project_dir, cues_doc, grid, duration, durations=None):
             print(f"warning: skipping cue {cid!r}: {path} not found", file=sys.stderr)
             continue
         try:
-            t = calc(cue["at"], grid, duration) + float(cue.get("offset", 0))
-        except (CalcError, TypeError, ValueError) as e:
+            t = calc(at, grid, duration) + offset
+        except CalcError as e:
             die(f"cue {cid!r}: {e}")
         if path not in durations:
             durations[path] = media_duration(path)
@@ -164,7 +179,6 @@ def sfx_tags(project_dir, cues_doc, grid, duration, durations=None):
         while track_end.get(track, -1.0) > t:
             track += 1
         track_end[track] = t + d
-        vol = float(cue.get("volume", 0.5))
         rel = f"assets/audio/{files[key]}"
         lines.append(f'      <audio id="sfx-{cid}" src="{html.escape(rel, quote=True)}" data-start="{t:.3f}" data-duration="{d:.3f}" '
                      f'data-track-index="{track}" data-volume="{vol:g}"></audio>')
@@ -206,6 +220,9 @@ def build(project_dir):
     for p in (tmpl, beats):
         if not p.is_file():
             die(f"{p} not found")
+    # a build that fails must not leave the previous build behind for a render to pick up
+    for old in ("index.html", "cues.realized.json"):
+        (project_dir / old).unlink(missing_ok=True)
     grid = Grid.load(beats, project["beats_per_bar"])
     out = substitute(tmpl.read_text(), grid, project)
     cues_path = project_dir / "cues.json"

@@ -142,7 +142,7 @@ def main(argv=None, fetch_fn=fetch):
     out.mkdir(parents=True, exist_ok=True)
     # a failed run must not leave an earlier listing behind for the next step to use
     (out / "metadata.json").unlink(missing_ok=True)
-    for old in (out / "screens").glob("[0-9][0-9].png"):
+    for old in (out / "screens").glob("[0-9][0-9].*"):
         old.unlink()
     meta = {"country": a.country, "lang": a.lang}
 
@@ -167,6 +167,8 @@ def main(argv=None, fetch_fn=fetch):
             try:
                 saved.append(str(download_screenshot(s, shots / f"{i:02d}.png", fetch_fn)))
             except (urllib.error.URLError, OSError, ValueError) as e:
+                for part in saved:  # no half set of screenshots without a metadata.json
+                    Path(part).unlink(missing_ok=True)
                 log(f"error: screenshot download failed ({s}: {e}); ask the user for screenshots or re-run")
                 return 2
         app["saved_screenshots"] = saved

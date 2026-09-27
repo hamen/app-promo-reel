@@ -116,3 +116,20 @@ def test_a_failed_run_leaves_no_old_listing(tmp_path):
         raise urllib.error.URLError("network down")
     assert sa.main(["--out", str(tmp_path), "--app-store-id", "1"], down) == 2
     assert not (tmp_path / "metadata.json").exists() and not (tmp_path / "screens" / "07.png").exists()
+
+
+def test_old_jpg_screens_are_cleared_and_a_partial_set_is_removed(tmp_path):
+    screens = tmp_path / "screens"
+    screens.mkdir()
+    (screens / "03.jpg").write_bytes(b"old fallback")
+    calls = []
+
+    def f(url):
+        if "itunes.apple.com" in url:
+            return (FIXTURES / "lookup.json").read_bytes()
+        calls.append(url)
+        if len(calls) > 1:  # the first screenshot downloads, the second fails
+            raise urllib.error.URLError("network down")
+        return b"png bytes"
+    assert sa.main(["--out", str(tmp_path), "--app-store-id", "1"], f) == 2
+    assert list(screens.iterdir()) == []

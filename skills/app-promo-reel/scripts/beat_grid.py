@@ -103,6 +103,12 @@ def downbeat_phase(strengths, bpb=4):
     return int(np.argmax([s[p::bpb].mean() for p in range(bpb)]))
 
 
+def loudness_at(y, sr, t, n=2000):
+    """RMS of the n samples from time t; 0 past the end of the audio (never NaN)."""
+    seg = y[int(t * sr):int(t * sr) + n]
+    return float(np.sqrt(np.mean(seg ** 2))) if len(seg) else 0.0
+
+
 def full_grid(heard, strengths, duration, bpb=4):
     """Extend the beats heard in the audio to the whole video (plus four bars) and return the
     index of the first downbeat in the EXTENDED list. The accents come from the heard beats only:
@@ -122,8 +128,7 @@ def analyse(y, sr, duration, bpb=4):
     beats, shifted, on = phase_check(beats, kick, t_env)
     heard = smooth(refine(beats, kick, hi, t_env, on))
     # statistics from the beats in the audio; extrapolated beats would dilute them
-    rms = lambda b: float(np.sqrt(np.mean(y[int(b * sr):int(b * sr) + 2000] ** 2)))
-    strengths = [peak_near(kick, t_env, b) + 25 * rms(b) for b in heard]
+    strengths = [peak_near(kick, t_env, b) + 25 * loudness_at(y, sr, b) for b in heard]
     iv = np.diff(heard)
     beats, phase = full_grid(heard, strengths, duration, bpb)
     print(f"half-beat shift: {'yes' if shifted else 'no'}; interval {iv.mean():.4f}s sd {iv.std() * 1000:.2f}ms; "

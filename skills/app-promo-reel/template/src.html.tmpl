@@ -556,6 +556,7 @@
       </section>
 
       <!-- S6 end card: bar 12 to the end -->
+      <!-- the last end-card lines (badges, URL) enter on D(13, 3): 0.3 s to settle + 0.8 s to read {{BEFORE_END 1.1 D(13, 3)}} -->
       <section id="s6" class="clip scene" data-start="{{calc D(12)-0.3}}" data-duration="{{calc DURATION-(D(12)-0.3)}}" data-track-index="6">
         <div id="s6-cam" class="cam">
           <div class="center-col">
@@ -630,8 +631,6 @@
         if (next === undefined) throw new Error(`E(${bar}, ${beat}) is outside the beat grid`);
         return (D(bar, beat) + next) / 2;
       };
-      // end-card moments that fall after the video (slow tempo) still land, 0.6 s before the end
-      const END = (t) => Math.min(t, DURATION - 0.6);
 
       // ---------- helpers (HyperFrames 0.8.78 gotchas built in) ----------
       // Every fromTo whose from-state is visible uses immediateRender:false, or it shows at t=0.
@@ -727,13 +726,13 @@
       tl.fromTo("#icon", { scale: 3.2, rotation: -20, opacity: 0 }, { scale: 1, rotation: 0, opacity: 1, duration: 0.3, ease: "power4.in" }, D(12) - 0.3);
       shake("#s6-cam", D(12), 30);
       flash(D(12), 0.5, 0.4);
-      tl.fromTo("#wordmark", { clipPath: "inset(0 100% 0 0)", x: -40 }, { clipPath: "inset(0 0% 0 0)", x: 0, duration: 0.4, ease: "power3.out" }, END(D(12, 2) - 0.1));
-      tl.fromTo("#tagline", { y: 60, opacity: 0 }, { y: 0, opacity: 1, duration: 0.3, ease: "back.out(2)" }, END(D(13, 0) - 0.1));
-      tl.fromTo("#cta", { opacity: 0, scale: 0.7 }, { opacity: 1, scale: 1, duration: 0.3, ease: "back.out(2.5)" }, END(D(13, 2) - 0.08));
+      tl.fromTo("#wordmark", { clipPath: "inset(0 100% 0 0)", x: -40 }, { clipPath: "inset(0 0% 0 0)", x: 0, duration: 0.4, ease: "power3.out" }, D(12, 2) - 0.1);
+      tl.fromTo("#tagline", { y: 60, opacity: 0 }, { y: 0, opacity: 1, duration: 0.3, ease: "back.out(2)" }, D(13, 0) - 0.1);
+      tl.fromTo("#cta", { opacity: 0, scale: 0.7 }, { opacity: 1, scale: 1, duration: 0.3, ease: "back.out(2.5)" }, D(13, 2) - 0.08);
       STORE_SEL.forEach((s, i) =>
-        tl.fromTo(s, { x: i ? 500 : -500, opacity: 0 }, { x: 0, opacity: 1, duration: 0.35, ease: "expo.out" }, END(D(13, 3) - 0.1)));
-      tl.fromTo("#url", { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.3, ease: "power2.out" }, END(D(14, 0) - 0.1));
-      punch("#icon", END(D(14, 0)), 1.06);
+        tl.fromTo(s, { x: i ? 500 : -500, opacity: 0 }, { x: 0, opacity: 1, duration: 0.35, ease: "expo.out" }, D(13, 3) - 0.1));
+      tl.fromTo("#url", { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.3, ease: "power2.out" }, D(13, 3));
+      punch("#icon", D(14, 0), 1.06);
 
       window.__timelines = window.__timelines || {};
       window.__timelines["main"] = tl;

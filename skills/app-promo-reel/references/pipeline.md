@@ -11,6 +11,8 @@ pickup beats before it); `beat` is 0-based inside the bar; `beats_per_bar` is in
 
 - Template tokens: `{{D 3}}`, `{{D 3 2}}`, `{{E 3 1}}`, `{{LEN 2 6}}` (= D(6) − D(2)),
   `{{TO_END 12}}`, `{{calc D(2)-0.3}}` (numbers, + − * /, parentheses, D, E, DURATION only),
+  `{{BEFORE_END 1.1 D(13, 3)}}` (renders nothing; the build fails when the time is less than
+  1.1 s before the end),
   `{{BEATS}}`, `{{DOWNBEAT_INDEX}}`, `{{BEATS_PER_BAR}}`, `{{DURATION}}`, `{{STORES}}`.
 - In the page script the same `D()` / `E()` exist in JavaScript.
 - `cues.json` `"at"` fields and `make_bed.py --drop-bar k` use the same `D()`.
@@ -46,7 +48,8 @@ $PY $S/beat_grid.py $P/work/music/bgm_5.wav $P
 $PY $S/make_bed.py $P/work/music/bgm_5.wav $P --drop-bar 6
 ```
 - One music_gen.py at a time (GPU memory); exit 2 = a hard failure, no file written.
-- Prompt: name the tempo (110-128 bpm), a steady kick, and "clear steady beat". At ~120 bpm a
+- Prompt: name the tempo (118-128 bpm; the 30 s template needs about 116 bpm or more, see
+  storyboard.md), a steady kick, and "clear steady beat". At ~120 bpm a
   30 s video has 15 bars — the template's scenes assume bars 0-14.
 - Seeds with a real lift: note `lift_at` from the rank table (drop rule: storyboard.md).
 - Run `make_bed.py` after `beat_grid.py` (the lift window needs beats.json).

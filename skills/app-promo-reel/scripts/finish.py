@@ -215,6 +215,10 @@ def finish(project_dir, raw_mp4, frames=None):
     if not realized_path.is_file():
         die(f"{realized_path} not found: run build.py before finish.py")
     realized = read_json(realized_path, list)
+    for cue in realized:
+        if not (isinstance(cue, dict) and isinstance(cue.get("id"), str) and isinstance(cue.get("file"), str)
+                and isinstance(cue.get("time"), (int, float))):
+            die(f"{realized_path}: every entry needs id, file and time (it is written by build.py: rebuild)")
     renders = pdir / "renders"
     renders.mkdir(exist_ok=True)
     stem = f"{project['app']}-{project['variant']}"
@@ -297,6 +301,8 @@ def main():
         frames = [float(x) for x in a.frames.split(",")] if a.frames else None
     except ValueError:
         die(f"--frames takes comma-separated seconds, got {a.frames!r}")
+    if frames and min(frames) < 0:
+        die("--frames times must be 0 or more")
     sys.exit(finish(a.project_dir, a.raw_mp4, frames))
 
 

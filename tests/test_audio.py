@@ -269,3 +269,12 @@ def test_downbeat_survives_beats_added_in_front():
     beats, phase = bg.full_grid(heard, strengths, 20.0, 4)
     assert beats[0] < 1.0  # beats were added in front
     assert beats[phase] == 1.5
+
+
+def test_loudness_past_the_end_is_zero_not_nan():
+    y = np.ones(1000, dtype=np.float32)
+    assert bg.loudness_at(y, 1000, 0.5) == 1.0 and bg.loudness_at(y, 1000, 1.0) == 0.0
+
+
+def test_zero_median_interval_is_rejected_not_a_crash():
+    assert mr.beat_stats([1.0, 1.0, 1.0])["wobble"] > mr.WOBBLE_MAX

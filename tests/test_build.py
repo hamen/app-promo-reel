@@ -164,3 +164,45 @@ def test_missing_sfx_marker_with_cues_exits_2(tmp_path):
     (p / "cues.json").write_text(_json.dumps({"sfx": {"a": "a.wav"}, "cues": [{"id": "c", "sfx": "a", "at": "D(1)"}]}))
     r = run_script("build.py", p)
     assert r.returncode == 2 and "<!--SFX-->" in r.stderr
+
+
+def test_before_end_token_renders_nothing_or_fails():
+    project = {"duration": 30.0, "stores": ["app_store"]}
+    assert substitute("a{{BEFORE_END 1.1 D(2)}}b", GRID, project) == "ab"
+    assert substitute("{{BEFORE_END 1.1 D(7)}}", GRID, {**project, "duration": 16.6}) == ""  # D(7) = 15.5 s
+    with pytest.raises(SystemExit):
+        substitute("{{BEFORE_END 1.1 D(7)}}", GRID, {**project, "duration": 16.595})  # 5 ms short
+
+
+def test_cue_fields_are_checked(tmp_path):
+    audio = tmp_path / "assets" / "audio"
+    audio.mkdir(parents=True)
+    tone_file(audio / "a.wav")
+    base = {"id": "c", "sfx": "a", "at": "D(1)"}
+    lines, realized = sfx_tags(tmp_path, {"sfx": {"a": "a.wav"}, "cues": [{**base, "at": 5}]}, GRID, 30.0)
+    assert realized[0]["time"] <= 5.0  # a plain number is a time in seconds
+    for bad in ([base, base], [{**base, "volume": None}], [{**base, "offset": "x"}]):
+        with pytest.raises(SystemExit) as e:
+            sfx_tags(tmp_path, {"sfx": {"a": "a.wav"}, "cues": bad}, GRID, 30.0)
+        assert e.value.code == 2, bad
+
+
+def test_failed_build_removes_the_previous_build(tmp_path):
+    import json as _json
+    from conftest import steady_grid, write_project
+    p = write_project(tmp_path)
+    (p / "src.html.tmpl").write_text("<html>{{NOPE}}</html>")
+    (p / "beats.json").write_text(_json.dumps(steady_grid()))
+    (p / "index.html").write_text("old build")
+    (p / "cues.realized.json").write_text("[]")
+    assert run_script("build.py", p).returncode == 2
+    assert not (p / "index.html").exists() and not (p / "cues.realized.json").exists()
+
+
+def test_stores_that_are_not_a_list_exit_2(tmp_path):
+    from conftest import write_project
+    p = write_project(tmp_path)
+    for stores in ("null", "7", '"app_store"'):
+        (p / "project.json").write_text('{"app": "x", "variant": "a", "stores": %s}' % stores)
+        r = run_script("build.py", p)
+        assert r.returncode == 2 and "non-empty subset" in r.stderr and "Traceback" not in r.stderr, stores

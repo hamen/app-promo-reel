@@ -72,41 +72,26 @@ def test_stores_come_from_project(tmp_path, stores):
     assert config_of(html)["stores"] == stores.split(",")
 
 
-def test_slow_tempo_still_builds_with_end_card_inside_the_video(tmp_path):
-    # 110 bpm, first downbeat at 1.0 s: bar 14 starts at 31.5 s, after the 30 s video
-    grid = steady_grid(first=1.0 - 4 * 0.5455, iv=0.5455, n=70, phase=4)
-    p, html = build(tmp_path, grid=grid)
-    starts = [float(x) for x in re.findall(r'<section[^>]*data-start="([\d.]+)"', html)]
-    assert max(starts) < 30
-    assert "const END = (t) => Math.min(t, DURATION - 0.6);" in html
-    assert re.search(r"END\(D\(14, 0\) - 0\.1\)\)", html)
-
-
-def test_scene_past_the_end_fails_the_build(tmp_path):
-    grid = steady_grid(first=0.5, iv=0.75, n=60, phase=0)  # 80 bpm: bar 12 starts at 36.5 s
-    _, err = build(tmp_path, grid=grid, expect=2)
-    assert "scenes outside the 30s video" in err and "s6" in err
-
-
-def grid_98bpm(s6_start):
-    """A 98 bpm grid from beat_grid's own extend(), with scene s6 (D(12) - 0.3) at `s6_start`."""
+def grid_from_beat_grid(bpm, first_downbeat):
+    """A grid built with beat_grid's own extend(), as beat_grid.py writes it."""
     import beat_grid as bg
-    iv = 60 / 98
-    first_downbeat = s6_start + 0.3 - 12 * 4 * iv
+    iv = 60 / bpm
     beats = bg.extend(np.arange(first_downbeat, 20, iv), 30.0, beats_past_end=4 * 4)
     phase = int(np.argmin(np.abs(beats - first_downbeat)))
     return {"beats": [round(float(b), 4) for b in beats], "downbeat_phase": phase}, beats, phase
 
 
-def test_slowest_buildable_tempo_grid_covers_the_end_card(tmp_path):
-    # s6 at 28.0 s leaves the end card 2 s; it addresses up to D(14) (~33.2 s), after the video
-    grid, beats, phase = grid_98bpm(28.0)
-    p, html = build(tmp_path, grid=grid)
-    assert max(float(x) for x in re.findall(r'<section[^>]*data-start="([\d.]+)"', html)) <= 28.0 + 1e-3
-    assert len(beats) > phase + 14 * 4 + 1  # D(14) and the beat after it exist
+def test_slowest_buildable_tempo_gives_the_end_card_time_to_read(tmp_path):
+    # 116 bpm, first downbeat 0.3 s: the badges and URL enter on D(13, 3) = 28.75 s (1.25 s left)
+    grid, beats, phase = grid_from_beat_grid(116, 0.3)
+    _, html = build(tmp_path, grid=grid)
+    assert "END(" not in html and "{{" not in html  # no hidden clamp, the gate token is gone
+    assert re.search(r'tl\.fromTo\("#url".*\}, D\(13, 3\)\);', html)
+    assert len(beats) > phase + 14 * 4 + 1  # the icon punch on D(14) is on the grid
 
 
-def test_end_card_without_time_to_read_fails_the_build(tmp_path):
-    grid, _, _ = grid_98bpm(29.95)  # the end card would be on screen for 0.05 s
+@pytest.mark.parametrize("bpm,first", [(110, 1.0), (98, 0.3), (80, 0.5)])
+def test_slow_tempo_fails_the_build_with_the_re_map_message(tmp_path, bpm, first):
+    grid, _, _ = grid_from_beat_grid(bpm, first)
     _, err = build(tmp_path, grid=grid, expect=2)
-    assert "less than 2s before its end" in err and "s6" in err and "re-map" in err
+    assert "D(13, 3)" in err and "1.1s before" in err and "re-map" in err

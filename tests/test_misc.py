@@ -204,3 +204,9 @@ def test_music_gen_second_process_leaves_the_first_ones_files(tmp_path, monkeypa
 def test_new_project_refuses_a_short_duration(tmp_path):
     with pytest.raises(SystemExit):
         new_project.scaffold("x", "a", tmp_path / "out", duration=0)
+
+
+def test_partial_music_file_is_outside_the_rank_glob(tmp_path):
+    import fnmatch
+    assert not fnmatch.fnmatch(music_gen.partial_path(tmp_path, 5).name, "bgm_*.wav")
+    assert music_gen.partial_path(tmp_path, 5).parent == tmp_path

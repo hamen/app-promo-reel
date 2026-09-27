@@ -30,6 +30,12 @@ def fail(msg):
     sys.exit(2)
 
 
+def partial_path(out, seed):
+    """Where a seed is written before its final rename: outside the bgm_*.wav pattern that
+    music_rank.py is given, so an interrupted write can never be ranked."""
+    return Path(out) / f".partial-{seed}.wav"
+
+
 def tokens_for(duration):
     n = int(round((duration + HEADROOM) * FRAME_RATE))
     if duration <= 0 or n > MAX_TOKENS:
@@ -94,7 +100,7 @@ def main(argv=None):
         if length < a.duration:
             fail(f"seed {seed} came out {length:.2f}s, shorter than {a.duration:g}s; no file written")
         dest = out / f"bgm_{seed}.wav"
-        tmp = dest.with_suffix(".tmp.wav")
+        tmp = partial_path(out, seed)
         sf.write(tmp, y, sr)
         os.replace(tmp, dest)
         print(f"seed {seed}: {dest} ({length:.2f}s)", flush=True)

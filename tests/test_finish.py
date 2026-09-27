@@ -1,5 +1,6 @@
 import json
 import subprocess
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -188,3 +189,22 @@ def test_realized_cues_that_are_not_a_list_exit_2(tmp_path, proj):
     with pytest.raises(SystemExit) as e:
         finish.finish(proj, raw)
     assert e.value.code == 2
+
+
+def test_realized_entries_are_checked(tmp_path, proj):
+    raw = make_raw_mp4(tmp_path)
+    realize(proj, [(1.0, True)])  # the cue file exists: only the entry shape can fail
+    for bad in ("[{}]", '[{"id": "c", "file": "assets/audio/click.wav"}]',
+                '[{"id": "c", "file": "assets/audio/click.wav", "time": "1.0"}]', '["c"]'):
+        (proj / "cues.realized.json").write_text(bad)
+        with pytest.raises(SystemExit) as e:
+            finish.finish(proj, raw)
+        assert e.value.code == 2, bad
+
+
+def test_negative_frames_exit_2_before_any_output(tmp_path, proj):
+    raw = make_raw_mp4(tmp_path)
+    realize(proj, [(t, True) for t in CLICKS])
+    r = subprocess.run([sys.executable, str(finish.__file__), str(proj), str(raw), "--frames", "1,-2"],
+                       capture_output=True, text=True)
+    assert r.returncode == 2 and not list((proj / "renders").glob("*.mp4"))

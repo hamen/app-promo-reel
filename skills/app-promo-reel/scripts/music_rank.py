@@ -45,6 +45,8 @@ def dropouts(y, sr):
 def beat_stats(beats):
     iv = np.diff(np.asarray(beats, dtype=float))
     med = float(np.median(iv))
+    if med <= 0:
+        return {"tempo": 0, "interval_sd_ms": 999, "wobble": 1.0}
     drift = np.max(np.abs(np.diff(smooth(beats)) - med))
     glitch = max(0.0, np.max(np.abs(iv - med)) - TRACKER_ERROR)
     return {"tempo": round(60 / med, 1), "interval_sd_ms": round(float(iv.std()) * 1000, 2),
