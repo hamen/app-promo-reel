@@ -35,7 +35,7 @@ import numpy as np
 import scipy.signal as ss
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from common import attack_index, decode_audio, die, load_project  # noqa: E402
+from common import attack_index, decode_audio, die, load_project, read_json  # noqa: E402
 
 SR = 48000
 TARGET_I, TARGET_TP, TARGET_LRA = -14.0, -2.0, 11.0
@@ -214,7 +214,7 @@ def finish(project_dir, raw_mp4, frames=None):
     realized_path = pdir / "cues.realized.json"
     if not realized_path.is_file():
         die(f"{realized_path} not found: run build.py before finish.py")
-    realized = json.loads(realized_path.read_text())
+    realized = read_json(realized_path, list)
     renders = pdir / "renders"
     renders.mkdir(exist_ok=True)
     stem = f"{project['app']}-{project['variant']}"
@@ -259,7 +259,10 @@ def finish(project_dir, raw_mp4, frames=None):
     if problems:
         failed = out.with_name(out.stem + "-failed.mp4")
         out.rename(failed)
-        report["output"] = str(failed)
+        failed_sheet = sheet.with_name(out.stem + "-failed-sheet.jpg")
+        sheet.rename(failed_sheet)
+        report["output"], report["sheet"] = str(failed), str(failed_sheet)
+        sheet = failed_sheet
     out.with_name(out.stem + "-report.json").write_text(json.dumps(report, indent=1) + "\n")
 
     if rows:
@@ -290,7 +293,10 @@ def main():
     ap.add_argument("raw_mp4")
     ap.add_argument("--frames", help="comma-separated times for the contact sheet")
     a = ap.parse_args()
-    frames = [float(x) for x in a.frames.split(",")] if a.frames else None
+    try:
+        frames = [float(x) for x in a.frames.split(",")] if a.frames else None
+    except ValueError:
+        die(f"--frames takes comma-separated seconds, got {a.frames!r}")
     sys.exit(finish(a.project_dir, a.raw_mp4, frames))
 
 

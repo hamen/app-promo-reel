@@ -17,7 +17,7 @@ Rules:
 - One idea per scene. Text a viewer must read stays on screen ≥ 0.8 s (a sentence: ~0.3 s per
   word).
 - A different tempo means a different bar count: re-map the scenes, never squeeze text.
-  build.py fails when a scene would start after the end of the video.
+  build.py fails when a scene would start less than 2 s before the end of the video.
 
 ## Drop placement
 

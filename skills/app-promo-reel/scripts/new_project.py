@@ -73,6 +73,8 @@ def scaffold(app, variant, out, lang="en", stores=None, duration=None, force=Fal
     stores = stores or list(PROJECT_DEFAULTS["stores"])
     if not stores or any(s not in KNOWN_STORES for s in stores):
         die(f"--stores must be a non-empty subset of {list(KNOWN_STORES)}")
+    if duration is not None and duration <= 1:
+        die("--duration must be above 1 second")
     out = Path(out).expanduser()
     check_out_dir(out, force)
     dest = out / f"{app}-{variant}"
@@ -87,7 +89,7 @@ def scaffold(app, variant, out, lang="en", stores=None, duration=None, force=Fal
     (dest / "package.json").write_text(json.dumps(pkg, indent=2) + "\n")
     project = json.loads((TEMPLATE / "project.json").read_text())
     project.update({"app": app, "variant": variant, "lang": lang, "stores": stores})
-    if duration:
+    if duration is not None:
         project["duration"] = duration
     (dest / "project.json").write_text(json.dumps(project, indent=2) + "\n")
     for sub in ("assets/audio", "assets/img", "assets/fonts", "renders", "work"):

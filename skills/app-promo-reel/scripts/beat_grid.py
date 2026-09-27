@@ -103,6 +103,15 @@ def downbeat_phase(strengths, bpb=4):
     return int(np.argmax([s[p::bpb].mean() for p in range(bpb)]))
 
 
+def full_grid(heard, strengths, duration, bpb=4):
+    """Extend the beats heard in the audio to the whole video (plus four bars) and return the
+    index of the first downbeat in the EXTENDED list. The accents come from the heard beats only:
+    extrapolated beats have none, and would dilute the per-phase means."""
+    beats = extend(heard, duration, beats_past_end=4 * bpb)
+    prepended = int(np.argmin(np.abs(beats - heard[0])))
+    return beats, (downbeat_phase(strengths, bpb) + prepended) % bpb
+
+
 def analyse(y, sr, duration, bpb=4):
     import librosa
     _, beats = librosa.beat.beat_track(y=y, sr=sr, units="time", hop_length=HOP)
@@ -111,12 +120,12 @@ def analyse(y, sr, duration, bpb=4):
     kick, t_env = band_envelope(y, sr, 40, 160)
     hi, _ = band_envelope(y, sr, 2500)
     beats, shifted, on = phase_check(beats, kick, t_env)
-    beats = smooth(refine(beats, kick, hi, t_env, on))
-    beats = extend(beats, duration, beats_past_end=4 * bpb)
-    rms = lambda b: float(np.sqrt(np.mean(y[int(b * sr):int(b * sr) + 2000] ** 2))) if b * sr < len(y) else 0.0
-    strengths = [peak_near(kick, t_env, b) + 25 * rms(b) for b in beats]
-    phase = downbeat_phase(strengths, bpb)
-    iv = np.diff(beats)
+    heard = smooth(refine(beats, kick, hi, t_env, on))
+    # statistics from the beats in the audio; extrapolated beats would dilute them
+    rms = lambda b: float(np.sqrt(np.mean(y[int(b * sr):int(b * sr) + 2000] ** 2)))
+    strengths = [peak_near(kick, t_env, b) + 25 * rms(b) for b in heard]
+    iv = np.diff(heard)
+    beats, phase = full_grid(heard, strengths, duration, bpb)
     print(f"half-beat shift: {'yes' if shifted else 'no'}; interval {iv.mean():.4f}s sd {iv.std() * 1000:.2f}ms; "
           f"first beat {beats[0]:.3f}; downbeat phase {phase}; {len(beats)} beats")
     return beats, phase

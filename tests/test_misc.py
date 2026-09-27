@@ -175,3 +175,32 @@ def test_linked_worktree_of_this_repo_is_refused_even_with_force(tmp_path, monke
     other = tmp_path / "other"
     subprocess.run(["git", "init", "-q", str(other)], check=True)
     new_project.check_out_dir(other / "reels", force=True)  # another repo: allowed with --force
+
+
+def test_sample_colors_point_that_is_not_a_pair_exits_2(tmp_path):
+    img = tmp_path / "i.png"
+    Image.new("RGB", (100, 200), "#123456").save(img)
+    for bad in ('{"a": 1}', '{"a": [0.5]}', '{"a": ["x", 0.5]}', '{"a": [true, 0.5]}'):
+        pts = tmp_path / "p.json"
+        pts.write_text(bad)
+        r = run_script("sample_colors.py", img, pts)
+        assert r.returncode == 2 and "Traceback" not in r.stderr, (bad, r.stderr)
+
+
+def test_music_gen_second_process_leaves_the_first_ones_files(tmp_path, monkeypatch):
+    import fcntl
+    lock = tmp_path / "lock"
+    out = tmp_path / "o"
+    out.mkdir()
+    (out / "bgm_1.wav").write_bytes(b"made by the running process")
+    monkeypatch.setattr(music_gen, "LOCK", lock)
+    with open(lock, "a") as held:
+        fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)  # the first process is running
+        with pytest.raises(SystemExit) as e:
+            music_gen.main(["--prompt", "x", "--duration", "30", "--seeds", "1", "--out", str(out)])
+    assert e.value.code == 2 and (out / "bgm_1.wav").read_bytes() == b"made by the running process"
+
+
+def test_new_project_refuses_a_short_duration(tmp_path):
+    with pytest.raises(SystemExit):
+        new_project.scaffold("x", "a", tmp_path / "out", duration=0)

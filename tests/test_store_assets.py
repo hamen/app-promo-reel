@@ -105,3 +105,14 @@ def test_play_package_is_url_encoded(tmp_path):
         return (FIXTURES / "play-en.html").read_bytes()
     sa.main(["--out", str(tmp_path), "--play", "com.x&hl=zz"], f)
     assert "id=com.x%26hl%3Dzz" in urls[0] and urls[0].count("hl=") == 1
+
+
+def test_a_failed_run_leaves_no_old_listing(tmp_path):
+    (tmp_path / "metadata.json").write_text('{"old": true}')
+    (tmp_path / "screens").mkdir()
+    (tmp_path / "screens" / "07.png").write_bytes(b"old")
+
+    def down(url):
+        raise urllib.error.URLError("network down")
+    assert sa.main(["--out", str(tmp_path), "--app-store-id", "1"], down) == 2
+    assert not (tmp_path / "metadata.json").exists() and not (tmp_path / "screens" / "07.png").exists()

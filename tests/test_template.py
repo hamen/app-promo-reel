@@ -88,16 +88,25 @@ def test_scene_past_the_end_fails_the_build(tmp_path):
     assert "scenes outside the 30s video" in err and "s6" in err
 
 
-def test_worst_case_tempo_grid_from_beat_grid_covers_the_end_card(tmp_path):
-    # 98 bpm with the last scene starting just before the end: s6 at D(12) - 0.3 = 29.95 s passes
-    # check_scenes, and the end card addresses D(14) at ~35.1 s; beat_grid's own extend() must reach it
+def grid_98bpm(s6_start):
+    """A 98 bpm grid from beat_grid's own extend(), with scene s6 (D(12) - 0.3) at `s6_start`."""
     import beat_grid as bg
     iv = 60 / 98
-    first_downbeat = 30.25 - 12 * 4 * iv
+    first_downbeat = s6_start + 0.3 - 12 * 4 * iv
     beats = bg.extend(np.arange(first_downbeat, 20, iv), 30.0, beats_past_end=4 * 4)
     phase = int(np.argmin(np.abs(beats - first_downbeat)))
-    grid = {"beats": [round(float(b), 4) for b in beats], "downbeat_phase": phase,
-            "downbeats": [round(float(b), 3) for b in beats[phase::4]]}
+    return {"beats": [round(float(b), 4) for b in beats], "downbeat_phase": phase}, beats, phase
+
+
+def test_slowest_buildable_tempo_grid_covers_the_end_card(tmp_path):
+    # s6 at 28.0 s leaves the end card 2 s; it addresses up to D(14) (~33.2 s), after the video
+    grid, beats, phase = grid_98bpm(28.0)
     p, html = build(tmp_path, grid=grid)
-    assert max(float(x) for x in re.findall(r'<section[^>]*data-start="([\d.]+)"', html)) < 30
+    assert max(float(x) for x in re.findall(r'<section[^>]*data-start="([\d.]+)"', html)) <= 28.0 + 1e-3
     assert len(beats) > phase + 14 * 4 + 1  # D(14) and the beat after it exist
+
+
+def test_end_card_without_time_to_read_fails_the_build(tmp_path):
+    grid, _, _ = grid_98bpm(29.95)  # the end card would be on screen for 0.05 s
+    _, err = build(tmp_path, grid=grid, expect=2)
+    assert "less than 2s before its end" in err and "s6" in err and "re-map" in err

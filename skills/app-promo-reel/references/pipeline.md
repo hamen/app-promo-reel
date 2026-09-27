@@ -33,7 +33,7 @@ git -C <app-repo> fetch origin
 git -C <app-repo> symbolic-ref refs/remotes/origin/HEAD            # -> origin/<branch>
 git -C <app-repo> show origin/<branch>:<path/to/strings>
 ```
-store_assets.py exit 2 = no App Store data: ask the user for screenshots, or build from the
+store_assets.py first removes an old metadata.json and screens/NN.png from `--out`. Exit 2 = no App Store data: ask the user for screenshots, or build from the
 website only. Play facts are best-effort and never guessed.
 
 ## 3. Music
@@ -77,5 +77,5 @@ within 1 LU of -14 and at most -1 dBTP), A/V lag check on the PCM before
 AAC (< 5 ms), video stream copied and compared, sync report (each cue's own sound located by a
 matched filter within ±150 ms on the audio minus the bed; fail on a cue > 1 frame off, or on
 any checked cue not found — mark a cue that sits under a louder sound `"sync": false` in
-cues.json), contact sheet, versioned output that never overwrites. Exit 1 → output renamed
+cues.json), contact sheet, versioned output that never overwrites. Exit 1 → output and contact sheet renamed
 `…-v<N>-failed.mp4` and the report lists the problems.

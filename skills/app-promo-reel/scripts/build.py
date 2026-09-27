@@ -32,7 +32,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from common import Grid, attack_seconds, die, load_project, media_duration  # noqa: E402
+from common import Grid, attack_seconds, die, load_project, media_duration, read_json  # noqa: E402
 
 TOKEN = re.compile(r"\{\{\s*([A-Za-z_]+)\s*(.*?)\s*\}\}", re.S)
 SFX_FIRST_TRACK = 21
@@ -125,10 +125,14 @@ def substitute(src, grid, project):
 def sfx_tags(project_dir, cues_doc, grid, duration, durations=None):
     """Return (html_lines, realized) for the cues whose sound file exists."""
     audio_dir = Path(project_dir) / "assets" / "audio"
-    files = cues_doc.get("sfx", {})
+    files, cues = cues_doc.get("sfx", {}), cues_doc.get("cues", [])
+    if not isinstance(files, dict) or not isinstance(cues, list):
+        die('cues.json: "sfx" must be an object and "cues" an array')
     lines, realized, track_end, leads = [], [], {}, {}
     durations = {} if durations is None else durations
-    for cue in cues_doc.get("cues", []):
+    for cue in cues:
+        if not isinstance(cue, dict) or any(k not in cue for k in ("id", "sfx", "at")):
+            die(f"cues.json: every cue needs id, sfx and at, got {str(cue)[:80]}")
         cid, key = cue["id"], cue["sfx"]
         if not re.fullmatch(r"[A-Za-z0-9_-]+", str(cid)):
             die(f"cue id {cid!r} must use only letters, digits, - and _")
@@ -140,7 +144,7 @@ def sfx_tags(project_dir, cues_doc, grid, duration, durations=None):
             continue
         try:
             t = calc(cue["at"], grid, duration) + float(cue.get("offset", 0))
-        except CalcError as e:
+        except (CalcError, TypeError, ValueError) as e:
             die(f"cue {cid!r}: {e}")
         if path not in durations:
             durations[path] = media_duration(path)
@@ -170,8 +174,12 @@ def sfx_tags(project_dir, cues_doc, grid, duration, durations=None):
     return lines, realized
 
 
+MIN_SCENE_TAIL = 2.0  # seconds a scene (the end card above all) must have before the video ends
+
+
 def check_scenes(html_out, duration):
-    """Every clip must start inside the video: a scene past the end is silently never shown."""
+    """Every scene must start inside the video, at least MIN_SCENE_TAIL before its end: a scene
+    past the end is silently never shown, and one that starts 0.1 s before it cannot be read."""
     bad = []
     for tag in re.findall(r"<section\b[^>]*>", html_out):
         start = re.search(r'\bdata-start="([^"]*)"', tag)
@@ -182,10 +190,11 @@ def check_scenes(html_out, duration):
             t = float(start.group(1))
         except ValueError:
             t = float("nan")
-        if not 0 <= t < duration:
+        if not 0 <= t <= duration - MIN_SCENE_TAIL:
             bad.append(f"{name.group(1) if name else tag[:40]} at {start.group(1)}s")
     if bad:
-        die(f"scenes outside the {duration:g}s video: {', '.join(bad)}. The storyboard needs fewer bars at "
+        die(f"scenes outside the {duration:g}s video or starting less than {MIN_SCENE_TAIL:g}s before its "
+            f"end: {', '.join(bad)}. The storyboard needs fewer bars at "
             f"this tempo/duration: re-map the scenes (references/storyboard.md)")
 
 
@@ -200,7 +209,7 @@ def build(project_dir):
     grid = Grid.load(beats, project["beats_per_bar"])
     out = substitute(tmpl.read_text(), grid, project)
     cues_path = project_dir / "cues.json"
-    cues_doc = json.loads(cues_path.read_text()) if cues_path.is_file() else {}
+    cues_doc = read_json(cues_path) if cues_path.is_file() else {}
     lines, realized = sfx_tags(project_dir, cues_doc, grid, project["duration"])
     if "<!--SFX-->" in out:
         out = out.replace("<!--SFX-->", "\n".join(lines).lstrip() if lines else "")

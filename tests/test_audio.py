@@ -212,6 +212,7 @@ def test_beat_grid_main_writes_beats_json(tmp_path):
     assert g["downbeats"] == [round(b, 3) for b in g["beats"][g["downbeat_phase"]::4]]
     assert g["beats"][-1] >= 20 + 16 * 0.49  # four bars past the end
     assert abs(np.median(np.diff(g["beats"])) - 0.5) < 0.005
+    assert min(abs(d - 2.5) for d in g["downbeats"]) < 0.1  # the accented kicks: 0.5, 2.5, 4.5 ...
 
 
 def test_music_rank_main_orders_and_exits_1_when_all_rejected(tmp_path):
@@ -260,3 +261,11 @@ def test_long_riser_is_cut_with_a_ramp_and_never_past_the_bed():
     assert np.allclose(out[100:sr], 1.0) and not out[sr:].any()
     near_end = mb.add_riser(np.zeros(10 * sr), sr, riser, 11.0, 1.0)  # drop past the bed end
     assert len(near_end) == 10 * sr and near_end[-1] == 1.0
+
+
+def test_downbeat_survives_beats_added_in_front():
+    heard = np.arange(1.5, 20.0, 0.5)  # the music starts at 1.5 s, on an accented beat
+    strengths = [1.0 if i % 4 == 0 else 0.3 for i in range(len(heard))]
+    beats, phase = bg.full_grid(heard, strengths, 20.0, 4)
+    assert beats[0] < 1.0  # beats were added in front
+    assert beats[phase] == 1.5

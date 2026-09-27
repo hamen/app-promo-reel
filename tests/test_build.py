@@ -118,8 +118,49 @@ def test_beat_outside_the_bar_is_refused():
 
 def test_check_scenes_sees_either_attribute_order():
     from build import check_scenes
-    check_scenes('<section id="a" data-start="1.0"></section>', 30.0)
-    for tag in ('<section data-start="31.0" id="late">', '<section class="x" data-start="-1" id="neg">',
+    check_scenes('<section id="a" data-start="1.0"></section><section id="z" data-start="28.0">', 30.0)
+    for tag in ('<section data-start="31.0" id="late">', '<section id="short" data-start="28.1">', '<section class="x" data-start="-1" id="neg">',
                 '<section id="bad" data-start="x">'):
         with pytest.raises(SystemExit):
             check_scenes(tag, 30.0)
+
+
+def test_bad_cues_json_exits_2(tmp_path):
+    for doc in ({"sfx": [], "cues": []}, {"sfx": {}, "cues": {}}, {"sfx": {"a": "a.wav"}, "cues": [{"id": "x"}]},
+                {"sfx": {"a": "a.wav"}, "cues": ["x"]}):
+        with pytest.raises(SystemExit) as e:
+            sfx_tags(tmp_path, doc, GRID, 30.0)
+        assert e.value.code == 2, doc
+
+
+def test_build_refuses_broken_json_files(tmp_path):
+    import json as _json
+    from conftest import run_script, steady_grid, write_project
+    p = write_project(tmp_path)
+    (p / "src.html.tmpl").write_text("<html><!--SFX--></html>")
+    (p / "beats.json").write_text(_json.dumps(steady_grid()))
+    (p / "cues.json").write_text("{not json")
+    r = run_script("build.py", p)
+    assert r.returncode == 2 and "cues.json" in r.stderr and "Traceback" not in r.stderr
+    (p / "cues.json").unlink()
+    (p / "beats.json").write_text('{"beats": [1, 2]}')
+    r = run_script("build.py", p)
+    assert r.returncode == 2 and "beat grid" in r.stderr and "Traceback" not in r.stderr
+    (p / "beats.json").write_text(_json.dumps(steady_grid()))
+    (p / "project.json").write_text('{"app": "x", "variant": "a", "duration": "long"}')
+    r = run_script("build.py", p)
+    assert r.returncode == 2 and "must be numbers" in r.stderr and "Traceback" not in r.stderr
+
+
+def test_missing_sfx_marker_with_cues_exits_2(tmp_path):
+    import json as _json
+    from conftest import run_script, steady_grid, write_project
+    p = write_project(tmp_path)
+    audio = p / "assets" / "audio"
+    audio.mkdir(parents=True, exist_ok=True)
+    tone_file(audio / "a.wav")
+    (p / "src.html.tmpl").write_text("<html></html>")
+    (p / "beats.json").write_text(_json.dumps(steady_grid()))
+    (p / "cues.json").write_text(_json.dumps({"sfx": {"a": "a.wav"}, "cues": [{"id": "c", "sfx": "a", "at": "D(1)"}]}))
+    r = run_script("build.py", p)
+    assert r.returncode == 2 and "<!--SFX-->" in r.stderr

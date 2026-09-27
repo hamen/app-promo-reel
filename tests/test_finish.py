@@ -1,5 +1,6 @@
 import json
 import subprocess
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -177,3 +178,13 @@ def test_loudness_miss_fails_the_run(tmp_path, proj, monkeypatch):
     assert finish.finish(proj, raw) == 1
     report = json.loads((proj / "renders" / "demo-a-v1-report.json").read_text())
     assert any("true peak" in p for p in report["problems"])
+    assert report["sheet"].endswith("demo-a-v1-failed-sheet.jpg") and Path(report["sheet"]).is_file()
+    assert not (proj / "renders" / "demo-a-v1-sheet.jpg").exists()
+
+
+def test_realized_cues_that_are_not_a_list_exit_2(tmp_path, proj):
+    raw = make_raw_mp4(tmp_path)
+    (proj / "cues.realized.json").write_text("{}")
+    with pytest.raises(SystemExit) as e:
+        finish.finish(proj, raw)
+    assert e.value.code == 2

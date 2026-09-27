@@ -26,16 +26,34 @@ def die(msg, code=2):
     sys.exit(code)
 
 
+def read_json(path, kind=dict):
+    """Parse a JSON file the agent edits by hand; a missing file, bad JSON or the wrong top-level
+    type exits 2 with the file name instead of a traceback."""
+    try:
+        data = json.loads(Path(path).read_text())
+    except (OSError, ValueError) as e:
+        die(f"cannot read {path}: {e}")
+    if not isinstance(data, kind):
+        die(f"{path} must hold a JSON {'object' if kind is dict else 'array'}")
+    return data
+
+
 def load_project(project_dir):
     path = Path(project_dir) / "project.json"
     if not path.is_file():
         die(f"{path} not found (is this a project folder made by new_project.py?)")
-    data = {**PROJECT_DEFAULTS, **json.loads(path.read_text())}
+    data = {**PROJECT_DEFAULTS, **read_json(path)}
     missing = [k for k in ("app", "variant") if not data.get(k)]
     if missing:
         die(f"{path} has no {' / '.join(missing)}")
-    data["duration"] = float(data["duration"])
-    data["fps"] = int(data["fps"])
+    try:
+        data["duration"] = float(data["duration"])
+        data["fps"] = int(data["fps"])
+        data["beats_per_bar"] = int(data["beats_per_bar"])
+    except (TypeError, ValueError):
+        die(f"{path}: duration, fps and beats_per_bar must be numbers")
+    if data["duration"] <= 1 or data["fps"] <= 0 or data["beats_per_bar"] <= 0:
+        die(f"{path}: duration must be above 1 s (the bed fades take 0.8 s), fps and beats_per_bar above 0")
     bad = [s for s in data["stores"] if s not in KNOWN_STORES]
     if bad or not data["stores"]:
         die(f"project.json stores must be a non-empty subset of {list(KNOWN_STORES)}, got {data['stores']}")
@@ -50,8 +68,11 @@ class Grid:
 
     @classmethod
     def load(cls, path, beats_per_bar=4):
-        g = json.loads(Path(path).read_text())
-        return cls(g["beats"], g["downbeat_phase"], beats_per_bar)
+        g = read_json(path)
+        try:
+            return cls(g["beats"], g["downbeat_phase"], beats_per_bar)
+        except (KeyError, TypeError, ValueError) as e:
+            die(f"{path} is not a beat grid from beat_grid.py ({e!r})")
 
     def _index(self, bar, beat):
         if not 0 <= int(beat) < self.bpb:

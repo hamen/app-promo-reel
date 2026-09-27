@@ -140,6 +140,10 @@ def main(argv=None, fetch_fn=fetch):
         ap.error("give --app-store-id, --bundle or --play")
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
+    # a failed run must not leave an earlier listing behind for the next step to use
+    (out / "metadata.json").unlink(missing_ok=True)
+    for old in (out / "screens").glob("[0-9][0-9].png"):
+        old.unlink()
     meta = {"country": a.country, "lang": a.lang}
 
     if a.app_store_id or a.bundle:

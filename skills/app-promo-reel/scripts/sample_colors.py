@@ -20,7 +20,11 @@ def sample(img, points, box=0.006):
     h, w = rgb.shape[:2]
     r = max(1, int(round(box * w)))
     out = {}
-    for name, (x, y) in points.items():
+    for name, xy in points.items():
+        if not (isinstance(xy, (list, tuple)) and len(xy) == 2
+                and all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in xy)):
+            raise ValueError(f"{name}: a point is [x, y] with two numbers 0-1, got {xy!r}")
+        x, y = xy
         if not (0 <= x <= 1 and 0 <= y <= 1):
             raise ValueError(f"{name}: coordinates must be 0-1, got {x}, {y}")
         cx, cy = int(round(x * (w - 1))), int(round(y * (h - 1)))
