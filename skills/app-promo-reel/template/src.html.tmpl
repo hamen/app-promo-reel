@@ -590,10 +590,27 @@
       // an empty string hides the element (e.g. a screen with no bottom button, a row with no chip)
       document.querySelectorAll("[data-cfg]").forEach((el) => {
         const v = String(cfgGet(el.dataset.cfg));
-        if (el.id === "ai-label" && v.trim() === "") throw new Error("CONFIG.aiLabel is empty: the AI-generated label must stay on screen");
         el.textContent = v;
         if (v === "") el.style.display = "none";
       });
+      // EU AI Act: the AI-generated label must be in the page, filled and visible, or nothing renders
+      const assertAiLabel = () => {
+        const el = document.getElementById("ai-label");
+        if (!el || !el.textContent.trim())
+          throw new Error("the AI-generated label (#ai-label, CONFIG.aiLabel) is missing or empty");
+        // the runtime hides every [data-start] element (the root too) with !important until its
+        // first seek: read the label's own style, not the visibility it inherits, by showing the
+        // parent (inline !important) for this one synchronous read, then restoring it exactly
+        const ps = el.parentElement.style;
+        const before = [ps.getPropertyValue("visibility"), ps.getPropertyPriority("visibility")];
+        ps.setProperty("visibility", "visible", "important");
+        const cs = getComputedStyle(el);
+        const hidden = cs.display === "none" || cs.visibility === "hidden" || parseFloat(cs.opacity) === 0;
+        if (before[0]) ps.setProperty("visibility", before[0], before[1]);
+        else ps.removeProperty("visibility");
+        if (hidden) throw new Error("the AI-generated label (#ai-label) is hidden by CSS");
+      };
+      assertAiLabel();
       const css = document.documentElement.style;
       const C = CONFIG.colors;
       css.setProperty("--font", CONFIG.font);

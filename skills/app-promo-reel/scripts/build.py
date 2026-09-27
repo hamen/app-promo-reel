@@ -29,6 +29,7 @@ import json
 import operator
 import re
 import sys
+from html.parser import HTMLParser
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -212,12 +213,28 @@ def check_scenes(html_out, duration):
             f"this tempo/duration: re-map the scenes (references/storyboard.md)")
 
 
+class _LiveTags(HTMLParser):
+    """Start tags of the parsed page: markup inside <!-- comments --> is not an element."""
+
+    def __init__(self):
+        super().__init__()
+        self.tags = []
+
+    def handle_starttag(self, tag, attrs):
+        self.tags.append(dict(attrs))
+
+
 def check_ai_label(html_out):
-    """The AI-generated label (EU AI Act) must exist and be non-empty: the template hides an
-    element whose CONFIG string is empty, so an empty aiLabel would drop it without a word."""
-    if not re.search(r'<[^>]*\bid="ai-label"[^>]*\bdata-cfg="aiLabel"|<[^>]*\bdata-cfg="aiLabel"[^>]*\bid="ai-label"',
-                     html_out):
+    """The AI-generated label (EU AI Act) must be in the page and non-empty. The template hides
+    an element whose CONFIG string is empty, and CSS or a comment can hide the element too, so
+    this is the static half; the page's assertAiLabel() checks the rendered element (text and
+    computed visibility) and throws, which stops hyperframes check and render."""
+    parser = _LiveTags()
+    parser.feed(html_out)
+    if not any(a.get("id") == "ai-label" and a.get("data-cfg") == "aiLabel" for a in parser.tags):
         die('the page has no <div id="ai-label" data-cfg="aiLabel">: the AI-generated label must stay in the video')
+    if not re.search(r"^[ \t]*assertAiLabel\(\);[ \t]*$", html_out, re.M):  # a call on its own line
+        die("the page script no longer calls assertAiLabel(): the AI-generated label check must stay in the page")
     m = re.search(r'"aiLabel"\s*:\s*"((?:[^"\\]|\\.)*)"', html_out)
     if not m or not m.group(1).strip():
         die("CONFIG.aiLabel is missing or empty: the AI-generated label must stay on screen (SKILL.md rule 7)")

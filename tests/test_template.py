@@ -102,6 +102,11 @@ def test_slow_tempo_fails_the_build_with_the_re_map_message(tmp_path, bpm, first
     lambda s: s.replace('"aiLabel": "AI-generated"', '"aiLabel": "   "'),
     lambda s: s.replace('"aiLabel": "AI-generated"', '"aiText": "AI-generated"'),
     lambda s: s.replace('<div id="ai-label" data-cfg="aiLabel"></div>', ""),
+    lambda s: s.replace('<div id="ai-label" data-cfg="aiLabel"></div>', '<!-- <div id="ai-label" data-cfg="aiLabel"></div> -->'),
+    lambda s: s.replace("      assertAiLabel();\n", ""),
+    lambda s: s.replace("      assertAiLabel();\n", "      // assertAiLabel();\n"),
+    lambda s: s.replace("      assertAiLabel();\n", "      /* assertAiLabel(); */\n"),
+    lambda s: s.replace("      assertAiLabel();\n", "      <!-- assertAiLabel(); -->\n"),
 ])
 def test_ai_label_cannot_be_removed(tmp_path, edit):
     def change(p):
@@ -113,6 +118,12 @@ def test_ai_label_cannot_be_removed(tmp_path, edit):
     assert "AI-generated label" in err
 
 
-def test_page_throws_on_an_empty_ai_label(tmp_path):
+def test_page_asserts_the_ai_label_is_visible(tmp_path):
     _, html = build(tmp_path)
-    assert 'if (el.id === "ai-label" && v.trim() === "") throw new Error(' in html
+    guard = html[html.index("const assertAiLabel"):html.index("assertAiLabel();")]
+    for check in ("!el.textContent.trim()", 'cs.display === "none"', 'cs.visibility === "hidden"',
+                  "parseFloat(cs.opacity) === 0", 'ps.setProperty("visibility", "visible", "important")',
+                  'ps.removeProperty("visibility")', "if (hidden) throw new Error("):
+        assert check in guard
+    # it runs after CONFIG has filled the page
+    assert html.index('el.style.display = "none"') < html.index("assertAiLabel();")
