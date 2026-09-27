@@ -86,5 +86,8 @@ within 1 LU of -14 and at most -1 dBTP), A/V lag check on the PCM before
 AAC (< 5 ms), video stream copied and compared, sync report (each cue's own sound located by a
 matched filter within ±150 ms on the audio minus the bed; fail on a cue > 1 frame off, or on
 any checked cue not found — mark a cue that sits under a louder sound `"sync": false` in
-cues.json), contact sheet, versioned output that never overwrites. Exit 1 → output and contact sheet renamed
-`…-v<N>-failed.mp4` and the report lists the problems.
+cues.json), contact sheet, versioned output that never overwrites. While the checks run the file
+is `…-v<N>.checking.mp4`; it becomes `…-v<N>.mp4` only when every check passed. Exit 1 → output
+and contact sheet named `…-v<N>-failed.mp4` and the report lists the problems; an error or
+Ctrl-C during the checks also leaves `-failed` (no report). A `.checking` file left behind was
+never checked: do not deliver it.

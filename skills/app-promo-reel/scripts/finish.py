@@ -5,8 +5,8 @@
    AAC file must measure within 1 LU of -14 LUFS and at most -1 dBTP, or the run fails.
 2. A/V check before the AAC encode: the cross-correlation lag between the WAV before and
    after loudnorm must be < 5 ms.
-3. Mux: video stream copied (-c:v copy), audio AAC. Output name
-   renders/<app>-<variant>-v<N>.mp4, N = one more than the highest existing version.
+3. Mux: video stream copied (-c:v copy), audio AAC, to renders/<app>-<variant>-v<N>.checking.mp4,
+   N = one more than the highest existing version (a leftover .checking file counts too).
    An existing file is never overwritten.
 4. Picture check: codec, size, frame count and duration of the video stream are unchanged,
    and the duration matches project.json within one frame.
@@ -18,12 +18,16 @@
    sound is marked "sync": false in cues.json and is not checked.
 6. Contact sheet of frames from the final MP4.
 
-Any failed check exits 1 and renames the output to ...-v<N>-failed.mp4.
+Only when every check passed is the file renamed to ...-v<N>.mp4 (sheet: -v<N>-sheet.jpg). A
+failed check exits 1 and names it ...-v<N>-failed.mp4; so does any other exit after the mux
+(an error, Ctrl-C). The report, -v<N>-report.json, is written last, with the final names. A
+.checking file left by a killed run was never checked; the script never deletes it.
 
 Usage: finish.py <project_dir> <raw_render.mp4> [--frames 1.0,5.2,...]
 """
 import argparse
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -56,8 +60,8 @@ def run(cmd):
 
 
 def next_version_path(renders, stem):
-    """renders/<stem>-v<N>.mp4 with N = max existing (incl. -failed) + 1."""
-    pat = re.compile(re.escape(stem) + r"-v(\d+)(?:-failed)?\.mp4$")
+    """renders/<stem>-v<N>.mp4 with N = max existing (incl. -failed and .checking) + 1."""
+    pat = re.compile(re.escape(stem) + r"-v(\d+)(?:-failed|\.checking)?\.mp4$")
     nums = [int(m.group(1)) for p in renders.glob(f"{stem}-v*.mp4") if (m := pat.match(p.name))]
     return renders / f"{stem}-v{max(nums, default=0) + 1}.mp4"
 
@@ -205,6 +209,46 @@ def contact_sheet(mp4, times, dest):
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def _checks(pdir, project, raw_mp4, realized, checking, sheet, frames):
+    """Mux the loudness-normalised audio to `checking`, make the contact sheet at `sheet` and run
+    every check. Returns (problems, report); naming the files is the caller's job."""
+    work = Path(tempfile.mkdtemp(prefix="reel-finish-"))
+    problems = []
+    try:
+        raw_wav, norm_wav = work / "raw.wav", work / "norm.wav"
+        run(["ffmpeg", "-v", "error", "-y", "-i", str(raw_mp4), "-vn", "-ar", str(SR), "-ac", "2",
+             "-c:a", "pcm_s16le", str(raw_wav)])
+        meas = loudnorm(raw_wav, norm_wav)
+        lag = lag_seconds(decode_audio(raw_wav, SR), decode_audio(norm_wav, SR))
+        if abs(lag) >= MAX_LAG:
+            problems.append(f"loudnorm moved audio by {lag * 1000:.1f} ms")
+        run(["ffmpeg", "-v", "error", "-n", "-i", str(raw_mp4), "-i", str(norm_wav), "-map", "0:v:0",
+             "-map", "1:a:0", "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart",
+             str(checking)])
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+
+    vi_raw, vi_out = video_info(raw_mp4), video_info(checking)
+    if vi_raw != vi_out:
+        problems.append(f"video stream changed: {vi_raw} -> {vi_out}")
+    frame = 1.0 / project["fps"]
+    if abs(vi_out["duration"] - project["duration"]) > frame + 1e-6:
+        problems.append(f"video is {vi_out['duration']}s, project.json says {project['duration']:g}s")
+
+    rows, sync_problems = sync_report(decode_audio(checking, SR), realized, project["fps"], pdir)
+    problems += sync_problems
+
+    dur = project["duration"]
+    times = frames or [round(dur * i / 9, 2) for i in range(9)] + [round(dur - 0.1, 2)]
+    last = min(dur, vi_out["duration"]) - 0.05
+    contact_sheet(checking, [min(t, last) for t in times], sheet)
+
+    final = measure(checking)
+    problems += loudness_problems(final)
+    return problems, {"loudnorm_input": meas, "final_lufs": final["input_i"], "final_tp": final["input_tp"],
+                      "lag_ms": round(lag * 1000, 2), "video": vi_out, "sync": rows, "problems": problems}
+
+
 def finish(project_dir, raw_mp4, frames=None):
     pdir = Path(project_dir)
     project = load_project(pdir)
@@ -223,52 +267,29 @@ def finish(project_dir, raw_mp4, frames=None):
     renders.mkdir(exist_ok=True)
     stem = f"{project['app']}-{project['variant']}"
     out = next_version_path(renders, stem)
-    work = Path(tempfile.mkdtemp(prefix="reel-finish-"))
-    problems = []
+    checking = out.with_name(out.stem + ".checking.mp4")
+    sheet = out.with_name(out.stem + ".checking-sheet.jpg")
+    failed, failed_sheet = out.with_name(out.stem + "-failed.mp4"), out.with_name(out.stem + "-failed-sheet.jpg")
     try:
-        raw_wav, norm_wav = work / "raw.wav", work / "norm.wav"
-        run(["ffmpeg", "-v", "error", "-y", "-i", str(raw_mp4), "-vn", "-ar", str(SR), "-ac", "2",
-             "-c:a", "pcm_s16le", str(raw_wav)])
-        meas = loudnorm(raw_wav, norm_wav)
-        lag = lag_seconds(decode_audio(raw_wav, SR), decode_audio(norm_wav, SR))
-        if abs(lag) >= MAX_LAG:
-            problems.append(f"loudnorm moved audio by {lag * 1000:.1f} ms")
-        run(["ffmpeg", "-v", "error", "-n", "-i", str(raw_mp4), "-i", str(norm_wav), "-map", "0:v:0",
-             "-map", "1:a:0", "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart",
-             str(out)])
-    finally:
-        shutil.rmtree(work, ignore_errors=True)
+        problems, report = _checks(pdir, project, raw_mp4, realized, checking, sheet, frames)
+    except BaseException:
+        # an error or Ctrl-C after the mux: the file was never fully checked, so it must not look
+        # delivered; no report is written
+        if checking.exists():
+            checking.rename(failed)
+        if sheet.exists():
+            sheet.rename(failed_sheet)
+        raise
+    final_mp4, final_sheet = (failed, failed_sheet) if problems else (out, out.with_name(out.stem + "-sheet.jpg"))
+    checking.rename(final_mp4)
+    sheet.rename(final_sheet)
+    report = {"output": str(final_mp4), "sheet": str(final_sheet), **report}
+    report_path = out.with_name(out.stem + "-report.json")
+    partial = report_path.with_name("." + report_path.name + ".partial")
+    partial.write_text(json.dumps(report, indent=1) + "\n")
+    os.replace(partial, report_path)
 
-    vi_raw, vi_out = video_info(raw_mp4), video_info(out)
-    if vi_raw != vi_out:
-        problems.append(f"video stream changed: {vi_raw} -> {vi_out}")
-    frame = 1.0 / project["fps"]
-    if abs(vi_out["duration"] - project["duration"]) > frame + 1e-6:
-        problems.append(f"video is {vi_out['duration']}s, project.json says {project['duration']:g}s")
-
-    rows, sync_problems = sync_report(decode_audio(out, SR), realized, project["fps"], pdir)
-    problems += sync_problems
-
-    dur = project["duration"]
-    times = frames or [round(dur * i / 9, 2) for i in range(9)] + [round(dur - 0.1, 2)]
-    sheet = out.with_name(out.stem + "-sheet.jpg")
-    last = min(dur, vi_out["duration"]) - 0.05
-    contact_sheet(out, [min(t, last) for t in times], sheet)
-
-    final = measure(out)
-    problems += loudness_problems(final)
-    report = {"output": str(out), "sheet": str(sheet), "loudnorm_input": meas, "final_lufs": final["input_i"],
-              "final_tp": final["input_tp"], "lag_ms": round(lag * 1000, 2),
-              "video": vi_out, "sync": rows, "problems": problems}
-    if problems:
-        failed = out.with_name(out.stem + "-failed.mp4")
-        out.rename(failed)
-        failed_sheet = sheet.with_name(out.stem + "-failed-sheet.jpg")
-        sheet.rename(failed_sheet)
-        report["output"], report["sheet"] = str(failed), str(failed_sheet)
-        sheet = failed_sheet
-    out.with_name(out.stem + "-report.json").write_text(json.dumps(report, indent=1) + "\n")
-
+    rows, vi_out = report["sync"], report["video"]
     if rows:
         found = [r for r in rows if r["delta_ms"] is not None]
         worst = max((abs(r["delta_ms"]) for r in found), default=0)
@@ -282,12 +303,13 @@ def finish(project_dir, raw_mp4, frames=None):
                   f"sounds {ms:.0f} ms after the cue time; use align \"attack\" or trim the file", file=sys.stderr)
     else:
         print("sync: no cues (no SFX mixed)")
-    print(f"loudness {final['input_i']} LUFS, true peak {final['input_tp']} dBTP; loudnorm lag {lag * 1000:.2f} ms; video {vi_out}")
+    print(f"loudness {report['final_lufs']} LUFS, true peak {report['final_tp']} dBTP; loudnorm lag "
+          f"{report['lag_ms']:.2f} ms; video {vi_out}")
     if problems:
         print("FAILED:\n  " + "\n  ".join(problems), file=sys.stderr)
-        print(f"output kept as {report['output']}", file=sys.stderr)
+        print(f"output kept as {final_mp4}", file=sys.stderr)
         return 1
-    print(f"ok: {out}\ncontact sheet: {sheet}")
+    print(f"ok: {final_mp4}\ncontact sheet: {final_sheet}")
     return 0
 
 

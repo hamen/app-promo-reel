@@ -208,3 +208,54 @@ def test_negative_frames_exit_2_before_any_output(tmp_path, proj):
     r = subprocess.run([sys.executable, str(finish.__file__), str(proj), str(raw), "--frames", "1,-2"],
                        capture_output=True, text=True)
     assert r.returncode == 2 and not list((proj / "renders").glob("*.mp4"))
+
+
+def test_success_leaves_final_names_and_no_checking_file(tmp_path, proj):
+    raw = make_raw_mp4(tmp_path)
+    realize(proj, [(t, True) for t in CLICKS])
+    assert finish.finish(proj, raw) == 0
+    r = proj / "renders"
+    report = json.loads((r / "demo-a-v1-report.json").read_text())
+    assert report["output"] == str(r / "demo-a-v1.mp4") and report["sheet"] == str(r / "demo-a-v1-sheet.jpg")
+    assert Path(report["output"]).is_file() and Path(report["sheet"]).is_file()
+    assert not list(r.glob("*checking*")) and not list(r.glob(".*partial*"))
+
+
+def test_error_after_the_mux_leaves_only_a_failed_file(tmp_path, proj, monkeypatch):
+    raw = make_raw_mp4(tmp_path)
+    realize(proj, [(t, True) for t in CLICKS])
+
+    r = proj / "renders"
+    during = []
+
+    def broken_sheet(*a, **k):
+        during.extend(p.name for p in r.iterdir())  # what a reader sees while the checks run
+        raise RuntimeError("disk full")
+    monkeypatch.setattr(finish, "contact_sheet", broken_sheet)
+    with pytest.raises(RuntimeError):
+        finish.finish(proj, raw)
+    assert during == ["demo-a-v1.checking.mp4"]
+    assert (r / "demo-a-v1-failed.mp4").is_file()
+    assert not (r / "demo-a-v1.mp4").exists() and not list(r.glob("*checking*"))
+    assert not (r / "demo-a-v1-report.json").exists()
+
+
+def test_leftover_checking_file_reserves_its_version(proj):
+    (proj / "renders" / "demo-a-v3.checking.mp4").write_bytes(b"killed run")
+    assert finish.next_version_path(proj / "renders", "demo-a").name == "demo-a-v4.mp4"
+
+
+def test_failed_report_write_leaves_no_report(tmp_path, proj, monkeypatch):
+    raw = make_raw_mp4(tmp_path)
+    realize(proj, [(t, True) for t in CLICKS])
+    real_write = Path.write_text
+
+    def half_write(self, text, *a, **k):
+        if "-report.json" in self.name:  # the report write dies half way, whatever its name
+            real_write(self, text[:20])
+            raise OSError("disk full")
+        return real_write(self, text, *a, **k)
+    monkeypatch.setattr(Path, "write_text", half_write)
+    with pytest.raises(OSError):
+        finish.finish(proj, raw)
+    assert not (proj / "renders" / "demo-a-v1-report.json").exists()
