@@ -127,7 +127,8 @@ def locate(y, tmpl, t, window=SYNC_WINDOW, sr=SR):
     if len(seg) < n:
         return None, 0.0
     num = ss.correlate(seg, tmpl, mode="valid", method="fft")
-    energy = np.convolve(seg.astype(np.float64) ** 2, np.ones(n), mode="valid")
+    run_sum = np.concatenate(([0.0], np.cumsum(seg.astype(np.float64) ** 2)))
+    energy = run_sum[n:] - run_sum[:-n]  # energy of every n-sample window, O(len(seg))
     ncc = num / (np.sqrt(np.maximum(energy, 1e-12)) * np.linalg.norm(tmpl) + 1e-12)
     k = int(np.argmax(ncc))
     return (a + k) / sr, float(ncc[k])
@@ -195,6 +196,19 @@ def sync_report(y, realized, fps, project_dir, sr=SR):
                  f"or missing). If it is meant to sit under a louder sound, set \"sync\": false on it in "
                  f"cues.json and rebuild" for r in rows if r["flag"] == "masked"]
     return rows, problems
+
+
+def late_starts(pdir, realized, fps, sr=SR):
+    """{file: ms of leading silence} for the files of align "start" cues (checked for sync or not)
+    whose sound begins more than one frame after the cue time."""
+    out = {}
+    for f in dict.fromkeys(c["file"] for c in realized if c.get("align") == "start"):
+        path = Path(pdir) / f
+        if path.is_file():
+            ms = attack_index(decode_audio(path, sr)) / sr * 1000
+            if ms > 1000 / fps:
+                out[f] = ms
+    return out
 
 
 def contact_sheet(mp4, times, dest):
@@ -270,7 +284,7 @@ def finish(project_dir, raw_mp4, frames=None):
     realized = read_json(realized_path, list)
     for cue in realized:
         if not (isinstance(cue, dict) and isinstance(cue.get("id"), str) and isinstance(cue.get("file"), str)
-                and isinstance(cue.get("time"), (int, float))):
+                and isinstance(cue.get("time"), (int, float)) and not isinstance(cue.get("time"), bool)):
             die(f"{realized_path}: every entry needs id, file and time (it is written by build.py: rebuild)")
     renders = pdir / "renders"
     renders.mkdir(exist_ok=True)
@@ -305,13 +319,11 @@ def finish(project_dir, raw_mp4, frames=None):
         masked = [r["id"] for r in rows if r["delta_ms"] is None]
         print(f"sync: {len(found)} of {len(rows)} checked cues found, worst {worst:.1f} ms"
               + (f"; not found: {', '.join(masked)}" if masked else ""))
-        late = {r["file"]: r["lead_ms"] for r in rows
-                if r.get("align") == "start" and r["lead_ms"] > 1000 / project["fps"]}
-        for f, ms in late.items():
-            print(f"warning: {f} starts with {ms:.0f} ms of silence and its cues use align \"start\", so it "
-                  f"sounds {ms:.0f} ms after the cue time; use align \"attack\" or trim the file", file=sys.stderr)
     else:
         print("sync: no cues (no SFX mixed)")
+    for f, ms in late_starts(pdir, realized, project["fps"]).items():
+        print(f"warning: {f} starts with {ms:.0f} ms of silence and its cues use align \"start\", so it "
+              f"sounds {ms:.0f} ms after the cue time; use align \"attack\" or trim the file", file=sys.stderr)
     print(f"loudness {report['final_lufs']} LUFS, true peak {report['final_tp']} dBTP; loudnorm lag "
           f"{report['lag_ms']:.2f} ms; video {vi_out}")
     if problems:

@@ -296,3 +296,32 @@ def test_music_rank_unwritable_json_exits_2(tmp_path):
     sf.write(wav, np.zeros(SR * 2, dtype=np.float32), SR)
     r = run_script("music_rank.py", "--duration", "1", "--json", tmp_path / "no" / "such" / "dir.json", wav)
     assert r.returncode == 2 and "cannot write" in r.stderr and "Traceback" not in r.stderr
+
+
+def test_a_mostly_silent_seed_is_rejected():
+    # 20 s of silence then 10 s of sound: the median second is 0, so a ratio alone finds nothing
+    y = np.zeros(30 * SR, dtype=np.float32)
+    y[20 * SR:] = 0.3 * np.sin(2 * np.pi * 220 * np.arange(10 * SR) / SR)
+    assert mr.dropouts(y, SR) == list(range(20))
+
+
+def test_downbeat_phase_needs_a_bar_of_accents():
+    with pytest.raises(SystemExit) as e:
+        bg.downbeat_phase([1.0, 2.0, 3.0], 4)
+    assert e.value.code == 2
+
+
+def test_loudness_at_before_zero_reads_from_the_start():
+    y = np.concatenate([np.ones(500), np.zeros(1500)])
+    assert bg.loudness_at(y, 1000, -0.2, n=200) == 1.0  # not the silent tail of the array
+
+
+def test_grid_load_checks_the_downbeat_phase(tmp_path):
+    from common import Grid
+    for phase in (4, -1, 1.5, True, 99):
+        f = tmp_path / "b.json"
+        f.write_text(json.dumps({"beats": [0.5, 1.0, 1.5, 2.0, 2.5, 3.0], "downbeat_phase": phase}))
+        with pytest.raises(SystemExit):
+            Grid.load(f, 4)
+    f.write_text(json.dumps({"beats": [0.5, 1.0, 1.5, 2.0, 2.5, 3.0], "downbeat_phase": 3}))
+    assert Grid.load(f, 4).first == 3

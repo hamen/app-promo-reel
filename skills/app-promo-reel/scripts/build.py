@@ -4,9 +4,11 @@
 Tokens (the `{{ }}` delimiter never appears in CSS, so @font-face/@media/@keyframes are safe):
   {{D bar}} / {{D bar beat}}   time of that beat (see common.py for the addressing)
   {{E bar}} / {{E bar beat}}   the "and" after that beat
-  {{LEN a b}}                  D(b) - D(a)
-  {{TO_END bar}}               duration - D(bar)
+  {{LEN a b}}                  D(b) - D(a) (the build fails when b comes before a)
+  {{TO_END bar}}               duration - D(bar) (the build fails when D(bar) is past the end)
   {{calc <expr>}}              arithmetic: numbers, + - * /, parentheses, D(), E(), DURATION
+  {{BEFORE_END margin expr}}   renders nothing; the build fails when calc(expr) is less than
+                               `margin` seconds before the end (text that must be read)
   {{BEATS}}                    JSON array of every beat time
   {{DOWNBEAT_INDEX}}           index in BEATS of the first downbeat
   {{BEATS_PER_BAR}}            from project.json
@@ -34,7 +36,7 @@ import unicodedata
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from common import Grid, attack_seconds, die, load_project, media_duration, read_json  # noqa: E402
+from common import Grid, attack_seconds, die, is_number, load_project, media_duration, read_json  # noqa: E402
 
 TOKEN = re.compile(r"\{\{\s*([A-Za-z_]+)\s*(.*?)\s*\}\}", re.S)
 SFX_FIRST_TRACK = 21
@@ -94,9 +96,13 @@ def substitute(src, grid, project):
             return f"{getattr(grid, name)(*_ints(name, args, 1, 2)):.3f}"
         if name == "LEN":
             a, b = _ints(name, args, 2, 2)
+            if grid.D(b) < grid.D(a):
+                raise CalcError(f"{{{{LEN {args}}}}}: bar {b} comes before bar {a}")
             return f"{grid.D(b) - grid.D(a):.3f}"
         if name == "TO_END":
             (a,) = _ints(name, args, 1, 1)
+            if grid.D(a) > duration:
+                raise CalcError(f"{{{{TO_END {args}}}}}: D({a}) = {grid.D(a):.2f}s is past the {duration:g}s end")
             return f"{duration - grid.D(a):.3f}"
         if name == "calc":
             return f"{calc(args, grid, duration):.3f}"
@@ -129,17 +135,22 @@ def substitute(src, grid, project):
     left = re.search(r"\{\{.*?\}\}", out, re.S)
     if left:
         die(f"leftover token after build: {left.group(0)[:60]!r}")
+    if "{{" in out:
+        i = out.index("{{")
+        die(f"unclosed token (no }}}}) after build: {out[i:i + 40]!r}")
     return out
 
 
-def sfx_tags(project_dir, cues_doc, grid, duration, durations=None):
+def sfx_tags(project_dir, cues_doc, grid, duration):
     """Return (html_lines, realized) for the cues whose sound file exists."""
     audio_dir = Path(project_dir) / "assets" / "audio"
     files, cues = cues_doc.get("sfx", {}), cues_doc.get("cues", [])
     if not isinstance(files, dict) or not isinstance(cues, list):
         die('cues.json: "sfx" must be an object and "cues" an array')
-    lines, realized, track_end, leads, seen = [], [], {}, {}, set()
-    durations = {} if durations is None else durations
+    bad = [k for k, v in files.items() if not isinstance(v, str)]
+    if bad:
+        die(f'cues.json: every "sfx" value is a file name (a string); not {", ".join(map(repr, bad))}')
+    lines, realized, track_end, leads, seen, durations = [], [], {}, {}, set(), {}
     for cue in cues:
         if not isinstance(cue, dict) or any(k not in cue for k in ("id", "sfx", "at")):
             die(f"cues.json: every cue needs id, sfx and at, got {str(cue)[:80]}")
@@ -147,10 +158,14 @@ def sfx_tags(project_dir, cues_doc, grid, duration, durations=None):
         if cid in seen:
             die(f"cues.json: cue id {cid!r} is used twice")
         seen.add(cid)
-        try:
-            at, offset, vol = str(cue["at"]), float(cue.get("offset", 0)), float(cue.get("volume", 0.5))
-        except (TypeError, ValueError):
-            die(f"cue {cid!r}: offset and volume must be numbers")
+        at, offset, vol = str(cue["at"]), cue.get("offset", 0), cue.get("volume", 0.5)
+        if not (is_number(offset) and is_number(vol)):
+            die(f"cue {cid!r}: offset and volume must be JSON numbers, got {offset!r} and {vol!r}")
+        if vol < 0:
+            die(f"cue {cid!r}: volume must be 0 or more, got {vol}")
+        sync = cue.get("sync")
+        if sync is not None and not isinstance(sync, bool):
+            die(f'cue {cid!r}: "sync" must be true or false (no quotes), got {sync!r}')
         if not re.fullmatch(r"[A-Za-z0-9_-]+", str(cid)):
             die(f"cue id {cid!r} must use only letters, digits, - and _")
         if key not in files:
@@ -184,7 +199,7 @@ def sfx_tags(project_dir, cues_doc, grid, duration, durations=None):
         rel = f"assets/audio/{files[key]}"
         lines.append(f'      <audio id="sfx-{cid}" src="{html.escape(rel, quote=True)}" data-start="{t:.3f}" data-duration="{d:.3f}" '
                      f'data-track-index="{track}" data-volume="{vol:g}"></audio>')
-        sync = bool(cue.get("sync", align != "end"))
+        sync = align != "end" if sync is None else sync
         realized.append({"id": cid, "file": rel, "time": round(t, 4), "volume": vol, "track": track,
                          "align": align, "sync": sync})
     return lines, realized
@@ -197,17 +212,18 @@ def check_scenes(html_out, duration):
     """Every scene must start inside the video, at least MIN_SCENE_TAIL before its end: a scene
     past the end is silently never shown, and one that starts 0.1 s before it cannot be read."""
     bad = []
-    for tag in re.findall(r"<section\b[^>]*>", html_out):
-        start = re.search(r'\bdata-start="([^"]*)"', tag)
+    live = re.sub(r"<!--.*?-->", "", html_out, flags=re.S)  # a commented-out scene is never shown
+    for tag in re.findall(r"<section\b[^>]*>", live):
+        start = re.search(r"""\bdata-start=(["'])(.*?)\1""", tag)
         if not start:
             continue
-        name = re.search(r'\bid="([^"]*)"', tag)
+        name = re.search(r"""\bid=(["'])(.*?)\1""", tag)
         try:
-            t = float(start.group(1))
+            t = float(start.group(2))
         except ValueError:
             t = float("nan")
         if not 0 <= t <= duration - MIN_SCENE_TAIL:
-            bad.append(f"{name.group(1) if name else tag[:40]} at {start.group(1)}s")
+            bad.append(f"{name.group(2) if name else tag[:40]} at {start.group(2)}s")
     if bad:
         die(f"scenes outside the {duration:g}s video or starting less than {MIN_SCENE_TAIL:g}s before its "
             f"end: {', '.join(bad)}. The storyboard needs fewer bars at "
@@ -224,7 +240,9 @@ AI_LABEL_GUARD = r"""<script data-ai-label-guard>
 (() => {
   const fail = (why) => { throw new Error(`the AI-generated label ${why}: it must stay on screen`); };
   const text = typeof CONFIG === "object" && CONFIG !== null ? CONFIG.aiLabel : undefined;
-  const visible = typeof text === "string" ? [...text.replace(/[\p{Z}\p{C}\p{M}]/gu, "")].length : 0;
+  // spaces, format/control/combining marks and the letters that draw nothing (Hangul fillers, braille blank)
+  const visible = typeof text === "string" ?
+    [...text.replace(/[\p{Z}\p{C}\p{M}\u115F\u1160\u3164\uFFA0\u2800]/gu, "")].length : 0;
   if (!visible) fail("(CONFIG.aiLabel) is missing, empty or has no visible character");
   const root = document.querySelector("[data-composition-id]");
   if (!root) fail("has no composition root to sit in");
@@ -288,17 +306,34 @@ AI_LABEL_GUARD = r"""<script data-ai-label-guard>
 """
 
 
+BLANK_GLYPHS = "\u115f\u1160\u3164\uffa0\u2800"  # letters that draw nothing (Hangul fillers, braille blank)
+
+
+def has_visible_character(label):
+    return isinstance(label, str) and any(
+        unicodedata.category(c)[0] not in "ZCM" and c not in BLANK_GLYPHS for c in label)
+
+
 def check_ai_label(html_out):
     """Static half of the AI-generated label (EU AI Act): CONFIG.aiLabel must be a string with a
-    visible character. The runtime half, AI_LABEL_GUARD, creates the label and checks it can be seen."""
-    m = re.search(r'"aiLabel"\s*:\s*("(?:[^"\\]|\\.)*")', html_out)
-    try:
-        label = json.loads(m.group(1)) if m else ""
-    except ValueError:
-        label = ""
-    if not any(unicodedata.category(c)[0] not in "ZCM" for c in label):
-        die("CONFIG.aiLabel is missing, empty or has no visible character: "
-            "the AI-generated label must stay on screen (SKILL.md rule 7)")
+    visible character. The runtime half, AI_LABEL_GUARD, creates the label and checks it can be seen
+    (it is the one that counts: this check only fails a build early).
+    Comments are removed first, so an example in a comment neither passes nor fails the build: HTML
+    <!-- -->, JS /* */ and lines that start with //. A `/*` inside a string can hide text from this
+    check; the runtime guard still throws for an empty label."""
+    code = re.sub(r"<!--.*?-->|/\*.*?\*/", "", html_out, flags=re.S)
+    code = re.sub(r"(?m)^[ \t]*//.*$", "", code)
+    values = re.findall(r'"aiLabel"\s*:\s*("(?:[^"\\]|\\.)*"|[^,}\s]+)', code)
+    labels = []
+    for v in values:
+        try:
+            labels.append(json.loads(v))
+        except ValueError:
+            labels.append(None)
+    if not labels or not all(has_visible_character(x) for x in labels):
+        die("CONFIG.aiLabel is missing, empty, not a string or has no visible character: the "
+            "AI-generated label must stay on screen (SKILL.md rule 7). A comment after code on the same "
+            "line is not removed before this check")
 
 
 def add_ai_label_guard(html_out):
@@ -329,6 +364,8 @@ def build(project_dir):
     cues_path = project_dir / "cues.json"
     cues_doc = read_json(cues_path) if cues_path.is_file() else {}
     lines, realized = sfx_tags(project_dir, cues_doc, grid, project["duration"])
+    if out.count("<!--SFX-->") > 1:
+        die("src.html.tmpl has more than one <!--SFX--> marker: every sound would play twice")
     if "<!--SFX-->" in out:
         out = out.replace("<!--SFX-->", "\n".join(lines).lstrip() if lines else "")
     elif lines:

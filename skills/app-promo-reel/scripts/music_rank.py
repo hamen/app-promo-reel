@@ -23,6 +23,7 @@ from common import die
 
 SR = 32000
 DROPOUT_RATIO = 0.15   # a second quieter than this fraction of the median second
+DROPOUT_FLOOR = 1e-3   # or quieter than -60 dBFS RMS: catches a seed that is mostly silent (median 0)
 WOBBLE_MAX = 0.05      # 5 % tempo deviation
 TRACKER_ERROR = 2 * 512 / SR  # librosa beat times sit on 512-sample frames: +-1 frame each end
 LIFT_RATIO = 1.6       # percussive RMS after / before
@@ -34,12 +35,13 @@ def per_second_rms(y, sr):
 
 
 def dropouts(y, sr):
-    """Seconds (start times) whose RMS falls below DROPOUT_RATIO of the median second."""
+    """Seconds (start times) whose RMS falls below DROPOUT_RATIO of the median second, or below
+    DROPOUT_FLOOR (so a seed that is silent for more than half its length is still caught)."""
     rms = per_second_rms(y, sr)
     if not len(rms):
         return []
     med = float(np.median(rms))
-    return [i for i, r in enumerate(rms) if r < DROPOUT_RATIO * med]
+    return [i for i, r in enumerate(rms) if r < max(DROPOUT_RATIO * med, DROPOUT_FLOOR)]
 
 
 def beat_stats(beats):

@@ -278,3 +278,32 @@ def test_video_info_falls_back_to_the_format_duration(monkeypatch):
            "format": {"duration": "4.000"}}
     monkeypatch.setattr(finish, "run", lambda cmd: subprocess.CompletedProcess(cmd, 0, json.dumps(doc), ""))
     assert finish.video_info("x.mp4")["duration"] == 4.0
+
+
+def test_realized_time_true_is_refused(tmp_path, proj, capsys):
+    raw = make_raw_mp4(tmp_path)
+    (proj / "cues.realized.json").write_text(json.dumps([{"id": "c", "file": "assets/audio/c.wav", "time": True}]))
+    with pytest.raises(SystemExit) as e:
+        finish.finish(proj, raw)
+    assert e.value.code == 2 and "every entry needs id, file and time" in capsys.readouterr().err
+
+
+def test_lead_silence_warning_covers_unsynced_cues(tmp_path, proj, capsys):
+    raw = make_raw_mp4(tmp_path)
+    realize(proj, [(3.6, False)])  # align "start", not checked for sync
+    audio = proj / "assets" / "audio"
+    sf.write(audio / "click.wav", np.concatenate([np.zeros(int(0.2 * SR)), click(SR)]), SR)
+    finish.finish(proj, raw)
+    assert "starts with 200 ms of silence" in capsys.readouterr().err
+
+
+def test_window_energy_matches_the_direct_sum():
+    rng = np.random.default_rng(3)
+    seg, n = rng.standard_normal(5000), 400
+    run_sum = np.concatenate(([0.0], np.cumsum(seg ** 2)))
+    assert np.allclose(run_sum[n:] - run_sum[:-n], np.convolve(seg ** 2, np.ones(n), mode="valid"))
+    y = np.zeros(SR)
+    tmpl = click(SR)
+    y[int(0.5 * SR):int(0.5 * SR) + len(tmpl)] += tmpl
+    found, score = finish.locate(y, tmpl, 0.52)
+    assert abs(found - 0.5) < 1e-3 and score > 0.99
