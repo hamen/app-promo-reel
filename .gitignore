@@ -216,3 +216,17 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# app-promo-reel: generated media and projects never enter the repo
+*.wav
+*.mp3
+*.mp4
+*.png
+*.jpg
+*.webp
+renders/
+snapshots/
+work/
+output/
+index.html
+cues.realized.json

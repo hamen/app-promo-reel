@@ -1,0 +1,2 @@
+# Music generation only (music_gen.py). Install torch with CUDA separately first, see README.
+transformers==5.0.0

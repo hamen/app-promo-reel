@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Local gate: dependency check, repo hygiene scan, pytest (incl. the template smoke build).
+# No network, no GPU, no browser. Run by .githooks/pre-push.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+PY=python3
+[ -x .venv/bin/python ] && PY=.venv/bin/python
+
+fail() { echo "bin/ci: $*" >&2; exit 1; }
+
+for bin in ffmpeg ffprobe git; do
+  command -v "$bin" >/dev/null || fail "$bin is not installed (see README, Requirements)"
+done
+"$PY" -c "import numpy, scipy, librosa, soundfile, PIL, pytest" 2>/dev/null \
+  || fail "python deps missing for $PY: python3 -m venv .venv && .venv/bin/pip install -r requirements.txt"
+
+# Public-repo hygiene: no media, no tokens in tracked files.
+media=$(git ls-files | grep -Ei '\.(mp3|wav|ogg|m4a|flac|mp4|mov|png|jpe?g|webp|gif|woff2?|ttf|otf)$' || true)
+[ -z "$media" ] || fail "media files are tracked (licences, size):"$'\n'"$media"
+secrets=$(git grep -nIE 'bot[0-9]{6,}:|sk-[A-Za-z0-9]{20,}|ghp_[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16}|TELEGRAM' -- . ':!bin/ci' || true)
+[ -z "$secrets" ] || fail "possible secret in tracked files:"$'\n'"$secrets"
+
+"$PY" -m pytest -q tests
+echo "bin/ci: ok"
