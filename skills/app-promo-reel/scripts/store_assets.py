@@ -64,10 +64,14 @@ def lookup_url(app_store_id=None, bundle=None, country="us", lang="en"):
 
 
 def parse_lookup(doc):
-    """Keep only the facts a video may use. Returns None when there is no result."""
-    if not doc.get("resultCount") or not doc.get("results"):
+    """Keep only the facts a video may use. Returns None when there is no usable result (also
+    when the response is not the lookup object at all, e.g. a captive portal's JSON)."""
+    if not isinstance(doc, dict) or not doc.get("resultCount"):
         return None
-    r = doc["results"][0]
+    results = doc.get("results")
+    if not isinstance(results, list) or not results or not isinstance(results[0], dict):
+        return None
+    r = results[0]
     return {
         "name": r.get("trackName"),
         "seller": r.get("sellerName"),

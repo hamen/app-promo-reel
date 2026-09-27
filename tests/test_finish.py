@@ -259,3 +259,22 @@ def test_failed_report_write_leaves_no_report(tmp_path, proj, monkeypatch):
     with pytest.raises(OSError):
         finish.finish(proj, raw)
     assert not (proj / "renders" / "demo-a-v1-report.json").exists()
+
+
+@pytest.mark.parametrize("doc, expect", [
+    ({"streams": [], "format": {"duration": "4.0"}}, "no video stream"),
+    ({"streams": [{"codec_name": "h264", "width": 1, "height": 1, "nb_read_packets": "120"}], "format": {}},
+     "no duration"),
+])
+def test_video_info_without_stream_or_duration_exits_2(monkeypatch, capsys, doc, expect):
+    monkeypatch.setattr(finish, "run", lambda cmd: subprocess.CompletedProcess(cmd, 0, json.dumps(doc), ""))
+    with pytest.raises(SystemExit) as e:
+        finish.video_info("x.mp4")
+    assert e.value.code == 2 and expect in capsys.readouterr().err
+
+
+def test_video_info_falls_back_to_the_format_duration(monkeypatch):
+    doc = {"streams": [{"codec_name": "h264", "width": 1, "height": 1, "nb_read_packets": "120"}],
+           "format": {"duration": "4.000"}}
+    monkeypatch.setattr(finish, "run", lambda cmd: subprocess.CompletedProcess(cmd, 0, json.dumps(doc), ""))
+    assert finish.video_info("x.mp4")["duration"] == 4.0

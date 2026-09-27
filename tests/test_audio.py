@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 import numpy as np
+import pytest
 import soundfile as sf
 
 import beat_grid as bg
@@ -281,3 +282,17 @@ def test_loudness_past_the_end_is_zero_not_nan():
 
 def test_zero_median_interval_is_rejected_not_a_crash():
     assert mr.beat_stats([1.0, 1.0, 1.0])["wobble"] > mr.WOBBLE_MAX
+
+
+@pytest.mark.parametrize("beats", [[1.0, 1.0, 1.0, 1.0], [3.0, 2.0, 1.0, 0.5]])
+def test_extend_refuses_beats_that_do_not_move_forward(beats):
+    with pytest.raises(SystemExit) as e:
+        bg.extend(beats, 10.0)
+    assert e.value.code == 2
+
+
+def test_music_rank_unwritable_json_exits_2(tmp_path):
+    wav = tmp_path / "a.wav"
+    sf.write(wav, np.zeros(SR * 2, dtype=np.float32), SR)
+    r = run_script("music_rank.py", "--duration", "1", "--json", tmp_path / "no" / "such" / "dir.json", wav)
+    assert r.returncode == 2 and "cannot write" in r.stderr and "Traceback" not in r.stderr

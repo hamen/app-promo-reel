@@ -321,7 +321,11 @@ def build(project_dir):
         if not p.is_file():
             die(f"{p} not found")
     grid = Grid.load(beats, project["beats_per_bar"])
-    out = substitute(tmpl.read_text(), grid, project)
+    try:
+        src = tmpl.read_text(encoding="utf-8")
+    except UnicodeDecodeError as e:
+        die(f"{tmpl} is not UTF-8 text ({e}); save it as UTF-8")
+    out = substitute(src, grid, project)
     cues_path = project_dir / "cues.json"
     cues_doc = read_json(cues_path) if cues_path.is_file() else {}
     lines, realized = sfx_tags(project_dir, cues_doc, grid, project["duration"])

@@ -3,6 +3,8 @@ import json
 import urllib.error
 from pathlib import Path
 
+import pytest
+
 import store_assets as sa
 from conftest import FIXTURES
 
@@ -151,3 +153,8 @@ def test_app_store_and_play_both_failing_leave_no_listing(tmp_path):
         raise urllib.error.URLError("network down")
     assert sa.main(["--out", str(tmp_path), "--app-store-id", "1", "--play", "com.example"], down) == 2
     assert not (tmp_path / "metadata.json").exists()
+
+
+@pytest.mark.parametrize("body", [b"[]", b'"x"', b'{"resultCount": 1, "results": 1}', b'{"resultCount": 1, "results": [1]}'])
+def test_lookup_that_is_not_the_lookup_object_exits_2(tmp_path, body):
+    assert sa.main(["--out", str(tmp_path), "--app-store-id", "1"], lambda url: body) == 2

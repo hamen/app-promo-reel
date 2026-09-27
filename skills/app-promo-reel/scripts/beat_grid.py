@@ -85,11 +85,13 @@ def smooth(beats, half=4):
 
 
 def extend(beats, duration, lead=0.2, beats_past_end=8):
-    """Extrapolate whole beats so the grid covers 0-duration plus `beats_past_end` beats.
-    analyse() passes four bars: the template's last scene starts on D(12) (build.py refuses a
+    """Extrapolate whole beats so the grid covers 0-duration plus `beats_past_end` beats (default 8).
+    full_grid() passes four bars: the template's last scene starts on D(12) (build.py refuses a
     scene after the end) and its end card addresses up to D(14), two bars later."""
     beats = list(beats)
     iv = float(np.median(np.diff(beats)))
+    if not iv > 0:  # also NaN: the loops below would never end
+        die(f"the beats are not in time order (median interval {iv:g}s); pick another seed")
     while beats[-1] < duration + beats_past_end * iv:
         beats.append(beats[-1] + iv)
     while beats[0] - iv > lead:

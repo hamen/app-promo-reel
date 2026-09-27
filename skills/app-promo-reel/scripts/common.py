@@ -100,7 +100,10 @@ def media_duration(path):
                        capture_output=True, text=True)
     if r.returncode:
         die(f"ffprobe could not read {path}:\n{r.stderr[-400:]}")
-    return float(json.loads(r.stdout)["format"]["duration"])
+    try:
+        return float(json.loads(r.stdout)["format"]["duration"])
+    except (KeyError, TypeError, ValueError):
+        die(f"ffprobe gives no duration for {path}")
 
 
 def decode_audio(path, sr, mono=True):

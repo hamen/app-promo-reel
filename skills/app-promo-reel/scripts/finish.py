@@ -68,10 +68,19 @@ def next_version_path(renders, stem):
 
 def video_info(path):
     out = run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-count_packets", "-show_entries",
-               "stream=codec_name,width,height,nb_read_packets,duration", "-of", "json", str(path)]).stdout
-    s = json.loads(out)["streams"][0]
+               "stream=codec_name,width,height,nb_read_packets,duration:format=duration", "-of", "json",
+               str(path)]).stdout
+    doc = json.loads(out)
+    streams = doc.get("streams") or []
+    if not streams:
+        die(f"{path} has no video stream")
+    s = streams[0]
+    # some containers keep the duration on the format, not the stream
+    duration = s.get("duration") or doc.get("format", {}).get("duration")
+    if duration is None:
+        die(f"ffprobe gives no duration for {path}")
     return {"codec": s["codec_name"], "width": s["width"], "height": s["height"],
-            "frames": int(s["nb_read_packets"]), "duration": round(float(s.get("duration", 0)), 3)}
+            "frames": int(s["nb_read_packets"]), "duration": round(float(duration), 3)}
 
 
 LOUDNORM = f"loudnorm=I={TARGET_I}:TP={TARGET_TP}:LRA={TARGET_LRA}"

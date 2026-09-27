@@ -216,3 +216,22 @@ def test_a_bad_project_json_also_removes_the_previous_build(tmp_path):
     (p / "project.json").write_text("{not json")
     assert run_script("build.py", p).returncode == 2
     assert not (p / "index.html").exists()
+
+
+def test_template_that_is_not_utf8_exits_2(tmp_path):
+    import json as _json
+    from conftest import steady_grid, write_project
+    p = write_project(tmp_path)
+    (p / "beats.json").write_text(_json.dumps(steady_grid()))
+    (p / "src.html.tmpl").write_bytes("<html>caf\u00e9</html>".encode("latin-1"))
+    r = run_script("build.py", p)
+    assert r.returncode == 2 and "UTF-8" in r.stderr and "Traceback" not in r.stderr
+
+
+def test_media_duration_without_a_duration_exits_2(monkeypatch):
+    import subprocess as sp
+    import common
+    monkeypatch.setattr(common.subprocess, "run", lambda *a, **k: sp.CompletedProcess(a, 0, '{"format": {}}', ""))
+    with pytest.raises(SystemExit) as e:
+        common.media_duration("x.wav")
+    assert e.value.code == 2

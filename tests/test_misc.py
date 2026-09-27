@@ -72,7 +72,8 @@ def test_new_project_copies_sfx_and_works_without(tmp_path):
     assert r.returncode == 2 and "already exists" in r.stderr
 
 
-def test_music_gen_refuses_long_duration_before_import(tmp_path):
+def test_music_gen_refuses_long_duration_before_import(tmp_path, monkeypatch):
+    monkeypatch.setattr(music_gen, "LOCK", tmp_path / "lock")  # never the real lock
     with pytest.raises(SystemExit) as e:
         music_gen.main(["--prompt", "x", "--duration", "45", "--seeds", "1", "--out", str(tmp_path)])
     assert e.value.code == 2
@@ -220,3 +221,100 @@ def test_docs_scaffold_step_names_the_real_stores():
     assert "--stores" in step1
     pipeline = (SCRIPTS.parent / "references" / "pipeline.md").read_text()
     assert "--stores <STORES>" in pipeline and "--stores app_store,google_play" not in pipeline
+
+
+def fake_musicgen(monkeypatch, seconds_for_seed=lambda seed: 31.0, load_error=None):
+    """Stand-ins for torch and transformers: a 'model' whose output length depends on the seed."""
+    import types
+    import numpy as np
+    state = {}
+    torch = types.ModuleType("torch")
+    torch.float16 = "fp16"
+    torch.cuda = types.SimpleNamespace(is_available=lambda: True,
+                                       OutOfMemoryError=type("OutOfMemoryError", (Exception,), {}))
+    torch.manual_seed = lambda seed: state.update(seed=seed)
+
+    class Tensor:
+        def __init__(self, a):
+            self.a = a
+
+        def __getitem__(self, k):
+            return Tensor(self.a[k])
+
+        def float(self):
+            return self
+
+        def cpu(self):
+            return self
+
+        def numpy(self):
+            return self.a
+
+    class Inputs(dict):
+        def to(self, device):
+            return self
+
+    class Model:
+        config = types.SimpleNamespace(audio_encoder=types.SimpleNamespace(sampling_rate=8000))
+
+        @classmethod
+        def from_pretrained(cls, *a, **k):
+            if load_error:
+                raise load_error
+            return cls()
+
+        def to(self, device):
+            return self
+
+        def generate(self, **k):
+            n = int(seconds_for_seed(state["seed"]) * 8000)
+            return Tensor(np.zeros((1, 1, n), dtype=np.float32))
+
+    tf = types.ModuleType("transformers")
+    tf.AutoProcessor = types.SimpleNamespace(from_pretrained=lambda *a, **k: (lambda **kw: Inputs()))
+    tf.MusicgenForConditionalGeneration = Model
+    monkeypatch.setitem(sys.modules, "torch", torch)
+    monkeypatch.setitem(sys.modules, "transformers", tf)
+
+
+def test_music_gen_short_seed_is_skipped_and_the_rest_run(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(music_gen, "LOCK", tmp_path / "lock")
+    fake_musicgen(monkeypatch, seconds_for_seed=lambda seed: 20.0 if seed == 2 else 31.0)
+    out = tmp_path / "o"
+    with pytest.raises(SystemExit) as e:
+        music_gen.main(["--prompt", "x", "--duration", "30", "--seeds", "1,2,3", "--out", str(out)])
+    assert e.value.code == 2 and "seed(s) 2 came out shorter" in capsys.readouterr().err
+    assert sorted(p.name for p in out.iterdir()) == ["bgm_1.wav", "bgm_3.wav"]
+
+
+def test_music_gen_model_load_error_exits_2_without_traceback(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(music_gen, "LOCK", tmp_path / "lock")
+    fake_musicgen(monkeypatch, load_error=ConnectionError("hub unreachable"))
+    with pytest.raises(SystemExit) as e:
+        music_gen.main(["--prompt", "x", "--duration", "30", "--seeds", "1", "--out", str(tmp_path / "o")])
+    assert e.value.code == 2 and "hub unreachable" in capsys.readouterr().err
+
+
+def test_music_gen_write_error_exits_2(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(music_gen, "LOCK", tmp_path / "lock")
+    fake_musicgen(monkeypatch)
+    import soundfile
+
+    def no_space(*a, **k):
+        raise OSError("no space left on device")
+    monkeypatch.setattr(soundfile, "write", no_space)
+    with pytest.raises(SystemExit) as e:
+        music_gen.main(["--prompt", "x", "--duration", "30", "--seeds", "1", "--out", str(tmp_path / "o")])
+    assert e.value.code == 2 and "no space left" in capsys.readouterr().err
+    assert not list((tmp_path / "o").iterdir())
+
+
+def test_sample_colors_box_must_be_a_fraction(tmp_path):
+    img = tmp_path / "i.png"
+    Image.new("RGB", (100, 200), "#123456").save(img)
+    pts = tmp_path / "p.json"
+    pts.write_text('{"x": [0.5, 0.5]}')
+    for box in ("0", "-0.1", "0.5", "3"):
+        r = run_script("sample_colors.py", img, pts, "--box", box)
+        assert r.returncode == 2 and "--box" in r.stderr, box
+    assert run_script("sample_colors.py", img, pts, "--box", "0.01").returncode == 0
