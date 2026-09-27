@@ -20,8 +20,11 @@ pickup beats before it); `beat` is 0-based inside the bar; `beats_per_bar` is in
 ## 1. Scaffold
 
 ```bash
-SFX_DIR=~/my-sfx $PY $S/new_project.py --app myapp --variant a --lang en --stores app_store,google_play
+SFX_DIR=~/my-sfx $PY $S/new_project.py --app myapp --variant a --lang en --stores <STORES>
 ```
+`<STORES>` is the stores the app is really on: `app_store`, `google_play`, or
+`app_store,google_play`. The default (both) is wrong for a single-store app: its end card
+would show a badge for a store the app is not in.
 Default out folder `~/app-promo-reels`. Refuses a folder inside a git work tree (use `--force`
 if you are sure) and always refuses the app-promo-reel repo itself. project.json is the one
 place for duration, fps, size, beats per bar and stores.

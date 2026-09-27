@@ -10,7 +10,7 @@ from PIL import Image
 import music_gen
 import new_project
 import sample_colors
-from conftest import run_script, tone_file
+from conftest import SCRIPTS, run_script, tone_file
 
 
 def test_sample_colors_relative_coords():
@@ -210,3 +210,13 @@ def test_partial_music_file_is_outside_the_rank_glob(tmp_path):
     import fnmatch
     assert not fnmatch.fnmatch(music_gen.partial_path(tmp_path, 5).name, "bgm_*.wav")
     assert music_gen.partial_path(tmp_path, 5).parent == tmp_path
+
+
+def test_docs_scaffold_step_names_the_real_stores():
+    # tripwire: the scaffold commands must make the agent choose the stores (the default, both,
+    # puts a false badge on a single-store app's end card)
+    skill = (SCRIPTS.parent / "SKILL.md").read_text()
+    step1 = skill[skill.index("1. **Scaffold.**"):skill.index("2. **Research")]
+    assert "--stores" in step1
+    pipeline = (SCRIPTS.parent / "references" / "pipeline.md").read_text()
+    assert "--stores <STORES>" in pipeline and "--stores app_store,google_play" not in pipeline
