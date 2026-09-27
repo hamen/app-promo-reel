@@ -6,6 +6,7 @@ Beat addressing (one signature everywhere, see references/pipeline.md):
   E(bar, beat=0)  the "and": halfway between D(bar, beat) and the next beat.
 """
 import json
+import math
 import subprocess
 import sys
 from pathlib import Path
@@ -19,6 +20,12 @@ PROJECT_DEFAULTS = {
     "stores": ["app_store", "google_play"],
 }
 KNOWN_STORES = ("app_store", "google_play")
+
+
+def is_number(v):
+    """A finite JSON number: int or float, not bool (True is an int in Python), not NaN/Infinity
+    (Python's json accepts both)."""
+    return isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
 
 
 def die(msg, code=2):
@@ -46,12 +53,14 @@ def load_project(project_dir):
     missing = [k for k in ("app", "variant") if not data.get(k)]
     if missing:
         die(f"{path} has no {' / '.join(missing)}")
-    try:
-        data["duration"] = float(data["duration"])
-        data["fps"] = int(data["fps"])
-        data["beats_per_bar"] = int(data["beats_per_bar"])
-    except (TypeError, ValueError):
-        die(f"{path}: duration, fps and beats_per_bar must be numbers")
+    # JSON numbers only: a quoted "30" or true is a mistake to report, not to coerce
+    bad = [k for k in ("duration", "fps", "beats_per_bar") if not is_number(data[k])]
+    if bad:
+        die(f"{path}: {', '.join(bad)} must be JSON numbers, got {', '.join(repr(data[k]) for k in bad)}")
+    if data["beats_per_bar"] != int(data["beats_per_bar"]):
+        die(f"{path}: beats_per_bar must be a whole number, got {data['beats_per_bar']}")
+    data["duration"] = float(data["duration"])
+    data["beats_per_bar"] = int(data["beats_per_bar"])  # fps stays as given: 29.97 is a real rate
     if data["duration"] <= 1 or data["fps"] <= 0 or data["beats_per_bar"] <= 0:
         die(f"{path}: duration must be above 1 s (the bed fades take 0.8 s), fps and beats_per_bar above 0")
     stores = data["stores"]
@@ -71,9 +80,15 @@ class Grid:
     def load(cls, path, beats_per_bar=4):
         g = read_json(path)
         try:
-            return cls(g["beats"], g["downbeat_phase"], beats_per_bar)
+            grid = cls(g["beats"], g["downbeat_phase"], beats_per_bar)
         except (KeyError, TypeError, ValueError) as e:
             die(f"{path} is not a beat grid from beat_grid.py ({e!r})")
+        phase = g["downbeat_phase"]
+        if not (isinstance(phase, int) and not isinstance(phase, bool)
+                and 0 <= phase < min(grid.bpb, len(grid.beats))):
+            die(f"{path}: downbeat_phase must be a whole number from 0 to "
+                f"{min(grid.bpb, len(grid.beats)) - 1} (below beats_per_bar and inside the beat list), got {phase!r}")
+        return grid
 
     def _index(self, bar, beat):
         if not 0 <= int(beat) < self.bpb:
@@ -100,7 +115,10 @@ def media_duration(path):
                        capture_output=True, text=True)
     if r.returncode:
         die(f"ffprobe could not read {path}:\n{r.stderr[-400:]}")
-    return float(json.loads(r.stdout)["format"]["duration"])
+    try:
+        return float(json.loads(r.stdout)["format"]["duration"])
+    except (KeyError, TypeError, ValueError):
+        die(f"ffprobe gives no duration for {path}")
 
 
 def decode_audio(path, sr, mono=True):

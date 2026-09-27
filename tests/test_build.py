@@ -150,7 +150,7 @@ def test_build_refuses_broken_json_files(tmp_path):
     (p / "beats.json").write_text(_json.dumps(steady_grid()))
     (p / "project.json").write_text('{"app": "x", "variant": "a", "duration": "long"}')
     r = run_script("build.py", p)
-    assert r.returncode == 2 and "must be numbers" in r.stderr and "Traceback" not in r.stderr
+    assert r.returncode == 2 and "must be JSON numbers" in r.stderr and "Traceback" not in r.stderr
 
 
 def test_missing_sfx_marker_with_cues_exits_2(tmp_path):
@@ -180,9 +180,12 @@ def test_cue_fields_are_checked(tmp_path):
     audio.mkdir(parents=True)
     tone_file(audio / "a.wav")
     base = {"id": "c", "sfx": "a", "at": "D(1)"}
-    lines, realized = sfx_tags(tmp_path, {"sfx": {"a": "a.wav"}, "cues": [{**base, "at": 5}]}, GRID, 30.0)
-    assert realized[0]["time"] <= 5.0  # a plain number is a time in seconds
-    for bad in ([base, base], [{**base, "volume": None}], [{**base, "offset": "x"}]):
+    lines, realized = sfx_tags(tmp_path, {"sfx": {"a": "a.wav"}, "cues": [{**base, "at": 5, "align": "start"}]},
+                               GRID, 30.0)
+    assert realized[0]["time"] == 5.0  # a plain number is a time in seconds
+    for bad in ([base, base], [{**base, "volume": None}], [{**base, "offset": "x"}], [{**base, "offset": "0.1"}],
+                [{**base, "volume": True}], [{**base, "volume": -0.5}], [{**base, "sync": "false"}],
+                [{**base, "sync": 0}], [{**base, "sync": None}]):
         with pytest.raises(SystemExit) as e:
             sfx_tags(tmp_path, {"sfx": {"a": "a.wav"}, "cues": bad}, GRID, 30.0)
         assert e.value.code == 2, bad
@@ -207,3 +210,126 @@ def test_stores_that_are_not_a_list_exit_2(tmp_path):
         (p / "project.json").write_text('{"app": "x", "variant": "a", "stores": %s}' % stores)
         r = run_script("build.py", p)
         assert r.returncode == 2 and "non-empty subset" in r.stderr and "Traceback" not in r.stderr, stores
+
+
+def test_a_bad_project_json_also_removes_the_previous_build(tmp_path):
+    from conftest import write_project
+    p = write_project(tmp_path)
+    (p / "index.html").write_text("old build")
+    (p / "project.json").write_text("{not json")
+    assert run_script("build.py", p).returncode == 2
+    assert not (p / "index.html").exists()
+
+
+def test_template_that_is_not_utf8_exits_2(tmp_path):
+    import json as _json
+    from conftest import steady_grid, write_project
+    p = write_project(tmp_path)
+    (p / "beats.json").write_text(_json.dumps(steady_grid()))
+    (p / "src.html.tmpl").write_bytes("<html>caf\u00e9</html>".encode("latin-1"))
+    r = run_script("build.py", p)
+    assert r.returncode == 2 and "UTF-8" in r.stderr and "Traceback" not in r.stderr
+
+
+def test_media_duration_without_a_duration_exits_2(monkeypatch):
+    import subprocess as sp
+    import common
+    monkeypatch.setattr(common.subprocess, "run", lambda *a, **k: sp.CompletedProcess(a, 0, '{"format": {}}', ""))
+    with pytest.raises(SystemExit) as e:
+        common.media_duration("x.wav")
+    assert e.value.code == 2
+
+
+def test_sync_false_is_kept_and_default_follows_align(tmp_path):
+    audio = tmp_path / "assets" / "audio"
+    audio.mkdir(parents=True)
+    tone_file(audio / "a.wav")
+    cues = [{"id": "a", "sfx": "a", "at": 5, "sync": False}, {"id": "b", "sfx": "a", "at": 8},
+            {"id": "c", "sfx": "a", "at": 12, "align": "end"}]
+    _, realized = sfx_tags(tmp_path, {"sfx": {"a": "a.wav"}, "cues": cues}, GRID, 30.0)
+    assert [r["sync"] for r in realized] == [False, True, False]
+
+
+def test_sfx_map_values_must_be_file_names(tmp_path):
+    with pytest.raises(SystemExit) as e:
+        sfx_tags(tmp_path, {"sfx": {"a": 7}, "cues": []}, GRID, 30.0)
+    assert e.value.code == 2
+
+
+def test_to_end_and_len_refuse_negative_lengths():
+    short = {**PROJECT, "duration": 10.0}
+    assert substitute("{{TO_END 4}}", GRID, short) == "0.500"  # D(4) = 9.5 s
+    for src in ("{{TO_END 5}}", "{{LEN 3 1}}"):  # D(5) = 11.5 s, inside the grid but past the end
+        with pytest.raises(SystemExit):
+            substitute(src, GRID, short)
+    assert substitute("{{LEN 1 1}}", GRID, PROJECT) == "0.000"
+
+
+def test_unclosed_token_fails_the_build():
+    with pytest.raises(SystemExit):
+        substitute("<div>{{D 1</div>", GRID, PROJECT)
+
+
+def test_two_sfx_markers_fail_the_build(tmp_path):
+    import json as _json
+    from conftest import steady_grid, write_project
+    p = write_project(tmp_path)
+    (p / "beats.json").write_text(_json.dumps(steady_grid()))
+    (p / "src.html.tmpl").write_text("<html><!--SFX--><!--SFX-->" + AI_LABEL)
+    r = run_script("build.py", p)
+    assert r.returncode == 2 and "more than one <!--SFX-->" in r.stderr
+
+
+def test_check_scenes_reads_single_quotes_and_skips_comments():
+    from build import check_scenes
+    check_scenes("<!-- <section id='old' data-start='31'> --><section id='a' data-start='1.0'>", 30.0)
+    for tag in ("<section id='late' data-start='29.5'>", "<section id = 'late' data-start = '29.5'>",
+                '<section data-start ="29.5">'):
+        with pytest.raises(SystemExit):
+            check_scenes(tag, 30.0)
+
+
+@pytest.mark.parametrize("page, ok", [
+    ('<!-- "aiLabel": "" --><script>const CONFIG = {"aiLabel": "AI"};</script>', True),
+    ('<script>/* e.g. "aiLabel": "" */ const CONFIG = {"aiLabel": "AI"};</script>', True),
+    ('<script>\n  // "aiLabel": ""\nconst CONFIG = {"aiLabel": "AI"};</script>', True),
+    ('<!-- "aiLabel": "AI" --><script>const CONFIG = {"aiLabel": ""};</script>', False),
+    ('<script>const CONFIG = {"aiLabel": 123};</script>', False),
+    ('<script>const CONFIG = {"aiLabel": "\u3164\u2800"};</script>', False),
+    ('<script>const CONFIG = {"aiLabel": "\\u3164"};</script>', False),
+    ('<script>const CONFIG = {};</script>', False),
+])
+def test_ai_label_static_check(page, ok):
+    from build import check_ai_label
+    if ok:
+        check_ai_label(page)
+    else:
+        with pytest.raises(SystemExit):
+            check_ai_label(page)
+
+
+@pytest.mark.parametrize("fields, msg", [
+    ({"duration": "30"}, "JSON numbers"), ({"fps": True}, "JSON numbers"), ({"beats_per_bar": 4.5}, "whole number"),
+])
+def test_project_json_numbers_are_not_coerced(tmp_path, fields, msg):
+    from conftest import write_project
+    p = write_project(tmp_path)
+    doc = {**json.loads((p / "project.json").read_text()), **fields}
+    (p / "project.json").write_text(json.dumps(doc))
+    r = run_script("build.py", p)
+    assert r.returncode == 2 and msg in r.stderr, r.stderr
+
+
+def test_fractional_fps_is_kept(tmp_path):
+    from common import load_project
+    (tmp_path / "project.json").write_text(json.dumps({"app": "x", "variant": "a", "fps": 29.97}))
+    assert load_project(tmp_path)["fps"] == 29.97
+
+
+def test_project_json_nan_and_infinity_are_refused(tmp_path):
+    from conftest import write_project
+    p = write_project(tmp_path)
+    for text in ('"duration": NaN', '"duration": Infinity', '"fps": -Infinity'):
+        (p / "project.json").write_text('{"app": "x", "variant": "a", %s}' % text)
+        r = run_script("build.py", p)
+        assert r.returncode == 2 and "JSON numbers" in r.stderr and "Traceback" not in r.stderr, text

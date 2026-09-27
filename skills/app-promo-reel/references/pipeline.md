@@ -20,8 +20,11 @@ pickup beats before it); `beat` is 0-based inside the bar; `beats_per_bar` is in
 ## 1. Scaffold
 
 ```bash
-SFX_DIR=~/my-sfx $PY $S/new_project.py --app myapp --variant a --lang en --stores app_store,google_play
+SFX_DIR=~/my-sfx $PY $S/new_project.py --app myapp --variant a --lang en --stores <STORES>
 ```
+`<STORES>` is the stores the app is really on: `app_store`, `google_play`, or
+`app_store,google_play`. The default (both) is wrong for a single-store app: its end card
+would show a badge for a store the app is not in.
 Default out folder `~/app-promo-reels`. Refuses a folder inside a git work tree (use `--force`
 if you are sure) and always refuses the app-promo-reel repo itself. project.json is the one
 place for duration, fps, size, beats per bar and stores.
@@ -83,5 +86,8 @@ within 1 LU of -14 and at most -1 dBTP), A/V lag check on the PCM before
 AAC (< 5 ms), video stream copied and compared, sync report (each cue's own sound located by a
 matched filter within ±150 ms on the audio minus the bed; fail on a cue > 1 frame off, or on
 any checked cue not found — mark a cue that sits under a louder sound `"sync": false` in
-cues.json), contact sheet, versioned output that never overwrites. Exit 1 → output and contact sheet renamed
-`…-v<N>-failed.mp4` and the report lists the problems.
+cues.json), contact sheet, versioned output that never overwrites. While the checks run the file
+is `…-v<N>.checking.mp4`; it becomes `…-v<N>.mp4` only when every check passed. Exit 1 → output
+and contact sheet named `…-v<N>-failed.mp4` and the report lists the problems; an error or
+Ctrl-C during the checks also leaves `-failed` (no report). A `.checking` file left behind was
+never checked: do not deliver it.

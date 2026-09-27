@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 import numpy as np
+import pytest
 import soundfile as sf
 
 import beat_grid as bg
@@ -198,6 +199,9 @@ def test_bed_has_exact_duration_and_drop(tmp_path):
     short = tmp_path / "short.wav"
     sf.write(short, np.zeros(9 * SR, dtype=np.float32), SR)
     assert run_script("make_bed.py", short, p).returncode == 2
+    # the failed run must not leave the earlier bed for finish.py to subtract
+    assert not (p / "assets" / "audio" / "bgm.wav").exists()
+    assert not list((p / "assets" / "audio").glob(".*partial*"))
 
 
 def test_beat_grid_main_writes_beats_json(tmp_path):
@@ -278,3 +282,70 @@ def test_loudness_past_the_end_is_zero_not_nan():
 
 def test_zero_median_interval_is_rejected_not_a_crash():
     assert mr.beat_stats([1.0, 1.0, 1.0])["wobble"] > mr.WOBBLE_MAX
+
+
+@pytest.mark.parametrize("beats", [[1.0, 1.0, 1.0, 1.0], [3.0, 2.0, 1.0, 0.5]])
+def test_extend_refuses_beats_that_do_not_move_forward(beats):
+    with pytest.raises(SystemExit) as e:
+        bg.extend(beats, 10.0)
+    assert e.value.code == 2
+
+
+def test_music_rank_unwritable_json_exits_2(tmp_path):
+    wav = tmp_path / "a.wav"
+    sf.write(wav, np.zeros(SR * 2, dtype=np.float32), SR)
+    r = run_script("music_rank.py", "--duration", "1", "--json", tmp_path / "no" / "such" / "dir.json", wav)
+    assert r.returncode == 2 and "cannot write" in r.stderr and "Traceback" not in r.stderr
+
+
+def test_a_mostly_silent_seed_is_rejected():
+    # 20 s of silence then 10 s of sound: the median second is 0, so a ratio alone finds nothing
+    y = np.zeros(30 * SR, dtype=np.float32)
+    y[20 * SR:] = 0.3 * np.sin(2 * np.pi * 220 * np.arange(10 * SR) / SR)
+    assert mr.dropouts(y, SR) == list(range(20))
+
+
+def test_a_mostly_silent_seed_is_rejected_by_rank(tmp_path):
+    y = kick_track(np.arange(20.5, 30.5, 0.5), 31.0)
+    y[:20 * SR] = 0
+    f = tmp_path / "quiet.wav"
+    sf.write(f, y, SR)
+    r = mr.rank_file(f, 30)
+    assert r["rejected"] and any("drop-out" in x for x in r["reasons"])
+
+
+def test_downbeat_phase_needs_a_bar_of_accents():
+    with pytest.raises(SystemExit) as e:
+        bg.downbeat_phase([1.0, 2.0, 3.0], 4)
+    assert e.value.code == 2
+
+
+def test_loudness_at_before_zero_reads_from_the_start():
+    y = np.concatenate([np.ones(500), np.zeros(1500)])
+    assert bg.loudness_at(y, 1000, -0.2, n=200) == 1.0  # not the silent tail of the array
+
+
+def test_grid_load_checks_the_downbeat_phase(tmp_path):
+    from common import Grid
+    for phase in (4, -1, 1.5, True, 99):
+        f = tmp_path / "b.json"
+        f.write_text(json.dumps({"beats": [0.5, 1.0, 1.5, 2.0, 2.5, 3.0], "downbeat_phase": phase}))
+        with pytest.raises(SystemExit):
+            Grid.load(f, 4)
+    f.write_text(json.dumps({"beats": [0.5, 1.0, 1.5, 2.0, 2.5, 3.0], "downbeat_phase": 3}))
+    assert Grid.load(f, 4).first == 3
+
+
+def test_riser_cli_ends_on_the_drop(tmp_path):
+    p = write_project(tmp_path, duration=10)
+    (p / "beats.json").write_text(json.dumps(steady_grid()))  # D(3) = 0.5 + 12 * 0.5 = 6.5 s
+    seed = tmp_path / "seed.wav"
+    sf.write(seed, np.zeros(11 * SR, dtype=np.float32), SR)
+    riser = tmp_path / "riser.wav"
+    sf.write(riser, np.linspace(0, 0.5, SR).astype(np.float32), SR)  # 1 s ramp, loudest at its end
+    r = run_script("make_bed.py", seed, p, "--drop-bar", "3", "--riser", riser, "--riser-gain", "1")
+    assert r.returncode == 0, r.stderr
+    y, sr = sf.read(p / "assets" / "audio" / "bgm.wav")
+    last = int(np.flatnonzero(np.abs(y) > 1e-3)[-1])
+    assert abs(last / sr - 6.5) < 2 / sr
+    assert run_script("make_bed.py", seed, p, "--riser", riser).returncode == 2  # needs --drop-bar

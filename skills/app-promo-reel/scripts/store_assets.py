@@ -3,7 +3,9 @@
 
 App Store: iTunes lookup (by --app-store-id or --bundle) in the --country storefront and the
 --lang language -> metadata.json + screens/NN.png at full size. Lookup failure, zero results
-or zero screenshots exit 2 (only when an App Store app was requested).
+or zero screenshots exit 2 (only when an App Store app was requested). The Play fetch still
+runs; metadata.json is then written only if it found Play facts, with "app_store_error" in
+place of "app_store". A failed run never leaves an earlier listing behind.
 Google Play (--play <package>): best-effort. Title and description from the public page, and
 the "Contains ads" / "In-app purchases" labels only on an exact string match for --lang.
 On any parse failure it writes nothing for that field and says so. It never guesses.
@@ -62,10 +64,14 @@ def lookup_url(app_store_id=None, bundle=None, country="us", lang="en"):
 
 
 def parse_lookup(doc):
-    """Keep only the facts a video may use. Returns None when there is no result."""
-    if not doc.get("resultCount") or not doc.get("results"):
+    """Keep only the facts a video may use. Returns None when there is no usable result (also
+    when the response is not the lookup object at all, e.g. a captive portal's JSON)."""
+    if not isinstance(doc, dict) or not doc.get("resultCount"):
         return None
-    r = doc["results"][0]
+    results = doc.get("results")
+    if not isinstance(results, list) or not results or not isinstance(results[0], dict):
+        return None
+    r = results[0]
     return {
         "name": r.get("trackName"),
         "seller": r.get("sellerName"),
@@ -127,6 +133,38 @@ def parse_play(page, lang):
     return out
 
 
+class AppStoreError(Exception):
+    pass
+
+
+def app_store(a, out, fetch_fn):
+    """Lookup + full-size screenshots. Returns the facts, or raises AppStoreError (and leaves no
+    screenshots behind)."""
+    url = lookup_url(a.app_store_id, a.bundle, a.country, a.lang)
+    try:
+        doc = json.loads(fetch_fn(url))
+    except (urllib.error.URLError, ValueError) as e:
+        raise AppStoreError(f"App Store lookup failed ({e}); ask the user for screenshots or build from the website")
+    app = parse_lookup(doc)
+    if app is None:
+        raise AppStoreError(f"App Store lookup returned no app for {a.app_store_id or a.bundle} in {a.country}")
+    if not app["screenshots"]:
+        raise AppStoreError("the App Store listing has no iPhone screenshots; ask the user for screenshots")
+    shots = out / "screens"
+    shots.mkdir(exist_ok=True)
+    saved = []
+    for i, s in enumerate(app["screenshots"], 1):
+        try:
+            saved.append(str(download_screenshot(s, shots / f"{i:02d}.png", fetch_fn)))
+        except (urllib.error.URLError, OSError, ValueError) as e:
+            # no half set of screenshots, and no half-written file of the one that failed
+            for part in [*saved, *shots.glob(f"{i:02d}.*")]:
+                Path(part).unlink(missing_ok=True)
+            raise AppStoreError(f"screenshot download failed ({s}: {e}); ask the user for screenshots or re-run")
+    app["saved_screenshots"] = saved
+    return app
+
+
 def main(argv=None, fetch_fn=fetch):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--out", required=True)
@@ -146,44 +184,35 @@ def main(argv=None, fetch_fn=fetch):
         old.unlink()
     meta = {"country": a.country, "lang": a.lang}
 
+    app_store_error = None
     if a.app_store_id or a.bundle:
-        url = lookup_url(a.app_store_id, a.bundle, a.country, a.lang)
         try:
-            doc = json.loads(fetch_fn(url))
-        except (urllib.error.URLError, ValueError) as e:
-            log(f"error: App Store lookup failed ({e}); ask the user for screenshots or build from the website")
-            return 2
-        app = parse_lookup(doc)
-        if app is None:
-            log(f"error: App Store lookup returned no app for {a.app_store_id or a.bundle} in {a.country}")
-            return 2
-        if not app["screenshots"]:
-            log("error: the App Store listing has no iPhone screenshots; ask the user for screenshots")
-            return 2
-        shots = out / "screens"
-        shots.mkdir(exist_ok=True)
-        saved = []
-        for i, s in enumerate(app["screenshots"], 1):
-            try:
-                saved.append(str(download_screenshot(s, shots / f"{i:02d}.png", fetch_fn)))
-            except (urllib.error.URLError, OSError, ValueError) as e:
-                for part in saved:  # no half set of screenshots without a metadata.json
-                    Path(part).unlink(missing_ok=True)
-                log(f"error: screenshot download failed ({s}: {e}); ask the user for screenshots or re-run")
-                return 2
-        app["saved_screenshots"] = saved
-        meta["app_store"] = app
+            meta["app_store"] = app_store(a, out, fetch_fn)
+        except AppStoreError as e:
+            app_store_error = str(e)
+            log(f"error: {e}")
 
     if a.play:
         q = urllib.parse.urlencode({"id": a.play, "hl": a.lang, "gl": a.country.upper()})
         url = f"https://play.google.com/store/apps/details?{q}"
         try:
-            meta["google_play"] = {"package": a.play, **parse_play(fetch_fn(url).decode("utf-8", "replace"), a.lang)}
+            play = parse_play(fetch_fn(url).decode("utf-8", "replace"), a.lang)
+            if play or not app_store_error:
+                meta["google_play"] = {"package": a.play, **play}
+            else:
+                log("note: the Play page gave no facts; nothing to write without the App Store part")
         except (urllib.error.URLError, OSError, ValueError) as e:
             log(f"note: Play page fetch failed ({e}); no Play facts written")
 
+    if app_store_error:
+        if "google_play" not in meta:
+            return 2
+        meta["app_store_error"] = app_store_error
     (out / "metadata.json").write_text(json.dumps(meta, indent=1, ensure_ascii=False) + "\n")
     print(f"wrote {out / 'metadata.json'}")
+    if app_store_error:
+        log("the App Store part failed (exit 2); metadata.json holds the Play facts only")
+        return 2
     return 0
 
 

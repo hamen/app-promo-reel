@@ -85,11 +85,13 @@ def smooth(beats, half=4):
 
 
 def extend(beats, duration, lead=0.2, beats_past_end=8):
-    """Extrapolate whole beats so the grid covers 0-duration plus `beats_past_end` beats.
-    analyse() passes four bars: the template's last scene starts on D(12) (build.py refuses a
+    """Extrapolate whole beats so the grid covers 0-duration plus `beats_past_end` beats (default 8).
+    full_grid() passes four bars: the template's last scene starts on D(12) (build.py refuses a
     scene after the end) and its end card addresses up to D(14), two bars later."""
     beats = list(beats)
     iv = float(np.median(np.diff(beats)))
+    if not iv > 0:  # also NaN: the loops below would never end
+        die(f"the beats are not in time order (median interval {iv:g}s); pick another seed")
     while beats[-1] < duration + beats_past_end * iv:
         beats.append(beats[-1] + iv)
     while beats[0] - iv > lead:
@@ -100,12 +102,15 @@ def extend(beats, duration, lead=0.2, beats_past_end=8):
 def downbeat_phase(strengths, bpb=4):
     """Index (0..bpb-1) of the beat position with the strongest mean accent."""
     s = np.asarray(strengths, dtype=float)
+    if len(s) < bpb:
+        die(f"only {len(s)} beats heard, fewer than beats_per_bar ({bpb}): no downbeat can be found")
     return int(np.argmax([s[p::bpb].mean() for p in range(bpb)]))
 
 
 def loudness_at(y, sr, t, n=2000):
-    """RMS of the n samples from time t; 0 past the end of the audio (never NaN)."""
-    seg = y[int(t * sr):int(t * sr) + n]
+    """RMS of the n samples from time t (from 0 when t is negative); 0 past the end (never NaN)."""
+    a = max(0, int(t * sr))
+    seg = y[a:a + n]
     return float(np.sqrt(np.mean(seg ** 2))) if len(seg) else 0.0
 
 

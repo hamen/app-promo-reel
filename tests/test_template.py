@@ -120,7 +120,7 @@ def test_build_puts_the_label_guard_last_in_the_page(tmp_path):
     _, html = build(tmp_path)
     guard = html[html.index("<script data-ai-label-guard>"):]
     assert guard.index("</script>") < guard.index("</body>") and "<script" not in guard[8:guard.index("</body>")]
-    for check in ('[...text.replace(/[\\p{Z}\\p{C}\\p{M}]/gu, "")].length', 'el.id = "ai-label-',
+    for check in ('[...text.replace(/[\\p{Z}\\p{C}\\p{M}\\u115F\\u1160\\u3164\\uFFA0\\u2800]/gu, "")].length', 'el.id = "ai-label-',
                   'el.style.setProperty(k, v, "important")', '"z-index": "2147483647"', 'visibility: "visible"',
                   "root.appendChild(el)", 'cs.display === "none"', 'cs.clipPath !== "none"',
                   "opacity *= parseFloat(cs.opacity)", 'cs.maskImage !== "none"', 'cs.filter !== "none" || cs.mixBlendMode !== "normal"', "opacity < 0.5", "box.right > frame.right",

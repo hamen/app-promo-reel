@@ -44,8 +44,10 @@ Detail: `references/copy-rules.md`.
 
 Commands for every step: `references/pipeline.md`.
 
-1. **Scaffold.** `new_project.py --app <slug> --variant <a|b|…>` once per variant. Each variant
-   is its own folder and renders on its own.
+1. **Scaffold.** `new_project.py --app <slug> --variant <a|b|…> --stores <stores>` once per
+   variant. `--stores` lists only the stores the app is really on (`app_store`, `google_play`
+   or both): the default is both, which puts a false badge on a single-store app's end card.
+   Each variant is its own folder and renders on its own.
 2. **Research, then DESIGN.md — before any copy.**
    - `store_assets.py` (screenshots, listing text, Play labels).
    - The website: copy, CSS colours, fonts.

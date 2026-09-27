@@ -208,3 +208,122 @@ def test_negative_frames_exit_2_before_any_output(tmp_path, proj):
     r = subprocess.run([sys.executable, str(finish.__file__), str(proj), str(raw), "--frames", "1,-2"],
                        capture_output=True, text=True)
     assert r.returncode == 2 and not list((proj / "renders").glob("*.mp4"))
+
+
+def test_success_leaves_final_names_and_no_checking_file(tmp_path, proj):
+    raw = make_raw_mp4(tmp_path)
+    realize(proj, [(t, True) for t in CLICKS])
+    assert finish.finish(proj, raw) == 0
+    r = proj / "renders"
+    report = json.loads((r / "demo-a-v1-report.json").read_text())
+    assert report["output"] == str(r / "demo-a-v1.mp4") and report["sheet"] == str(r / "demo-a-v1-sheet.jpg")
+    assert Path(report["output"]).is_file() and Path(report["sheet"]).is_file()
+    assert not list(r.glob("*checking*")) and not list(r.glob(".*partial*"))
+
+
+def test_error_after_the_mux_leaves_only_a_failed_file(tmp_path, proj, monkeypatch):
+    raw = make_raw_mp4(tmp_path)
+    realize(proj, [(t, True) for t in CLICKS])
+
+    r = proj / "renders"
+    during = []
+
+    def broken_sheet(*a, **k):
+        during.extend(p.name for p in r.iterdir())  # what a reader sees while the checks run
+        raise RuntimeError("disk full")
+    monkeypatch.setattr(finish, "contact_sheet", broken_sheet)
+    with pytest.raises(RuntimeError):
+        finish.finish(proj, raw)
+    assert during == ["demo-a-v1.checking.mp4"]
+    assert (r / "demo-a-v1-failed.mp4").is_file()
+    assert not (r / "demo-a-v1.mp4").exists() and not list(r.glob("*checking*"))
+    assert not (r / "demo-a-v1-report.json").exists()
+
+
+def test_leftover_checking_file_reserves_its_version(proj):
+    (proj / "renders" / "demo-a-v3.checking.mp4").write_bytes(b"killed run")
+    assert finish.next_version_path(proj / "renders", "demo-a").name == "demo-a-v4.mp4"
+
+
+def test_failed_report_write_leaves_no_report(tmp_path, proj, monkeypatch):
+    raw = make_raw_mp4(tmp_path)
+    realize(proj, [(t, True) for t in CLICKS])
+    real_write = Path.write_text
+
+    def half_write(self, text, *a, **k):
+        if "-report.json" in self.name:  # the report write dies half way, whatever its name
+            real_write(self, text[:20])
+            raise OSError("disk full")
+        return real_write(self, text, *a, **k)
+    monkeypatch.setattr(Path, "write_text", half_write)
+    with pytest.raises(OSError):
+        finish.finish(proj, raw)
+    r = proj / "renders"
+    assert not (r / "demo-a-v1-report.json").exists() and not list(r.glob(".*partial*"))
+    # the run did not complete, so nothing keeps a delivery name
+    assert (r / "demo-a-v1-failed.mp4").is_file() and not (r / "demo-a-v1.mp4").exists()
+    assert not (r / "demo-a-v1-sheet.jpg").exists()
+
+
+@pytest.mark.parametrize("doc, expect", [
+    ({"streams": [], "format": {"duration": "4.0"}}, "no video stream"),
+    ({"streams": [{"codec_name": "h264", "width": 1, "height": 1, "nb_read_packets": "120"}], "format": {}},
+     "no duration"),
+])
+def test_video_info_without_stream_or_duration_exits_2(monkeypatch, capsys, doc, expect):
+    monkeypatch.setattr(finish, "run", lambda cmd: subprocess.CompletedProcess(cmd, 0, json.dumps(doc), ""))
+    with pytest.raises(SystemExit) as e:
+        finish.video_info("x.mp4")
+    assert e.value.code == 2 and expect in capsys.readouterr().err
+
+
+def test_video_info_falls_back_to_the_format_duration(monkeypatch):
+    doc = {"streams": [{"codec_name": "h264", "width": 1, "height": 1, "nb_read_packets": "120"}],
+           "format": {"duration": "4.000"}}
+    monkeypatch.setattr(finish, "run", lambda cmd: subprocess.CompletedProcess(cmd, 0, json.dumps(doc), ""))
+    assert finish.video_info("x.mp4")["duration"] == 4.0
+    for bad in ("N/A", "nan", "inf"):  # "N/A" is what ffprobe writes when the stream has none
+        doc["streams"][0]["duration"] = bad
+        assert finish.video_info("x.mp4")["duration"] == 4.0, bad
+
+
+def test_realized_time_true_is_refused(tmp_path, proj, capsys):
+    raw = make_raw_mp4(tmp_path)
+    (proj / "cues.realized.json").write_text(json.dumps([{"id": "c", "file": "assets/audio/c.wav", "time": True}]))
+    with pytest.raises(SystemExit) as e:
+        finish.finish(proj, raw)
+    assert e.value.code == 2 and "every entry needs id, file and time" in capsys.readouterr().err
+
+
+def test_lead_silence_warning_covers_unsynced_cues(tmp_path, proj, capsys):
+    raw = make_raw_mp4(tmp_path)
+    realize(proj, [(3.6, False)])  # align "start", not checked for sync
+    audio = proj / "assets" / "audio"
+    sf.write(audio / "click.wav", np.concatenate([np.zeros(int(0.2 * SR)), click(SR)]), SR)
+    finish.finish(proj, raw)
+    assert "starts with 200 ms of silence" in capsys.readouterr().err
+
+
+def test_window_energy_matches_the_direct_sum():
+    rng = np.random.default_rng(3)
+    seg, n = rng.standard_normal(5000), 400
+    assert np.allclose(finish.window_energy(seg, n), np.convolve(seg ** 2, np.ones(n), mode="valid"))
+    y = np.zeros(SR)
+    tmpl = click(SR)
+    y[int(0.5 * SR):int(0.5 * SR) + len(tmpl)] += tmpl
+    found, score = finish.locate(y, tmpl, 0.52)
+    assert abs(found - 0.5) < 1e-3 and score > 0.99
+
+
+def test_error_in_the_warning_step_leaves_only_a_failed_file(tmp_path, proj, monkeypatch):
+    raw = make_raw_mp4(tmp_path)
+    realize(proj, [(t, True) for t in CLICKS])
+
+    def broken(*a, **k):
+        raise RuntimeError("cannot decode")
+    monkeypatch.setattr(finish, "late_starts", broken)
+    with pytest.raises(RuntimeError):
+        finish.finish(proj, raw)
+    r = proj / "renders"
+    assert (r / "demo-a-v1-failed.mp4").is_file() and not (r / "demo-a-v1.mp4").exists()
+    assert not (r / "demo-a-v1-report.json").exists()

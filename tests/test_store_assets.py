@@ -3,6 +3,8 @@ import json
 import urllib.error
 from pathlib import Path
 
+import pytest
+
 import store_assets as sa
 from conftest import FIXTURES
 
@@ -133,3 +135,48 @@ def test_old_jpg_screens_are_cleared_and_a_partial_set_is_removed(tmp_path):
         return b"png bytes"
     assert sa.main(["--out", str(tmp_path), "--app-store-id", "1"], f) == 2
     assert list(screens.iterdir()) == []
+
+
+def test_app_store_failure_still_fetches_play(tmp_path):
+    def f(url):
+        if "itunes.apple.com" in url:
+            raise urllib.error.URLError("network down")
+        return (FIXTURES / "play-en.html").read_bytes()
+    assert sa.main(["--out", str(tmp_path), "--app-store-id", "1", "--play", "com.example", "--lang", "en"], f) == 2
+    meta = json.loads((tmp_path / "metadata.json").read_text())
+    assert meta["google_play"]["contains_ads"] and "app_store" not in meta
+    assert "lookup failed" in meta["app_store_error"]
+
+
+def test_app_store_and_play_both_failing_leave_no_listing(tmp_path):
+    def down(url):
+        raise urllib.error.URLError("network down")
+    assert sa.main(["--out", str(tmp_path), "--app-store-id", "1", "--play", "com.example"], down) == 2
+    assert not (tmp_path / "metadata.json").exists()
+
+
+@pytest.mark.parametrize("body", [b"[]", b'"x"', b'{"resultCount": 1, "results": 1}', b'{"resultCount": 1, "results": [1]}'])
+def test_lookup_that_is_not_the_lookup_object_exits_2(tmp_path, body):
+    assert sa.main(["--out", str(tmp_path), "--app-store-id", "1"], lambda url: body) == 2
+
+
+def test_app_store_failure_and_an_empty_play_page_leave_no_listing(tmp_path):
+    def f(url):
+        if "itunes.apple.com" in url:
+            raise urllib.error.URLError("network down")
+        return b"<html><body>nothing useful</body></html>"
+    assert sa.main(["--out", str(tmp_path), "--app-store-id", "1", "--play", "com.example", "--lang", "xx"], f) == 2
+    assert not (tmp_path / "metadata.json").exists()
+
+
+def test_a_screenshot_write_that_fails_half_way_leaves_nothing(tmp_path, monkeypatch):
+    real = Path.write_bytes
+
+    def half(self, data):
+        if self.name.startswith("02"):
+            real(self, data[:2])  # the disk fills up in the middle of the second file
+            raise OSError("no space left on device")
+        return real(self, data)
+    monkeypatch.setattr(Path, "write_bytes", half)
+    assert sa.main(["--out", str(tmp_path), "--app-store-id", "1"], fake_fetch("lookup.json")) == 2
+    assert list((tmp_path / "screens").iterdir()) == []

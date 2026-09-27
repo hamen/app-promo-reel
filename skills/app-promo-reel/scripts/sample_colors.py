@@ -40,6 +40,9 @@ def main():
     ap.add_argument("points")
     ap.add_argument("--box", type=float, default=0.006, help="half box size, as a fraction of width")
     a = ap.parse_args()
+    if not 0 < a.box < 0.5:
+        print(f"error: --box is a fraction of the width, above 0 and below 0.5, got {a.box:g}", file=sys.stderr)
+        sys.exit(2)
     try:
         with open(a.points) as f:
             points = json.load(f)

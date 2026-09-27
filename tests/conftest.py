@@ -39,6 +39,13 @@ def no_git_env(monkeypatch):
         monkeypatch.delenv(k)
 
 
+@pytest.fixture(autouse=True)
+def no_user_sfx(monkeypatch):
+    """The README has users export SFX_DIR. Scaffold calls that inherit it would copy the user's
+    sounds into test projects (or die on a stale path); tests that need it set it themselves."""
+    monkeypatch.delenv("SFX_DIR", raising=False)
+
+
 @pytest.fixture
 def project(tmp_path):
     p = write_project(tmp_path)
