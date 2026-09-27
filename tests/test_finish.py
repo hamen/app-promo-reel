@@ -282,8 +282,9 @@ def test_video_info_falls_back_to_the_format_duration(monkeypatch):
            "format": {"duration": "4.000"}}
     monkeypatch.setattr(finish, "run", lambda cmd: subprocess.CompletedProcess(cmd, 0, json.dumps(doc), ""))
     assert finish.video_info("x.mp4")["duration"] == 4.0
-    doc["streams"][0]["duration"] = "N/A"  # what ffprobe writes when the stream has none
-    assert finish.video_info("x.mp4")["duration"] == 4.0
+    for bad in ("N/A", "nan", "inf"):  # "N/A" is what ffprobe writes when the stream has none
+        doc["streams"][0]["duration"] = bad
+        assert finish.video_info("x.mp4")["duration"] == 4.0, bad
 
 
 def test_realized_time_true_is_refused(tmp_path, proj, capsys):

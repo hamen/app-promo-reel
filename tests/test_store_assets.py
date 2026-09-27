@@ -167,3 +167,16 @@ def test_app_store_failure_and_an_empty_play_page_leave_no_listing(tmp_path):
         return b"<html><body>nothing useful</body></html>"
     assert sa.main(["--out", str(tmp_path), "--app-store-id", "1", "--play", "com.example", "--lang", "xx"], f) == 2
     assert not (tmp_path / "metadata.json").exists()
+
+
+def test_a_screenshot_write_that_fails_half_way_leaves_nothing(tmp_path, monkeypatch):
+    real = Path.write_bytes
+
+    def half(self, data):
+        if self.name.startswith("02"):
+            real(self, data[:2])  # the disk fills up in the middle of the second file
+            raise OSError("no space left on device")
+        return real(self, data)
+    monkeypatch.setattr(Path, "write_bytes", half)
+    assert sa.main(["--out", str(tmp_path), "--app-store-id", "1"], fake_fetch("lookup.json")) == 2
+    assert list((tmp_path / "screens").iterdir()) == []

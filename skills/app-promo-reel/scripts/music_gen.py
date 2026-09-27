@@ -98,11 +98,11 @@ def main(argv=None):
         try:
             inp = proc(text=[a.prompt], padding=True, return_tensors="pt").to("cuda")
             audio = model.generate(**inp, do_sample=True, guidance_scale=a.guidance, max_new_tokens=max_new)
+            y = audio[0, 0].float().cpu().numpy()
         except torch.cuda.OutOfMemoryError:
             fail(f"CUDA out of memory on seed {seed}")
         except Exception as e:
             fail(f"generation failed on seed {seed} ({type(e).__name__}: {e})")
-        y = audio[0, 0].float().cpu().numpy()
         length = len(y) / sr
         if length < a.duration:
             print(f"error: seed {seed} came out {length:.2f}s, shorter than {a.duration:g}s; no file written",
@@ -114,9 +114,9 @@ def main(argv=None):
         try:
             sf.write(tmp, y, sr)
             os.replace(tmp, dest)
-        except (OSError, RuntimeError, ValueError) as e:  # soundfile raises RuntimeError subclasses
+        except Exception as e:
             tmp.unlink(missing_ok=True)
-            fail(f"cannot write {dest}: {e}")
+            fail(f"cannot write {dest} ({type(e).__name__}: {e})")
         print(f"seed {seed}: {dest} ({length:.2f}s)", flush=True)
     if short:
         fail(f"seed(s) {', '.join(map(str, short))} came out shorter than {a.duration:g}s and have no file")

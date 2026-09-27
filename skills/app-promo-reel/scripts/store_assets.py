@@ -157,7 +157,8 @@ def app_store(a, out, fetch_fn):
         try:
             saved.append(str(download_screenshot(s, shots / f"{i:02d}.png", fetch_fn)))
         except (urllib.error.URLError, OSError, ValueError) as e:
-            for part in saved:  # no half set of screenshots
+            # no half set of screenshots, and no half-written file of the one that failed
+            for part in [*saved, *shots.glob(f"{i:02d}.*")]:
                 Path(part).unlink(missing_ok=True)
             raise AppStoreError(f"screenshot download failed ({s}: {e}); ask the user for screenshots or re-run")
     app["saved_screenshots"] = saved

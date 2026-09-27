@@ -27,6 +27,7 @@ Usage: finish.py <project_dir> <raw_render.mp4> [--frames 1.0,5.2,...]
 """
 import argparse
 import json
+import math
 import os
 import re
 import shutil
@@ -86,10 +87,12 @@ def video_info(path):
 
 
 def _seconds(v):
+    """A duration from ffprobe, or None for "N/A", a missing value, NaN or infinity."""
     try:
-        return float(v)
+        v = float(v)
     except (TypeError, ValueError):
         return None
+    return v if math.isfinite(v) else None
 
 
 LOUDNORM = f"loudnorm=I={TARGET_I}:TP={TARGET_TP}:LRA={TARGET_LRA}"

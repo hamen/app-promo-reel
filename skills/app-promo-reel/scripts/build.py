@@ -137,7 +137,7 @@ def substitute(src, grid, project):
         die(f"leftover token after build: {left.group(0)[:60]!r}")
     if "{{" in out:
         i = out.index("{{")
-        die(f"unclosed token (no }}}}) after build: {out[i:i + 40]!r}")
+        die(f"unclosed token (no closing }}}}) in the template: {out[i:i + 40]!r}")
     return out
 
 

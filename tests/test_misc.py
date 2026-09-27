@@ -223,7 +223,7 @@ def test_docs_scaffold_step_names_the_real_stores():
     assert "--stores <STORES>" in pipeline and "--stores app_store,google_play" not in pipeline
 
 
-def fake_musicgen(monkeypatch, seconds_for_seed=lambda seed: 31.0, load_error=None):
+def fake_musicgen(monkeypatch, seconds_for_seed=lambda seed: 31.0, load_error=None, convert_error=None):
     """Stand-ins for torch and transformers: a 'model' whose output length depends on the seed."""
     import types
     import numpy as np
@@ -242,6 +242,8 @@ def fake_musicgen(monkeypatch, seconds_for_seed=lambda seed: 31.0, load_error=No
             return Tensor(self.a[k])
 
         def float(self):
+            if convert_error:
+                raise convert_error
             return self
 
         def cpu(self):
@@ -301,7 +303,7 @@ def test_music_gen_write_error_exits_2(tmp_path, monkeypatch, capsys):
     import soundfile
 
     def no_space(*a, **k):
-        raise OSError("no space left on device")
+        raise TypeError("no space left on device")  # any error type, not only OSError
     monkeypatch.setattr(soundfile, "write", no_space)
     with pytest.raises(SystemExit) as e:
         music_gen.main(["--prompt", "x", "--duration", "30", "--seeds", "1", "--out", str(tmp_path / "o")])
@@ -318,3 +320,11 @@ def test_sample_colors_box_must_be_a_fraction(tmp_path):
         r = run_script("sample_colors.py", img, pts, "--box", box)
         assert r.returncode == 2 and "--box" in r.stderr, box
     assert run_script("sample_colors.py", img, pts, "--box", "0.01").returncode == 0
+
+
+def test_music_gen_conversion_error_exits_2(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(music_gen, "LOCK", tmp_path / "lock")
+    fake_musicgen(monkeypatch, convert_error=RuntimeError("CUDA error: device-side assert"))
+    with pytest.raises(SystemExit) as e:
+        music_gen.main(["--prompt", "x", "--duration", "30", "--seeds", "1", "--out", str(tmp_path / "o")])
+    assert e.value.code == 2 and "device-side assert" in capsys.readouterr().err

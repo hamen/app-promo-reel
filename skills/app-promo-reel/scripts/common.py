@@ -86,7 +86,8 @@ class Grid:
         phase = g["downbeat_phase"]
         if not (isinstance(phase, int) and not isinstance(phase, bool)
                 and 0 <= phase < min(grid.bpb, len(grid.beats))):
-            die(f"{path}: downbeat_phase must be a whole number 0-{grid.bpb - 1} inside the beat list, got {phase!r}")
+            die(f"{path}: downbeat_phase must be a whole number from 0 to "
+                f"{min(grid.bpb, len(grid.beats)) - 1} (below beats_per_bar and inside the beat list), got {phase!r}")
         return grid
 
     def _index(self, bar, beat):
