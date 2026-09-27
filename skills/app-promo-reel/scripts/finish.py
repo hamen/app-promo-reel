@@ -129,6 +129,12 @@ def lag_seconds(a, b, sr=SR, max_lag=0.1):
     return (int(np.argmax(seg)) - k) / sr
 
 
+def window_energy(x, n):
+    """Sum of squares of every n-sample window of x (len(x) - n + 1 values), in O(len(x))."""
+    run_sum = np.concatenate(([0.0], np.cumsum(np.asarray(x, dtype=np.float64) ** 2)))
+    return run_sum[n:] - run_sum[:-n]
+
+
 def locate(y, tmpl, t, window=SYNC_WINDOW, sr=SR):
     """Matched filter: where does `tmpl` (the cue's own sound) start in y, within t +- window?
     Returns (start_time, normalised correlation 0-1). Music does not correlate with the SFX
@@ -139,8 +145,7 @@ def locate(y, tmpl, t, window=SYNC_WINDOW, sr=SR):
     if len(seg) < n:
         return None, 0.0
     num = ss.correlate(seg, tmpl, mode="valid", method="fft")
-    run_sum = np.concatenate(([0.0], np.cumsum(seg.astype(np.float64) ** 2)))
-    energy = run_sum[n:] - run_sum[:-n]  # energy of every n-sample window, O(len(seg))
+    energy = window_energy(seg, n)
     ncc = num / (np.sqrt(np.maximum(energy, 1e-12)) * np.linalg.norm(tmpl) + 1e-12)
     k = int(np.argmax(ncc))
     return (a + k) / sr, float(ncc[k])

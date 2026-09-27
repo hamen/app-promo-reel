@@ -283,8 +283,10 @@ def test_two_sfx_markers_fail_the_build(tmp_path):
 def test_check_scenes_reads_single_quotes_and_skips_comments():
     from build import check_scenes
     check_scenes("<!-- <section id='old' data-start='31'> --><section id='a' data-start='1.0'>", 30.0)
-    with pytest.raises(SystemExit):
-        check_scenes("<section id='late' data-start='29.5'>", 30.0)
+    for tag in ("<section id='late' data-start='29.5'>", "<section id = 'late' data-start = '29.5'>",
+                '<section data-start ="29.5">'):
+        with pytest.raises(SystemExit):
+            check_scenes(tag, 30.0)
 
 
 @pytest.mark.parametrize("page, ok", [

@@ -94,8 +94,8 @@ def main(argv=None):
     sr = model.config.audio_encoder.sampling_rate
     short = []
     for seed in seeds:
-        torch.manual_seed(seed)
         try:
+            torch.manual_seed(seed)  # seeds CUDA too: a broken CUDA setup can fail here
             inp = proc(text=[a.prompt], padding=True, return_tensors="pt").to("cuda")
             audio = model.generate(**inp, do_sample=True, guidance_scale=a.guidance, max_new_tokens=max_new)
             y = audio[0, 0].float().cpu().numpy()

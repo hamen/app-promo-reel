@@ -214,10 +214,10 @@ def check_scenes(html_out, duration):
     bad = []
     live = re.sub(r"<!--.*?-->", "", html_out, flags=re.S)  # a commented-out scene is never shown
     for tag in re.findall(r"<section\b[^>]*>", live):
-        start = re.search(r"""\bdata-start=(["'])(.*?)\1""", tag)
+        start = re.search(r"""\bdata-start\s*=\s*(["'])(.*?)\1""", tag)
         if not start:
             continue
-        name = re.search(r"""\bid=(["'])(.*?)\1""", tag)
+        name = re.search(r"""\bid\s*=\s*(["'])(.*?)\1""", tag)
         try:
             t = float(start.group(2))
         except ValueError:

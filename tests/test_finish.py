@@ -307,8 +307,7 @@ def test_lead_silence_warning_covers_unsynced_cues(tmp_path, proj, capsys):
 def test_window_energy_matches_the_direct_sum():
     rng = np.random.default_rng(3)
     seg, n = rng.standard_normal(5000), 400
-    run_sum = np.concatenate(([0.0], np.cumsum(seg ** 2)))
-    assert np.allclose(run_sum[n:] - run_sum[:-n], np.convolve(seg ** 2, np.ones(n), mode="valid"))
+    assert np.allclose(finish.window_energy(seg, n), np.convolve(seg ** 2, np.ones(n), mode="valid"))
     y = np.zeros(SR)
     tmpl = click(SR)
     y[int(0.5 * SR):int(0.5 * SR) + len(tmpl)] += tmpl

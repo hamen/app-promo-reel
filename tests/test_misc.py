@@ -223,7 +223,8 @@ def test_docs_scaffold_step_names_the_real_stores():
     assert "--stores <STORES>" in pipeline and "--stores app_store,google_play" not in pipeline
 
 
-def fake_musicgen(monkeypatch, seconds_for_seed=lambda seed: 31.0, load_error=None, convert_error=None):
+def fake_musicgen(monkeypatch, seconds_for_seed=lambda seed: 31.0, load_error=None, convert_error=None,
+                  seed_error=None):
     """Stand-ins for torch and transformers: a 'model' whose output length depends on the seed."""
     import types
     import numpy as np
@@ -232,7 +233,11 @@ def fake_musicgen(monkeypatch, seconds_for_seed=lambda seed: 31.0, load_error=No
     torch.float16 = "fp16"
     torch.cuda = types.SimpleNamespace(is_available=lambda: True,
                                        OutOfMemoryError=type("OutOfMemoryError", (Exception,), {}))
-    torch.manual_seed = lambda seed: state.update(seed=seed)
+    def manual_seed(seed):
+        if seed_error:
+            raise seed_error
+        state.update(seed=seed)
+    torch.manual_seed = manual_seed
 
     class Tensor:
         def __init__(self, a):
@@ -328,3 +333,11 @@ def test_music_gen_conversion_error_exits_2(tmp_path, monkeypatch, capsys):
     with pytest.raises(SystemExit) as e:
         music_gen.main(["--prompt", "x", "--duration", "30", "--seeds", "1", "--out", str(tmp_path / "o")])
     assert e.value.code == 2 and "device-side assert" in capsys.readouterr().err
+
+
+def test_music_gen_seeding_error_exits_2(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(music_gen, "LOCK", tmp_path / "lock")
+    fake_musicgen(monkeypatch, seed_error=RuntimeError("CUDA driver initialization failed"))
+    with pytest.raises(SystemExit) as e:
+        music_gen.main(["--prompt", "x", "--duration", "30", "--seeds", "1", "--out", str(tmp_path / "o")])
+    assert e.value.code == 2 and "driver initialization failed" in capsys.readouterr().err
