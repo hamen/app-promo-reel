@@ -325,3 +325,18 @@ def test_grid_load_checks_the_downbeat_phase(tmp_path):
             Grid.load(f, 4)
     f.write_text(json.dumps({"beats": [0.5, 1.0, 1.5, 2.0, 2.5, 3.0], "downbeat_phase": 3}))
     assert Grid.load(f, 4).first == 3
+
+
+def test_riser_cli_ends_on_the_drop(tmp_path):
+    p = write_project(tmp_path, duration=10)
+    (p / "beats.json").write_text(json.dumps(steady_grid()))  # D(3) = 0.5 + 12 * 0.5 = 6.5 s
+    seed = tmp_path / "seed.wav"
+    sf.write(seed, np.zeros(11 * SR, dtype=np.float32), SR)
+    riser = tmp_path / "riser.wav"
+    sf.write(riser, np.linspace(0, 0.5, SR).astype(np.float32), SR)  # 1 s ramp, loudest at its end
+    r = run_script("make_bed.py", seed, p, "--drop-bar", "3", "--riser", riser, "--riser-gain", "1")
+    assert r.returncode == 0, r.stderr
+    y, sr = sf.read(p / "assets" / "audio" / "bgm.wav")
+    last = int(np.flatnonzero(np.abs(y) > 1e-3)[-1])
+    assert abs(last / sr - 6.5) < 2 / sr
+    assert run_script("make_bed.py", seed, p, "--riser", riser).returncode == 2  # needs --drop-bar
