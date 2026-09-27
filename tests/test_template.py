@@ -123,7 +123,7 @@ def test_build_puts_the_label_guard_last_in_the_page(tmp_path):
     for check in ('[...text.replace(/[\\p{Z}\\p{C}\\p{M}]/gu, "")].length', 'el.id = "ai-label-',
                   'el.style.setProperty(k, v, "important")', '"z-index": "2147483647"', 'visibility: "visible"',
                   "root.appendChild(el)", 'cs.display === "none"', 'cs.clipPath !== "none"',
-                  "opacity *= parseFloat(cs.opacity) * dim(cs.filter)", "opacity < 0.5", "box.right > frame.right",
+                  "opacity *= parseFloat(cs.opacity)", 'cs.maskImage !== "none"', 'cs.filter !== "none" || cs.mixBlendMode !== "normal"', "opacity < 0.5", "box.right > frame.right",
                   # template CSS must not reach the label or its words (text-indent, text fill, ::first-line ...)
                   'all: "initial", display: "block"', 'attachShadow({ mode: "closed" })',
                   ":host::before, :host::after { content: none !important",

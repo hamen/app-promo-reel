@@ -260,18 +260,19 @@ AI_LABEL_GUARD = r"""<script data-ai-label-guard>
     if (!["none", "normal"].includes(getComputedStyle(el, pseudo).content)) fail(`is covered by its ${pseudo}`);
   }
   // the label's own inline visibility: visible wins over any hidden ancestor (the runtime hides
-  // [data-start] elements until its first seek), so ancestors can only hide it by display,
-  // opacity, filter or clip-path: check each one up to <html>
-  const dim = (filter) => [...filter.matchAll(/(opacity|brightness)\(\s*([\d.]+)(%?)\s*\)/g)]
-    .reduce((f, m) => f * (parseFloat(m[2]) / (m[3] ? 100 : 1)), 1);
+  // [data-start] elements until its first seek), and its own look is reset above; its ancestors
+  // (the composition root, body, html) can still hide it by display, opacity, clip-path, mask,
+  // filter or blend mode, so none of those is allowed on them
   let opacity = 1;
   for (let n = el; n; n = n.parentElement) {
     const cs = getComputedStyle(n);
     if (cs.display === "none") fail("sits in an element with display: none");
     if (cs.clipPath !== "none") fail("is clipped");
-    opacity *= parseFloat(cs.opacity) * dim(cs.filter);
+    if (n !== el && (cs.maskImage !== "none" || cs.webkitMaskImage !== "none")) fail("is masked");
+    if (n !== el && (cs.filter !== "none" || cs.mixBlendMode !== "normal")) fail("sits in a filtered or blended element");
+    opacity *= parseFloat(cs.opacity);
   }
-  if (opacity < 0.5) fail("is faded out (opacity or filter of the label and its ancestors)");
+  if (opacity < 0.5) fail("is faded out (opacity of the label and its ancestors)");
   // the painted words, not only the pill: at 24px each visible character is well over 6px wide
   const range = document.createRange();
   range.selectNodeContents(words);
