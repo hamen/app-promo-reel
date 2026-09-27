@@ -198,6 +198,9 @@ def test_bed_has_exact_duration_and_drop(tmp_path):
     short = tmp_path / "short.wav"
     sf.write(short, np.zeros(9 * SR, dtype=np.float32), SR)
     assert run_script("make_bed.py", short, p).returncode == 2
+    # the failed run must not leave the earlier bed for finish.py to subtract
+    assert not (p / "assets" / "audio" / "bgm.wav").exists()
+    assert not list((p / "assets" / "audio").glob(".*partial*"))
 
 
 def test_beat_grid_main_writes_beats_json(tmp_path):

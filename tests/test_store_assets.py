@@ -133,3 +133,21 @@ def test_old_jpg_screens_are_cleared_and_a_partial_set_is_removed(tmp_path):
         return b"png bytes"
     assert sa.main(["--out", str(tmp_path), "--app-store-id", "1"], f) == 2
     assert list(screens.iterdir()) == []
+
+
+def test_app_store_failure_still_fetches_play(tmp_path):
+    def f(url):
+        if "itunes.apple.com" in url:
+            raise urllib.error.URLError("network down")
+        return (FIXTURES / "play-en.html").read_bytes()
+    assert sa.main(["--out", str(tmp_path), "--app-store-id", "1", "--play", "com.example", "--lang", "en"], f) == 2
+    meta = json.loads((tmp_path / "metadata.json").read_text())
+    assert meta["google_play"]["contains_ads"] and "app_store" not in meta
+    assert "lookup failed" in meta["app_store_error"]
+
+
+def test_app_store_and_play_both_failing_leave_no_listing(tmp_path):
+    def down(url):
+        raise urllib.error.URLError("network down")
+    assert sa.main(["--out", str(tmp_path), "--app-store-id", "1", "--play", "com.example"], down) == 2
+    assert not (tmp_path / "metadata.json").exists()

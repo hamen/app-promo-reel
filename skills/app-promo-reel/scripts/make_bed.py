@@ -7,9 +7,11 @@ and an optional synthetic lift before the drop.
 --riser FILE   places the tail of FILE so it ends exactly on D(k) (needs --drop-bar).
 
 Usage: make_bed.py <seed.wav> <project_dir> [--drop-bar k] [--riser riser.mp3] [--riser-gain 0.5]
-Writes <project_dir>/assets/audio/bgm.wav.
+Writes <project_dir>/assets/audio/bgm.wav. The old bed is deleted first, so a failed run leaves
+no bed rather than the previous seed's.
 """
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -85,6 +87,10 @@ def main():
     a = ap.parse_args()
     pdir = Path(a.project_dir)
     project = load_project(pdir)
+    out = pdir / "assets" / "audio" / "bgm.wav"
+    # the old bed must not survive a failed run next to a new beats.json: finish.py would
+    # subtract the wrong music from the mix
+    out.unlink(missing_ok=True)
     try:
         y, sr = sf.read(a.seed, always_2d=False)
     except (OSError, RuntimeError) as e:
@@ -109,9 +115,10 @@ def main():
     peak = np.max(np.abs(y))
     if peak > 0.99:
         y *= 0.99 / peak
-    out = pdir / "assets" / "audio" / "bgm.wav"
     out.parent.mkdir(parents=True, exist_ok=True)
-    sf.write(out, y.astype(np.float32), sr, subtype="PCM_16")
+    partial = out.with_name(".bgm.partial.wav")
+    sf.write(partial, y.astype(np.float32), sr, subtype="PCM_16")
+    os.replace(partial, out)
     print(f"wrote {out} ({len(y) / sr:.3f}s)")
 
 

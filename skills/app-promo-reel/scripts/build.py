@@ -311,15 +311,15 @@ def add_ai_label_guard(html_out):
 
 def build(project_dir):
     project_dir = Path(project_dir)
+    # a build that fails, for any reason, must not leave the previous build behind for a render
+    for old in ("index.html", "cues.realized.json"):
+        (project_dir / old).unlink(missing_ok=True)
     project = load_project(project_dir)
     tmpl = project_dir / "src.html.tmpl"
     beats = project_dir / "beats.json"
     for p in (tmpl, beats):
         if not p.is_file():
             die(f"{p} not found")
-    # a build that fails must not leave the previous build behind for a render to pick up
-    for old in ("index.html", "cues.realized.json"):
-        (project_dir / old).unlink(missing_ok=True)
     grid = Grid.load(beats, project["beats_per_bar"])
     out = substitute(tmpl.read_text(), grid, project)
     cues_path = project_dir / "cues.json"

@@ -207,3 +207,12 @@ def test_stores_that_are_not_a_list_exit_2(tmp_path):
         (p / "project.json").write_text('{"app": "x", "variant": "a", "stores": %s}' % stores)
         r = run_script("build.py", p)
         assert r.returncode == 2 and "non-empty subset" in r.stderr and "Traceback" not in r.stderr, stores
+
+
+def test_a_bad_project_json_also_removes_the_previous_build(tmp_path):
+    from conftest import write_project
+    p = write_project(tmp_path)
+    (p / "index.html").write_text("old build")
+    (p / "project.json").write_text("{not json")
+    assert run_script("build.py", p).returncode == 2
+    assert not (p / "index.html").exists()
