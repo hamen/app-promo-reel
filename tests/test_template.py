@@ -119,7 +119,10 @@ def test_build_puts_the_label_guard_last_in_the_page(tmp_path):
     for check in ('typeof text !== "string" || !text.trim()', 'el.id = "ai-label-',
                   'el.style.setProperty(k, v, "important")', '"z-index": "2147483647"', 'visibility: "visible"',
                   "root.appendChild(el)", 'cs.display === "none"', 'cs.clipPath !== "none"',
-                  "opacity *= parseFloat(cs.opacity) * dim(cs.filter)", "opacity < 0.5", "box.right > frame.right"):
+                  "opacity *= parseFloat(cs.opacity) * dim(cs.filter)", "opacity < 0.5", "box.right > frame.right",
+                  # template CSS must not reach the label's own text (text-indent, text fill, font ...)
+                  'all: "initial", display: "block"', '"font-family": "sans-serif"',
+                  "alpha(own.webkitTextFillColor) < 0.5", 'own.textIndent !== "0px"'):
         assert check in guard, check
 
 

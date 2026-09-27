@@ -229,16 +229,23 @@ AI_LABEL_GUARD = r"""<script data-ai-label-guard>
   const el = document.createElement("div");
   el.id = "__AI_LABEL_ID__";
   el.textContent = text;
+  // "all: initial" first, so no template rule reaches the label itself (text-indent, text fill,
+  // text-shadow, a font that draws nothing ...); then the look, which comes after and wins
   const look = {
-    display: "block", position: "absolute", right: "44px", bottom: "40px", "z-index": "2147483647",
+    all: "initial", display: "block", position: "absolute", right: "44px", bottom: "40px", "z-index": "2147483647",
     margin: "0", padding: "10px 22px", "border-radius": "999px", background: "rgba(0, 0, 0, 0.62)",
-    border: "1px solid rgba(255, 255, 255, 0.35)", color: "#ffffff", "font-family": "var(--font, system-ui, sans-serif)",
+    border: "1px solid rgba(255, 255, 255, 0.35)", color: "#ffffff", "font-family": "sans-serif",
     "font-size": "24px", "font-weight": "700", "letter-spacing": "0.04em", "line-height": "1.25",
     "white-space": "nowrap", visibility: "visible", opacity: "1", transform: "none", filter: "none",
     "clip-path": "none", "pointer-events": "none",
   };
   for (const [k, v] of Object.entries(look)) el.style.setProperty(k, v, "important");
   root.appendChild(el);
+  const own = getComputedStyle(el);
+  const alpha = (c) => { const m = c.match(/rgba?\(([^)]*)\)/); const v = m ? m[1].split(/[\s,\/]+/) : [];
+    return m ? (v.length > 3 ? parseFloat(v[3]) : 1) : 0; };
+  if (alpha(own.color) < 0.5 || alpha(own.webkitTextFillColor) < 0.5 || own.textIndent !== "0px" ||
+      own.fontSize !== "24px") fail("text is restyled out of sight");
   // the label's own inline visibility: visible wins over any hidden ancestor (the runtime hides
   // [data-start] elements until its first seek), so ancestors can only hide it by display,
   // opacity, filter or clip-path: check each one up to <html>
