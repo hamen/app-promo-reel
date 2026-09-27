@@ -224,20 +224,61 @@ class _LiveTags(HTMLParser):
         self.tags.append(dict(attrs))
 
 
+# Injected by build.py as the LAST script of the page, so no template edit can remove, comment out
+# or reorder it. It runs after the template's scripts have filled the page from CONFIG, and throws
+# (hyperframes check: page_error; render: nothing) when the label is missing, empty or not visible.
+AI_LABEL_GUARD = r"""<script data-ai-label-guard>
+(() => {
+  const fail = (why) => { throw new Error(`the AI-generated label (#ai-label) ${why}: it must stay on screen`); };
+  const el = document.getElementById("ai-label");
+  if (!el || !el.textContent.trim()) fail("is missing or empty");
+  // the runtime hides every [data-start] element with !important until its first seek, so the
+  // label inherits visibility: hidden at load: show its ancestors for one synchronous read of
+  // the label's own style and box, then restore each exactly
+  const saved = [];
+  for (let n = el.parentElement; n; n = n.parentElement) {
+    saved.push([n.style, n.style.getPropertyValue("visibility"), n.style.getPropertyPriority("visibility")]);
+    n.style.setProperty("visibility", "visible", "important");
+  }
+  const live = getComputedStyle(el);  // a live object: copy the values before the restore below
+  const cs = { display: live.display, visibility: live.visibility, opacity: live.opacity, clipPath: live.clipPath,
+               fontSize: live.fontSize, color: live.color };
+  const box = el.getBoundingClientRect();
+  const root = el.closest("[data-composition-id]") || document.documentElement;
+  const frame = root.getBoundingClientRect();
+  const alpha = parseFloat((cs.color.match(/rgba?\(([^)]*)\)/) || ["", "0,0,0,0"])[1].split(/[ ,/]+/)[3] ?? "1");
+  for (const [style, value, priority] of saved) {
+    if (value) style.setProperty("visibility", value, priority);
+    else style.removeProperty("visibility");
+  }
+  if (cs.display === "none" || cs.visibility === "hidden" || parseFloat(cs.opacity) < 0.5) fail("is hidden");
+  if (cs.clipPath !== "none") fail("is clipped");
+  if (parseFloat(cs.fontSize) < 16 || alpha < 0.5) fail("text is too small or transparent");
+  if (box.width < 1 || box.height < 1 || box.left < frame.left || box.top < frame.top ||
+      box.right > frame.right || box.bottom > frame.bottom) fail("is not fully inside the frame");
+})();
+</script>
+"""
+
+
 def check_ai_label(html_out):
-    """The AI-generated label (EU AI Act) must be in the page and non-empty. The template hides
-    an element whose CONFIG string is empty, and CSS or a comment can hide the element too, so
-    this is the static half; the page's assertAiLabel() checks the rendered element (text and
-    computed visibility) and throws, which stops hyperframes check and render."""
+    """The AI-generated label (EU AI Act) must be in the page and non-empty. Static half: the
+    parsed page (a commented-out element is not one) and CONFIG.aiLabel. Runtime half: the
+    AI_LABEL_GUARD that add_ai_label_guard() puts at the end of the page."""
     parser = _LiveTags()
     parser.feed(html_out)
     if not any(a.get("id") == "ai-label" and a.get("data-cfg") == "aiLabel" for a in parser.tags):
         die('the page has no <div id="ai-label" data-cfg="aiLabel">: the AI-generated label must stay in the video')
-    if not re.search(r"^[ \t]*assertAiLabel\(\);[ \t]*$", html_out, re.M):  # a call on its own line
-        die("the page script no longer calls assertAiLabel(): the AI-generated label check must stay in the page")
     m = re.search(r'"aiLabel"\s*:\s*"((?:[^"\\]|\\.)*)"', html_out)
     if not m or not m.group(1).strip():
         die("CONFIG.aiLabel is missing or empty: the AI-generated label must stay on screen (SKILL.md rule 7)")
+
+
+def add_ai_label_guard(html_out):
+    end = html_out.rfind("</body>")
+    if end < 0:
+        die("the page has no </body>: build.py puts the AI-generated label check just before it")
+    return html_out[:end] + AI_LABEL_GUARD + html_out[end:]
 
 
 def build(project_dir):
@@ -262,6 +303,7 @@ def build(project_dir):
         die("src.html.tmpl has no <!--SFX--> marker for the SFX tags")
     check_scenes(out, project["duration"])
     check_ai_label(out)
+    out = add_ai_label_guard(out)
     (project_dir / "index.html").write_text(out)
     (project_dir / "cues.realized.json").write_text(json.dumps(realized, indent=1) + "\n")
     print(f"built {project_dir / 'index.html'}: {len(realized)} SFX cues mixed; downbeats "

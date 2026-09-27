@@ -103,10 +103,6 @@ def test_slow_tempo_fails_the_build_with_the_re_map_message(tmp_path, bpm, first
     lambda s: s.replace('"aiLabel": "AI-generated"', '"aiText": "AI-generated"'),
     lambda s: s.replace('<div id="ai-label" data-cfg="aiLabel"></div>', ""),
     lambda s: s.replace('<div id="ai-label" data-cfg="aiLabel"></div>', '<!-- <div id="ai-label" data-cfg="aiLabel"></div> -->'),
-    lambda s: s.replace("      assertAiLabel();\n", ""),
-    lambda s: s.replace("      assertAiLabel();\n", "      // assertAiLabel();\n"),
-    lambda s: s.replace("      assertAiLabel();\n", "      /* assertAiLabel(); */\n"),
-    lambda s: s.replace("      assertAiLabel();\n", "      <!-- assertAiLabel(); -->\n"),
 ])
 def test_ai_label_cannot_be_removed(tmp_path, edit):
     def change(p):
@@ -118,12 +114,30 @@ def test_ai_label_cannot_be_removed(tmp_path, edit):
     assert "AI-generated label" in err
 
 
-def test_page_asserts_the_ai_label_is_visible(tmp_path):
+def test_build_puts_the_label_guard_last_in_the_page(tmp_path):
     _, html = build(tmp_path)
-    guard = html[html.index("const assertAiLabel"):html.index("assertAiLabel();")]
+    guard = html[html.index("<script data-ai-label-guard>"):]
+    assert guard.index("</script>") < guard.index("</body>") and "<script" not in guard[8:guard.index("</body>")]
     for check in ("!el.textContent.trim()", 'cs.display === "none"', 'cs.visibility === "hidden"',
-                  "parseFloat(cs.opacity) === 0", 'ps.setProperty("visibility", "visible", "important")',
-                  'ps.removeProperty("visibility")', "if (hidden) throw new Error("):
-        assert check in guard
-    # it runs after CONFIG has filled the page
-    assert html.index('el.style.display = "none"') < html.index("assertAiLabel();")
+                  "parseFloat(cs.opacity) < 0.5", 'cs.clipPath !== "none"', "parseFloat(cs.fontSize) < 16",
+                  "alpha < 0.5", "box.right > frame.right", 'n.style.setProperty("visibility", "visible", "important")',
+                  "const cs = { display: live.display, visibility: live.visibility",
+                  'style.removeProperty("visibility")'):
+        assert check in guard, check
+
+
+def test_template_cannot_disable_the_guard(tmp_path):
+    # whatever the template does to its own scripts, the guard is added by build.py after them
+    def change(p):
+        t = p / "src.html.tmpl"
+        t.write_text(t.read_text().replace("</body>", "<script>/* no guard here */</script>\n</body>"))
+    _, html = build(tmp_path, edit=change)
+    assert html.rindex("<script data-ai-label-guard>") > html.rindex("/* no guard here */")
+
+
+def test_page_without_body_end_fails_the_build(tmp_path):
+    def change(p):
+        t = p / "src.html.tmpl"
+        t.write_text(t.read_text().replace("</body>", ""))
+    _, err = build(tmp_path, edit=change, expect=2)
+    assert "</body>" in err

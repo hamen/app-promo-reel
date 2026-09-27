@@ -6,7 +6,7 @@ from build import CalcError, calc, sfx_tags, substitute
 from common import Grid
 from conftest import run_script, tone_file
 
-AI_LABEL = '<div id="ai-label" data-cfg="aiLabel"></div><script>const CONFIG = {"aiLabel": "AI"};\nassertAiLabel();\n</script>\n'
+AI_LABEL = '<div id="ai-label" data-cfg="aiLabel"></div><script>const CONFIG = {"aiLabel": "AI"};</script></body>\n'
 GRID = Grid([0.5 + 0.5 * i for i in range(40)], 2, 4)  # first downbeat at 1.5 s
 PROJECT = {"duration": 30.0, "stores": ["google_play"]}
 

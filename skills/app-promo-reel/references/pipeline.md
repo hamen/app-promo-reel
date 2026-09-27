@@ -64,6 +64,8 @@ cd $P && npx --yes hyperframes@0.8.78 check
 npx --yes hyperframes@0.8.78 snapshot --at 1.0,2.4,4.6,... --describe false --no-end -o snapshots/r1
 ```
 - Always edit `src.html.tmpl`, never index.html (it is overwritten).
+- build.py adds the AI-label check as the last script of index.html; a `page_error` about
+  `#ai-label` in `hyperframes check` means the label is missing, empty or not visible.
 - Leftover or unknown `{{…}}` → exit 2.
 - A cue whose SFX file is missing is skipped with a warning; the build still succeeds.
 - Snapshots: pick every scene middle and every transition ±0.1 s. Write each round to a new

@@ -24,7 +24,9 @@ These rules win over any creative idea:
 6. Respect what the listings say: e.g. if the Play listing says "Contains ads", never claim
    "no ads".
 7. The AI-generated label (`CONFIG.aiLabel`, in the video's language) stays on screen for the
-   whole video. Never remove it.
+   whole video. Never remove it. build.py refuses a page without it and adds a check at the end
+   of the page that stops `hyperframes check` and the render when the label is empty, hidden,
+   clipped, too small, transparent or outside the frame.
 8. When an asset is missing (icon, screenshot, font), use a clearly labelled placeholder and
    tell the user. Never fake it.
 
