@@ -101,6 +101,10 @@ def test_slow_tempo_fails_the_build_with_the_re_map_message(tmp_path, bpm, first
     lambda s: s.replace('"aiLabel": "AI-generated"', '"aiLabel": ""'),
     lambda s: s.replace('"aiLabel": "AI-generated"', '"aiLabel": "   "'),
     lambda s: s.replace('"aiLabel": "AI-generated"', '"aiText": "AI-generated"'),
+    # characters that draw nothing: escaped or literal zero-width, BOM, word joiner, escaped space
+    lambda s: s.replace('"aiLabel": "AI-generated"', '"aiLabel": "\\u200b"'),
+    lambda s: s.replace('"aiLabel": "AI-generated"', '"aiLabel": "\u200b\u2060\ufeff"'),
+    lambda s: s.replace('"aiLabel": "AI-generated"', '"aiLabel": "\\u0020"'),
 ])
 def test_ai_label_cannot_be_removed(tmp_path, edit):
     def change(p):
@@ -116,13 +120,14 @@ def test_build_puts_the_label_guard_last_in_the_page(tmp_path):
     _, html = build(tmp_path)
     guard = html[html.index("<script data-ai-label-guard>"):]
     assert guard.index("</script>") < guard.index("</body>") and "<script" not in guard[8:guard.index("</body>")]
-    for check in ('typeof text !== "string" || !text.trim()', 'el.id = "ai-label-',
+    for check in ('[...text.replace(/[\\p{Z}\\p{C}\\p{M}]/gu, "")].length', 'el.id = "ai-label-',
                   'el.style.setProperty(k, v, "important")', '"z-index": "2147483647"', 'visibility: "visible"',
                   "root.appendChild(el)", 'cs.display === "none"', 'cs.clipPath !== "none"',
                   "opacity *= parseFloat(cs.opacity) * dim(cs.filter)", "opacity < 0.5", "box.right > frame.right",
-                  # template CSS must not reach the label's own text (text-indent, text fill, font ...)
-                  'all: "initial", display: "block"', '"font-family": "sans-serif"',
-                  "alpha(own.webkitTextFillColor) < 0.5", 'own.textIndent !== "0px"'):
+                  # template CSS must not reach the label or its words (text-indent, text fill, ::first-line ...)
+                  'all: "initial", display: "block"', 'attachShadow({ mode: "closed" })',
+                  ":host::before, :host::after { content: none !important",
+                  "alpha(own.webkitTextFillColor) < 0.5", "ink.width < Math.max(12, 6 * visible)"):
         assert check in guard, check
 
 

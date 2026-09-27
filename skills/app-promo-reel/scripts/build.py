@@ -30,6 +30,7 @@ import operator
 import re
 import secrets
 import sys
+import unicodedata
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -223,29 +224,41 @@ AI_LABEL_GUARD = r"""<script data-ai-label-guard>
 (() => {
   const fail = (why) => { throw new Error(`the AI-generated label ${why}: it must stay on screen`); };
   const text = typeof CONFIG === "object" && CONFIG !== null ? CONFIG.aiLabel : undefined;
-  if (typeof text !== "string" || !text.trim()) fail("(CONFIG.aiLabel) is missing or empty");
+  const visible = typeof text === "string" ? [...text.replace(/[\p{Z}\p{C}\p{M}]/gu, "")].length : 0;
+  if (!visible) fail("(CONFIG.aiLabel) is missing, empty or has no visible character");
   const root = document.querySelector("[data-composition-id]");
   if (!root) fail("has no composition root to sit in");
   const el = document.createElement("div");
   el.id = "__AI_LABEL_ID__";
-  el.textContent = text;
-  // "all: initial" first, so no template rule reaches the label itself (text-indent, text fill,
-  // text-shadow, a font that draws nothing ...); then the look, which comes after and wins
+  // "all: initial" first, so no template rule reaches the label box; then the look, which comes
+  // after and wins
   const look = {
     all: "initial", display: "block", position: "absolute", right: "44px", bottom: "40px", "z-index": "2147483647",
     margin: "0", padding: "10px 22px", "border-radius": "999px", background: "rgba(0, 0, 0, 0.62)",
-    border: "1px solid rgba(255, 255, 255, 0.35)", color: "#ffffff", "font-family": "sans-serif",
-    "font-size": "24px", "font-weight": "700", "letter-spacing": "0.04em", "line-height": "1.25",
-    "white-space": "nowrap", visibility: "visible", opacity: "1", transform: "none", filter: "none",
-    "clip-path": "none", "pointer-events": "none",
+    border: "1px solid rgba(255, 255, 255, 0.35)", "white-space": "nowrap", visibility: "visible",
+    opacity: "1", transform: "none", filter: "none", "clip-path": "none", "pointer-events": "none",
   };
   for (const [k, v] of Object.entries(look)) el.style.setProperty(k, v, "important");
+  // the words live in a closed shadow root: no template selector reaches them, pseudo-elements
+  // included; its !important rules beat the page's !important rules on the host's ::before/::after
+  const shadow = el.attachShadow({ mode: "closed" });
+  const sheet = document.createElement("style"), words = document.createElement("span");
+  sheet.textContent = ":host::before, :host::after { content: none !important; display: none !important; }" +
+    " span { all: initial !important; display: inline-block !important; color: #ffffff !important;" +
+    " -webkit-text-fill-color: #ffffff !important; font: 700 24px/1.25 sans-serif !important;" +
+    " letter-spacing: 0.04em !important; white-space: nowrap !important; }";
+  words.textContent = text;
+  shadow.append(sheet, words);
   root.appendChild(el);
-  const own = getComputedStyle(el);
+  const own = getComputedStyle(words);
   const alpha = (c) => { const m = c.match(/rgba?\(([^)]*)\)/); const v = m ? m[1].split(/[\s,\/]+/) : [];
     return m ? (v.length > 3 ? parseFloat(v[3]) : 1) : 0; };
-  if (alpha(own.color) < 0.5 || alpha(own.webkitTextFillColor) < 0.5 || own.textIndent !== "0px" ||
-      own.fontSize !== "24px") fail("text is restyled out of sight");
+  if (alpha(own.color) < 0.5 || alpha(own.webkitTextFillColor) < 0.5 || own.fontSize !== "24px") {
+    fail("text is restyled out of sight");
+  }
+  for (const pseudo of ["::before", "::after"]) {
+    if (!["none", "normal"].includes(getComputedStyle(el, pseudo).content)) fail(`is covered by its ${pseudo}`);
+  }
   // the label's own inline visibility: visible wins over any hidden ancestor (the runtime hides
   // [data-start] elements until its first seek), so ancestors can only hide it by display,
   // opacity, filter or clip-path: check each one up to <html>
@@ -259,20 +272,32 @@ AI_LABEL_GUARD = r"""<script data-ai-label-guard>
     opacity *= parseFloat(cs.opacity) * dim(cs.filter);
   }
   if (opacity < 0.5) fail("is faded out (opacity or filter of the label and its ancestors)");
-  const box = el.getBoundingClientRect(), frame = root.getBoundingClientRect();
-  if (box.width < 1 || box.height < 1 || box.left < frame.left || box.top < frame.top ||
-      box.right > frame.right || box.bottom > frame.bottom) fail("is not fully inside the frame");
+  // the painted words, not only the pill: at 24px each visible character is well over 6px wide
+  const range = document.createRange();
+  range.selectNodeContents(words);
+  const ink = range.getBoundingClientRect(), frame = root.getBoundingClientRect();
+  if (ink.width < Math.max(12, 6 * visible) || ink.height < 16) fail("text has no width on screen");
+  for (const box of [el.getBoundingClientRect(), ink]) {
+    if (box.left < frame.left || box.top < frame.top || box.right > frame.right || box.bottom > frame.bottom) {
+      fail("is not fully inside the frame");
+    }
+  }
 })();
 </script>
 """
 
 
 def check_ai_label(html_out):
-    """Static half of the AI-generated label (EU AI Act): CONFIG.aiLabel must be a non-empty
-    string. The runtime half, AI_LABEL_GUARD, creates the label and checks it can be seen."""
-    m = re.search(r'"aiLabel"\s*:\s*"((?:[^"\\]|\\.)*)"', html_out)
-    if not m or not m.group(1).strip():
-        die("CONFIG.aiLabel is missing or empty: the AI-generated label must stay on screen (SKILL.md rule 7)")
+    """Static half of the AI-generated label (EU AI Act): CONFIG.aiLabel must be a string with a
+    visible character. The runtime half, AI_LABEL_GUARD, creates the label and checks it can be seen."""
+    m = re.search(r'"aiLabel"\s*:\s*("(?:[^"\\]|\\.)*")', html_out)
+    try:
+        label = json.loads(m.group(1)) if m else ""
+    except ValueError:
+        label = ""
+    if not any(unicodedata.category(c)[0] not in "ZCM" for c in label):
+        die("CONFIG.aiLabel is missing, empty or has no visible character: "
+            "the AI-generated label must stay on screen (SKILL.md rule 7)")
 
 
 def add_ai_label_guard(html_out):
