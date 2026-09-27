@@ -590,6 +590,7 @@
       // an empty string hides the element (e.g. a screen with no bottom button, a row with no chip)
       document.querySelectorAll("[data-cfg]").forEach((el) => {
         const v = String(cfgGet(el.dataset.cfg));
+        if (el.id === "ai-label" && v.trim() === "") throw new Error("CONFIG.aiLabel is empty: the AI-generated label must stay on screen");
         el.textContent = v;
         if (v === "") el.style.display = "none";
       });

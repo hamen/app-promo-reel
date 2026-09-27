@@ -6,6 +6,7 @@ from build import CalcError, calc, sfx_tags, substitute
 from common import Grid
 from conftest import run_script, tone_file
 
+AI_LABEL = '<div id="ai-label" data-cfg="aiLabel"></div><script>const CONFIG = {"aiLabel": "AI"};</script>\n'
 GRID = Grid([0.5 + 0.5 * i for i in range(40)], 2, 4)  # first downbeat at 1.5 s
 PROJECT = {"duration": 30.0, "stores": ["google_play"]}
 
@@ -85,7 +86,7 @@ def test_attack_alignment_skips_leading_silence(tmp_path):
 
 
 def test_build_without_sfx_succeeds_and_realizes_nothing(project):
-    (project / "src.html.tmpl").write_text("<div data-duration='{{DURATION}}'>{{D 1}}</div>\n<!--SFX-->\n")
+    (project / "src.html.tmpl").write_text("<div data-duration='{{DURATION}}'>{{D 1}}</div>\n<!--SFX-->\n" + AI_LABEL)
     (project / "cues.json").write_text(json.dumps({"sfx": {"a": "a.mp3"}, "cues": [{"id": "x", "sfx": "a", "at": "D(0)"}]}))
     r = run_script("build.py", project)
     assert r.returncode == 0, r.stderr

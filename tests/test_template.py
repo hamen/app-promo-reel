@@ -95,3 +95,24 @@ def test_slow_tempo_fails_the_build_with_the_re_map_message(tmp_path, bpm, first
     grid, _, _ = grid_from_beat_grid(bpm, first)
     _, err = build(tmp_path, grid=grid, expect=2)
     assert "D(13, 3)" in err and "1.1s before" in err and "re-map" in err
+
+
+@pytest.mark.parametrize("edit", [
+    lambda s: s.replace('"aiLabel": "AI-generated"', '"aiLabel": ""'),
+    lambda s: s.replace('"aiLabel": "AI-generated"', '"aiLabel": "   "'),
+    lambda s: s.replace('"aiLabel": "AI-generated"', '"aiText": "AI-generated"'),
+    lambda s: s.replace('<div id="ai-label" data-cfg="aiLabel"></div>', ""),
+])
+def test_ai_label_cannot_be_removed(tmp_path, edit):
+    def change(p):
+        t = p / "src.html.tmpl"
+        new = edit(t.read_text())
+        assert new != t.read_text()
+        t.write_text(new)
+    _, err = build(tmp_path, edit=change, expect=2)
+    assert "AI-generated label" in err
+
+
+def test_page_throws_on_an_empty_ai_label(tmp_path):
+    _, html = build(tmp_path)
+    assert 'if (el.id === "ai-label" && v.trim() === "") throw new Error(' in html

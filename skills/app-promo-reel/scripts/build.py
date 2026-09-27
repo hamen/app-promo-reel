@@ -212,6 +212,17 @@ def check_scenes(html_out, duration):
             f"this tempo/duration: re-map the scenes (references/storyboard.md)")
 
 
+def check_ai_label(html_out):
+    """The AI-generated label (EU AI Act) must exist and be non-empty: the template hides an
+    element whose CONFIG string is empty, so an empty aiLabel would drop it without a word."""
+    if not re.search(r'<[^>]*\bid="ai-label"[^>]*\bdata-cfg="aiLabel"|<[^>]*\bdata-cfg="aiLabel"[^>]*\bid="ai-label"',
+                     html_out):
+        die('the page has no <div id="ai-label" data-cfg="aiLabel">: the AI-generated label must stay in the video')
+    m = re.search(r'"aiLabel"\s*:\s*"((?:[^"\\]|\\.)*)"', html_out)
+    if not m or not m.group(1).strip():
+        die("CONFIG.aiLabel is missing or empty: the AI-generated label must stay on screen (SKILL.md rule 7)")
+
+
 def build(project_dir):
     project_dir = Path(project_dir)
     project = load_project(project_dir)
@@ -233,6 +244,7 @@ def build(project_dir):
     elif lines:
         die("src.html.tmpl has no <!--SFX--> marker for the SFX tags")
     check_scenes(out, project["duration"])
+    check_ai_label(out)
     (project_dir / "index.html").write_text(out)
     (project_dir / "cues.realized.json").write_text(json.dumps(realized, indent=1) + "\n")
     print(f"built {project_dir / 'index.html'}: {len(realized)} SFX cues mixed; downbeats "
