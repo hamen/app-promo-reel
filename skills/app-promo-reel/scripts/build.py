@@ -320,7 +320,8 @@ def check_ai_label(html_out):
     (it is the one that counts: this check only fails a build early).
     Comments are removed first, so an example in a comment neither passes nor fails the build: HTML
     <!-- -->, JS /* */ and lines that start with //. A `/*` inside a string can hide text from this
-    check; the runtime guard still throws for an empty label."""
+    check, and so can a `<!--` inside a string when a later `-->` exists; the runtime guard still
+    throws for an empty label."""
     code = re.sub(r"<!--.*?-->|/\*.*?\*/", "", html_out, flags=re.S)
     code = re.sub(r"(?m)^[ \t]*//.*$", "", code)
     values = re.findall(r'"aiLabel"\s*:\s*("(?:[^"\\]|\\.)*"|[^,}\s]+)', code)
