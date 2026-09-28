@@ -336,6 +336,23 @@ def test_grid_load_checks_the_downbeat_phase(tmp_path):
     assert Grid.load(f, 4).first == 3
 
 
+@pytest.mark.parametrize("text, message", [
+    ('{"beats": [0.5, 1.0, 1.5, 2.0], "downbeat_phase": 1e999}', "downbeat_phase must be"),
+    ('{"beats": [0.5, 1.0, 1.5, 2.0], "downbeat_phase": 1' + "0" * 400 + "}", "downbeat_phase must be"),
+    ('{"beats": [0.5, 1.0, 1.5, 2.0]}', "downbeat_phase must be"),
+    ('{"beats": [1' + "0" * 400 + ', 1.0], "downbeat_phase": 0}', "is not a beat grid"),
+    ('{"beats": "1234", "downbeat_phase": 0}', "beats must be a JSON array"),
+    ('{"downbeat_phase": 0}', "beats must be a JSON array"),
+])
+def test_grid_load_dies_with_a_message_on_unusable_values(tmp_path, capsys, text, message):
+    from common import Grid
+    f = tmp_path / "b.json"
+    f.write_text(text)
+    with pytest.raises(SystemExit):
+        Grid.load(f, 4)
+    assert message in capsys.readouterr().err
+
+
 def test_riser_cli_ends_on_the_drop(tmp_path):
     p = write_project(tmp_path, duration=10)
     (p / "beats.json").write_text(json.dumps(steady_grid()))  # D(3) = 0.5 + 12 * 0.5 = 6.5 s

@@ -146,9 +146,13 @@ def test_build_refuses_broken_json_files(tmp_path):
     (p / "cues.json").unlink()
     (p / "beats.json").write_text('{"beats": [1, 2]}')
     r = run_script("build.py", p)
-    assert r.returncode == 2 and "beat grid" in r.stderr and "Traceback" not in r.stderr
+    assert r.returncode == 2 and "downbeat_phase must be" in r.stderr and "Traceback" not in r.stderr
     (p / "beats.json").write_text(_json.dumps(steady_grid()))
     (p / "project.json").write_text('{"app": "x", "variant": "a", "duration": "long"}')
+    r = run_script("build.py", p)
+    assert r.returncode == 2 and "must be JSON numbers" in r.stderr and "Traceback" not in r.stderr
+    # a 400-digit integer does not fit a float: math.isfinite raised OverflowError on it
+    (p / "project.json").write_text('{"app": "x", "variant": "a", "duration": 1' + "0" * 400 + '}')
     r = run_script("build.py", p)
     assert r.returncode == 2 and "must be JSON numbers" in r.stderr and "Traceback" not in r.stderr
 
@@ -333,3 +337,9 @@ def test_project_json_nan_and_infinity_are_refused(tmp_path):
         (p / "project.json").write_text('{"app": "x", "variant": "a", %s}' % text)
         r = run_script("build.py", p)
         assert r.returncode == 2 and "JSON numbers" in r.stderr and "Traceback" not in r.stderr, text
+
+
+def test_is_number_rejects_an_int_too_large_for_a_float():
+    from common import is_number
+    assert is_number(3) and is_number(29.97)
+    assert not is_number(10 ** 400) and not is_number(float("inf")) and not is_number(True)
