@@ -11,6 +11,21 @@ vertical (9:16) promo reels for a mobile app:
 
 It **only generates video files.** It does not post, upload, schedule or send anything.
 
+## Samples
+
+Three reels made with this skill, unedited: the MP4s are exactly what `finish.py` delivered.
+The previews below are silent; click one to watch the MP4 with sound. All six files live in
+the [`samples` release](https://github.com/hamen/app-promo-reel/releases/tag/samples), not in git
+(`bin/ci` keeps media out of the repo).
+
+| 3 Things A Day (English) | Smart Pantry (Italian) | facecam-tui (open-source tool) |
+| :---: | :---: | :---: |
+| [![3 Things A Day reel](https://github.com/hamen/app-promo-reel/releases/download/samples/three-things.webp)](https://github.com/hamen/app-promo-reel/releases/download/samples/three-things.mp4) | [![Smart Pantry reel](https://github.com/hamen/app-promo-reel/releases/download/samples/smart-pantry.webp)](https://github.com/hamen/app-promo-reel/releases/download/samples/smart-pantry.mp4) | [![facecam-tui reel](https://github.com/hamen/app-promo-reel/releases/download/samples/facecam-tui.webp)](https://github.com/hamen/app-promo-reel/releases/download/samples/facecam-tui.mp4) |
+| App Store + Google Play end card | Italian copy, App Store + Google Play end card | not a store app: ends on the GitHub link |
+
+Each one: 30 s, 1080×1920, H.264/AAC at -14 LUFS, every sound effect within 1 ms of its beat
+(measured by `finish.py`), and the "AI-generated" label on screen for the whole video.
+
 ## What the agent does
 
 See [`skills/app-promo-reel/SKILL.md`](skills/app-promo-reel/SKILL.md). In short: research the
