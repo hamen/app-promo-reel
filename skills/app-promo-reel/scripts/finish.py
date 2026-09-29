@@ -294,22 +294,26 @@ def pop_events(frames, dt):
         around = np.concatenate([d[max(1, i - 3):i], d[i + 1:i + 4]])  # d[0] is not a change
         if d[i] > POP_MIN and (not len(around) or d[i] > POP_RATIO * np.median(around)):
             spikes.append(i)
-    events, i = [], 0
-    while i < len(spikes):
-        a = spikes[i]
-        if (i + 1 < len(spikes) and spikes[i + 1] == a + 1
-                and np.abs(frames[a + 1] - frames[a - 1]).mean() < d[a] / 3):
-            events.append({"type": "flash", "time": round(a * dt, 3), "frames": 1})
-            i += 2
+    # flashes first: grouped into a fast move, a glitch frame next to a cut would go unreported
+    events, cuts, spikeset = [], [], set(spikes)
+    for a in spikes:
+        if a not in spikeset:
             continue
-        run_ = [a]
-        while i + 1 < len(spikes) and spikes[i + 1] - run_[-1] <= POP_GROUP:
+        if a + 1 in spikeset and np.abs(frames[a + 1] - frames[a - 1]).mean() < d[a] / 3:
+            events.append({"type": "flash", "time": round(a * dt, 3), "frames": 1})
+            spikeset -= {a, a + 1}
+        else:
+            cuts.append(a)
+    i = 0
+    while i < len(cuts):
+        run_ = [cuts[i]]
+        while i + 1 < len(cuts) and cuts[i + 1] - run_[-1] <= POP_GROUP:
             i += 1
-            run_.append(spikes[i])
-        events.append({"type": "cut", "time": round(a * dt, 3), "end": round(run_[-1] * dt, 3),
-                       "frames": run_[-1] - a + 1})
+            run_.append(cuts[i])
+        events.append({"type": "cut", "time": round(run_[0] * dt, 3), "end": round(run_[-1] * dt, 3),
+                       "frames": run_[-1] - run_[0] + 1})
         i += 1
-    return events
+    return sorted(events, key=lambda e: e["time"])
 
 
 def scene_starts(html):
@@ -330,6 +334,8 @@ def frame_checks(pdir, mp4, vi):
     frames = decode_gray(mp4, vi["width"], vi["height"])
     if not len(frames):
         raise RuntimeError("no frame decoded")
+    # video_info gives the video STREAM's duration (the container's only as a fallback): muxed audio
+    # that runs longer must not stretch the frame times
     dt = vi["duration"] / len(frames)
     warnings, notes = [], []
 

@@ -93,8 +93,9 @@ Commands for every step: `references/pipeline.md`.
      on top of each other, nothing crossing another element by accident, no dead second);
      **variety** (something new every 2-4 s); **composition**; **claims** (each one is in the
      DESIGN.md allowed list); **sound** (sync report, and what the storyboard asked for).
-   - Write the 3 worst problems with their timestamps. Fix them in `src.html.tmpl`, then build,
-     check, render and finish again.
+   - Write the 3 worst problems with their timestamps. Fix each one in the file that controls
+     it: scenes, text and motion in `src.html.tmpl`; sound effects in `cues.json`; the music bed
+     with `make_bed.py` (or a new seed, step 3). Then build, check, render and finish again.
    - Stop when every score is 8 or more, or after 3 critique rounds. Never loop without the cap.
 7. **Deliver.** List each final MP4 path with a one-line summary (angle, seed, tempo, sync
    result, loudness), its seven scores and any problem still open. Repeat the music licence

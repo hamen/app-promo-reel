@@ -418,8 +418,11 @@ def test_other_sizes_and_rates_are_timed_right(tmp_path):
     marks(tmp_path, (0.0,), (0.5,))
     # 4:5; the cut at frame 300 is 10.010 s at 29.97 fps and 10.000 s if the rate were taken as 30
     f = np.concatenate([texture(1, 300, 150, 120), texture(2, 30, 150, 120)])
-    r = checks(tmp_path, f, rate="30000/1001")
+    mp4 = gray_clip(tmp_path, f, rate="30000/1001")
+    assert len(finish.decode_gray(mp4, 120, 150)) == 330
+    r = finish.frame_checks(tmp_path, mp4, finish.video_info(mp4))
     assert len(r["events"]) == 1 and r["events"][0]["time"] == pytest.approx(300 / 29.97, abs=0.002)
+    assert r["events"][0]["planned"] is False
 
 
 def test_unreadable_marks_are_notes_not_failures(tmp_path):
@@ -454,3 +457,33 @@ def test_a_small_settle_is_not_a_pop(tmp_path):
     f = np.concatenate([base[:30], np.clip(base[30:] + 8, 0, 255)])
     r = checks(tmp_path, f)
     assert r["events"] == [] and r["warnings"] == []
+
+
+def test_a_flash_next_to_a_cut_is_still_a_flash(tmp_path):
+    marks(tmp_path, (0.0, 1.0))
+    f = np.concatenate([texture(1, 30), texture(2, 30)])  # planned cut at 1.0 s
+    f[32] = 255  # a glitch frame two frames later
+    r = checks(tmp_path, f)
+    assert [(e["type"], e["time"]) for e in r["events"]] == [("cut", 1.0), ("flash", pytest.approx(32 / 30, abs=0.002))]
+    assert r["warnings"] == ["one-frame flash at 1.07 s: a glitch frame (look at it)"]
+
+
+def test_a_spike_on_the_last_frame_is_a_cut(tmp_path):
+    marks(tmp_path, (0.0,), (0.5,))
+    f = texture(1, 30)
+    f[29] = 255  # nothing after it to come back to: a cut, not a flash
+    r = checks(tmp_path, f)
+    assert [(e["type"], e["frames"], e["planned"]) for e in r["events"]] == [("cut", 1, False)]
+
+
+def test_audio_longer_than_the_video_does_not_stretch_frame_times(tmp_path):
+    marks(tmp_path, (0.0,), (0.5,))
+    video = gray_clip(tmp_path, np.concatenate([texture(1, 60), texture(2, 30)]))  # cut at 2.0 s of 3.0 s
+    mp4 = tmp_path / "long-audio.mp4"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(video), "-f", "lavfi", "-i",
+                    "anullsrc=r=48000:cl=stereo", "-t", "4.0", "-map", "0:v", "-map", "1:a", "-c:v", "copy",
+                    "-c:a", "aac", str(mp4)], check=True)
+    vi = finish.video_info(mp4)
+    assert vi["duration"] == pytest.approx(3.0, abs=0.01)
+    r = finish.frame_checks(tmp_path, mp4, vi)
+    assert [e["time"] for e in r["events"]] == [pytest.approx(2.0, abs=0.002)]
