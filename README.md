@@ -23,8 +23,9 @@ the [`samples` release](https://github.com/hamen/app-promo-reel/releases/tag/sam
 | [![3 Things A Day reel](https://github.com/hamen/app-promo-reel/releases/download/samples/three-things.webp)](https://github.com/hamen/app-promo-reel/releases/download/samples/three-things.mp4) | [![Smart Pantry reel](https://github.com/hamen/app-promo-reel/releases/download/samples/smart-pantry.webp)](https://github.com/hamen/app-promo-reel/releases/download/samples/smart-pantry.mp4) | [![facecam-tui reel](https://github.com/hamen/app-promo-reel/releases/download/samples/facecam-tui.webp)](https://github.com/hamen/app-promo-reel/releases/download/samples/facecam-tui.mp4) |
 | App Store + Google Play end card | Italian copy, App Store + Google Play end card | not a store app: ends on the GitHub link |
 
-Each one: 30 s, 1080×1920, H.264/AAC at -14 LUFS, every sound effect within 1 ms of its beat
-(measured by `finish.py`), and the "AI-generated" label on screen for the whole video.
+Each one: 30 s, 1080×1920, H.264/AAC at -14 LUFS; every sound effect that `finish.py` checks for
+sync lands within 1 ms of its scheduled time; an AI-generation label, in the video's language, stays
+on screen for the whole video.
 
 ## What the agent does
 
