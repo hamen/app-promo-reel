@@ -57,6 +57,11 @@ Then ask Claude Code for "promo reels for <app>". Output goes to `~/app-promo-re
   paid ads), use a licensed music track instead.
 - No sound effects, fonts, screenshots, icons or generated audio are distributed here.
 
+## Credits
+
+The critique loop and the frame checks (blank opening, pops) follow ideas from Raphaël Aubry's
+[claude-motion-design](https://github.com/howseen-ai/claude-motion-design) (MIT). No code is copied.
+
 ## Development
 
 ```bash

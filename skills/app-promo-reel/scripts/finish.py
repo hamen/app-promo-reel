@@ -17,6 +17,11 @@
    ("masked": under a louder sound, or missing). A cue that is meant to sit under a louder
    sound is marked "sync": false in cues.json and is not checked.
 6. Contact sheet of frames from the final MP4.
+7. Frame checks on the final MP4 (warnings only: they never fail the run or rename the file):
+   a blank opening (frame 0 is the feed thumbnail; the hook must show within 1 s) and "pops",
+   frame-to-frame changes far above their neighbours: a one-frame flash, or a cut that is near
+   no beat and no scene start. They find one-frame events, not two texts on top of each other
+   during a crossfade: that is for the critique loop in SKILL.md.
 
 Only when every check passed is the file renamed to ...-v<N>.mp4 (sheet: -v<N>-sheet.jpg). A
 failed check exits 1 and names it ...-v<N>-failed.mp4; so does any other exit after the mux
@@ -51,6 +56,18 @@ MAX_LAG = 0.005
 SYNC_WINDOW = 0.150
 TEMPLATE_LEN = 0.25  # seconds of each SFX used as the matched-filter template
 MIN_MATCH = 0.2      # normalised correlation below this = the sound is not in the window
+# frame checks, on frames decoded to FRAME_W px wide grayscale. Calibrated 2026-09-29 on three
+# delivered reels: an empty gradient opening measures 1.4-2.2 detail, frames with text or UI 2.8+;
+# scene cuts change 30-100 gray levels in one frame, a headline settling after its slam 4-10.
+FRAME_W = 54
+BLANK_DETAIL = 2.5   # mean neighbouring-pixel difference below this = nothing to read on the frame
+POP_MIN = 12.0       # a spike changes at least this many gray levels (mean) from the frame before
+POP_RATIO = 3.0      # ... and this many times the median change of the 3 frames on each side
+POP_GROUP = 3        # spikes at most this many frames apart are one fast move
+POP_MOVE_MAX = 0.3   # seconds: a fast move is never longer (the longest in the calibration reels: 0.07 s)
+FLASH_BACK = 3.0     # a flash: the frame after the odd one is this many times closer to the one before
+POP_LEAD = 0.15      # a fast move may start up to this long before the beat it lands on
+HOOK_BY = 1.0        # seconds: something readable must be on screen by then
 
 
 def run(cmd):
@@ -249,6 +266,115 @@ def contact_sheet(mp4, times, dest):
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def decode_gray(mp4, width, height):
+    """Every frame of mp4 as float32 grayscale, FRAME_W px wide, height kept in proportion.
+    Raises (never die()): the frame checks must not end the run."""
+    h = max(2, round(FRAME_W * height / width / 2) * 2)
+    r = subprocess.run(["ffmpeg", "-v", "error", "-i", str(mp4), "-vf", f"scale={FRAME_W}:{h},format=gray",
+                        "-f", "rawvideo", "-"], capture_output=True)
+    if r.returncode:
+        raise RuntimeError(f"ffmpeg could not decode the frames: {r.stderr.decode(errors='replace')[-300:]}")
+    n = len(r.stdout) // (FRAME_W * h)
+    return np.frombuffer(r.stdout[:n * FRAME_W * h], np.uint8).reshape(n, h, FRAME_W).astype(np.float32)
+
+
+def frame_detail(frames):
+    """Mean absolute difference between neighbouring pixels, per frame: ~0 on a flat colour."""
+    return (np.abs(np.diff(frames, axis=2)).mean(axis=(1, 2))
+            + np.abs(np.diff(frames, axis=1)).mean(axis=(1, 2)))
+
+
+def pop_events(frames, dt):
+    """Spikes of the frame-to-frame change: [{"type": "flash" | "cut", "time", "frames"}].
+    A flash is one odd frame (the change into it and back out are one event); a cut is one spike
+    or a run of spikes at most POP_GROUP frames apart and at most POP_MOVE_MAX long (one fast
+    move). Without that length cap one beat could mark a whole chain of later cuts as planned."""
+    n = len(frames)
+    d = np.zeros(n)
+    d[1:] = np.abs(np.diff(frames, axis=0)).mean(axis=(1, 2))
+    spikes = []
+    for i in range(1, n):
+        around = np.concatenate([d[max(1, i - 3):i], d[i + 1:i + 4]])  # d[0] is not a change
+        if d[i] > POP_MIN and (not len(around) or d[i] > POP_RATIO * np.median(around)):
+            spikes.append(i)
+    # flashes first: grouped into a fast move, a glitch frame next to a cut would go unreported
+    events, cuts, spikeset = [], [], set(spikes)
+    for a in spikes:
+        if a not in spikeset:
+            continue
+        if a + 1 in spikeset and np.abs(frames[a + 1] - frames[a - 1]).mean() < d[a] / FLASH_BACK:
+            events.append({"type": "flash", "time": round(a * dt, 3), "frames": 1})
+            spikeset -= {a, a + 1}
+        else:
+            cuts.append(a)
+    longest = max(0, int(POP_MOVE_MAX / dt + 1e-9))  # frames from the first spike of a move to its last
+    i = 0
+    while i < len(cuts):
+        run_ = [cuts[i]]
+        while i + 1 < len(cuts) and cuts[i + 1] - run_[-1] <= POP_GROUP and cuts[i + 1] - run_[0] <= longest:
+            i += 1
+            run_.append(cuts[i])
+        events.append({"type": "cut", "time": round(run_[0] * dt, 3), "end": round(run_[-1] * dt, 3),
+                       "frames": run_[-1] - run_[0] + 1})
+        i += 1
+    return sorted(events, key=lambda e: e["time"])
+
+
+def scene_starts(html):
+    """data-start of every live <section> of the built index.html (as build.check_scenes reads it)."""
+    live = re.sub(r"<!--.*?-->", "", html, flags=re.S)
+    starts = []
+    for tag in re.findall(r"<section\b[^>]*>", live):
+        m = re.search(r"""\bdata-start\s*=\s*(["'])(.*?)\1""", tag)
+        if m:
+            starts.append(float(m.group(2)))
+    return starts
+
+
+def frame_checks(pdir, mp4, vi):
+    """Blank opening and pops on the final MP4. Returns the report dict; its "warnings" are
+    printed and never change the exit code. Reads files with plain read_text/json.loads, never
+    read_json or die(): a SystemExit here would turn a good reel into -failed."""
+    frames = decode_gray(mp4, vi["width"], vi["height"])
+    if not len(frames):
+        raise RuntimeError("no frame decoded")
+    # video_info gives the video STREAM's duration (the container's only as a fallback): muxed audio
+    # that runs longer must not stretch the frame times
+    dt = vi["duration"] / len(frames)
+    warnings, notes = [], []
+
+    detail = frame_detail(frames)
+    readable = np.flatnonzero(detail >= BLANK_DETAIL)
+    first = round(float(readable[0] * dt), 3) if len(readable) else None
+    if first is None:
+        warnings.append("no frame has anything to read on it: the video looks empty")
+    else:
+        if detail[0] < BLANK_DETAIL:
+            warnings.append("frame 0 is blank, and feeds show frame 0 as the thumbnail: start on the hook "
+                            "text or UI")
+        if first > HOOK_BY:
+            warnings.append(f"nothing to read until {first:.2f} s: the hook must show within {HOOK_BY:g} s")
+
+    marks = []
+    sources = (("index.html", lambda: scene_starts((pdir / "index.html").read_text())),
+               ("beats.json", lambda: [float(b) for b in json.loads((pdir / "beats.json").read_text())["beats"]]))
+    for name, load in sources:
+        try:
+            marks += load()
+        except (OSError, ValueError, TypeError, KeyError, OverflowError) as e:
+            notes.append(f"{name} not read ({e!r}): cuts are not compared with it")
+    events = pop_events(frames, dt)
+    for e in events:
+        if e["type"] == "flash":
+            warnings.append(f"one-frame flash at {e['time']:.2f} s: a glitch frame (look at it)")
+            continue
+        e["planned"] = any(e["time"] - 2 * dt - 1e-6 <= m <= e["end"] + POP_LEAD for m in marks)
+        if not e["planned"]:
+            warnings.append(f"sudden change at {e['time']:.2f} s near no beat and no scene start (look at it)")
+    return {"frame0_blank": bool(detail[0] < BLANK_DETAIL), "first_detail_time": first,
+            "events": events, "warnings": warnings, "notes": notes}
+
+
 def _checks(pdir, project, raw_mp4, realized, checking, sheet, frames):
     """Mux the loudness-normalised audio to `checking`, make the contact sheet at `sheet` and run
     every check. Returns (problems, report); naming the files is the caller's job."""
@@ -282,11 +408,16 @@ def _checks(pdir, project, raw_mp4, realized, checking, sheet, frames):
     times = frames or [round(dur * i / 9, 2) for i in range(9)] + [round(dur - 0.1, 2)]
     last = min(dur, vi_out["duration"]) - 0.05
     contact_sheet(checking, [min(t, last) for t in times], sheet)
+    try:
+        frame_report = frame_checks(pdir, checking, vi_out)
+    except Exception as e:  # a heuristic check that cannot run is a note, never a failed reel
+        frame_report = {"error": repr(e), "warnings": [], "notes": [f"frame checks did not run: {e!r}"]}
 
     final = measure(checking)
     problems += loudness_problems(final)
     return problems, {"loudnorm_input": meas, "final_lufs": final["input_i"], "final_tp": final["input_tp"],
-                      "lag_ms": round(lag * 1000, 2), "video": vi_out, "sync": rows, "problems": problems}
+                      "lag_ms": round(lag * 1000, 2), "video": vi_out, "sync": rows, "frames": frame_report,
+                      "problems": problems}
 
 
 def finish(project_dir, raw_mp4, frames=None):
@@ -341,6 +472,10 @@ def finish(project_dir, raw_mp4, frames=None):
               + (f"; not found: {', '.join(masked)}" if masked else ""))
     else:
         print("sync: no cues (no SFX mixed)")
+    for w in report["frames"]["warnings"]:
+        print(f"warning: {w}", file=sys.stderr)
+    for note in report["frames"]["notes"]:
+        print(f"note: {note}", file=sys.stderr)
     for f, ms in late.items():
         print(f"warning: {f} starts with {ms:.0f} ms of silence and its cues use align \"start\", so it "
               f"sounds {ms:.0f} ms after the cue time; use align \"attack\" or trim the file", file=sys.stderr)
