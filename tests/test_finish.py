@@ -514,3 +514,23 @@ def test_frame_warnings_reach_stderr(tmp_path, proj, capsys):
     assert finish.finish(proj, raw) == 0
     err = capsys.readouterr().err
     assert "warning: no frame has anything to read on it: the video looks empty" in err
+
+
+def test_cuts_far_apart_are_separate_events(tmp_path):
+    marks(tmp_path, (0.0, 1.0), ())
+    # 1.0 s on a scene, 1.2 s on nothing: 6 frames apart, inside POP_MOVE_MAX, beyond POP_GROUP
+    f = np.concatenate([texture(1, 30), texture(2, 6), texture(3, 24)])
+    r = checks(tmp_path, f)
+    assert [(e["time"], e["frames"], e["planned"]) for e in r["events"]] == [(1.0, 1, True), (1.2, 1, False)]
+    assert r["warnings"] == ["sudden change at 1.20 s near no beat and no scene start (look at it)"]
+
+
+def test_a_long_chain_of_cuts_is_not_one_planned_move(tmp_path):
+    # spikes every 3 frames from 0.1 s to 1.0 s: a beat at 0.1 s must not cover the later ones
+    marks(tmp_path, (0.0,), (0.1,))
+    f = np.concatenate([texture(i, 3) for i in range(1, 12)] + [texture(99, 27)])[:60]
+    r = checks(tmp_path, f)
+    assert r["events"][0]["planned"] is True and r["events"][0]["time"] == pytest.approx(0.1, abs=0.002)
+    assert all(e["end"] - e["time"] <= finish.POP_MOVE_MAX + 1e-6 for e in r["events"])
+    assert len(r["events"]) >= 3 and all(not e["planned"] for e in r["events"][1:])
+    assert len(r["warnings"]) == len(r["events"]) - 1

@@ -64,6 +64,7 @@ BLANK_DETAIL = 2.5   # mean neighbouring-pixel difference below this = nothing t
 POP_MIN = 12.0       # a spike changes at least this many gray levels (mean) from the frame before
 POP_RATIO = 3.0      # ... and this many times the median change of the 3 frames on each side
 POP_GROUP = 3        # spikes at most this many frames apart are one fast move
+POP_MOVE_MAX = 0.3   # seconds: a fast move is never longer (the longest in the calibration reels: 0.07 s)
 FLASH_BACK = 3.0     # a flash: the frame after the odd one is this many times closer to the one before
 POP_LEAD = 0.15      # a fast move may start up to this long before the beat it lands on
 HOOK_BY = 1.0        # seconds: something readable must be on screen by then
@@ -286,7 +287,8 @@ def frame_detail(frames):
 def pop_events(frames, dt):
     """Spikes of the frame-to-frame change: [{"type": "flash" | "cut", "time", "frames"}].
     A flash is one odd frame (the change into it and back out are one event); a cut is one spike
-    or a run of spikes at most POP_GROUP frames apart (one fast move)."""
+    or a run of spikes at most POP_GROUP frames apart and at most POP_MOVE_MAX long (one fast
+    move). Without that length cap one beat could mark a whole chain of later cuts as planned."""
     n = len(frames)
     d = np.zeros(n)
     d[1:] = np.abs(np.diff(frames, axis=0)).mean(axis=(1, 2))
@@ -305,11 +307,11 @@ def pop_events(frames, dt):
             spikeset -= {a, a + 1}
         else:
             cuts.append(a)
-    # the chain is not bounded: spikes every <= POP_GROUP frames stay one move, however long
+    longest = max(0, int(POP_MOVE_MAX / dt + 1e-9))  # frames from the first spike of a move to its last
     i = 0
     while i < len(cuts):
         run_ = [cuts[i]]
-        while i + 1 < len(cuts) and cuts[i + 1] - run_[-1] <= POP_GROUP:
+        while i + 1 < len(cuts) and cuts[i + 1] - run_[-1] <= POP_GROUP and cuts[i + 1] - run_[0] <= longest:
             i += 1
             run_.append(cuts[i])
         events.append({"type": "cut", "time": round(run_[0] * dt, 3), "end": round(run_[-1] * dt, 3),
