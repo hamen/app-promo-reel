@@ -327,3 +327,130 @@ def test_error_in_the_warning_step_leaves_no_file(tmp_path, proj, monkeypatch):
         finish.finish(proj, raw)
     r = proj / "renders"
     assert not r.exists() or list(r.iterdir()) == []
+
+
+# --- frame checks: blank opening and pops -------------------------------------------------------
+
+def gray_clip(tmp_path, frames, rate="30", name="clip.mp4"):
+    """An MP4 whose luma is exactly `frames` (uint8, n x h x w): x264 at qp 0."""
+    n, h, w = frames.shape
+    mp4 = tmp_path / name
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "gray", "-s", f"{w}x{h}",
+                    "-framerate", rate, "-i", "-", "-c:v", "libx264", "-qp", "0", "-pix_fmt", "yuv420p", str(mp4)],
+                   input=frames.astype(np.uint8).tobytes(), check=True)
+    return mp4
+
+
+def texture(seed, n, h=192, w=108):
+    return np.repeat(np.random.default_rng(seed).integers(0, 256, (1, h, w)), n, axis=0)
+
+
+def marks(p, scenes=(0.0,), beats=()):
+    (p / "index.html").write_text("".join(f'<section id="s{i}" data-start="{t}"></section>' for i, t in enumerate(scenes)))
+    (p / "beats.json").write_text(json.dumps({"beats": list(beats), "downbeat_phase": 0}))
+
+
+def checks(tmp_path, frames, rate="30"):
+    mp4 = gray_clip(tmp_path, frames, rate)
+    return finish.frame_checks(tmp_path, mp4, finish.video_info(mp4))
+
+
+def test_blank_opening_is_reported_with_the_first_readable_time(tmp_path):
+    marks(tmp_path, (0.0, 1.5))  # the texture arrives with a scene: a planned cut, no pop warning
+    f = texture(1, 60)
+    f[:45] = 30  # 1.5 s of flat colour, then a textured frame
+    r = checks(tmp_path, f)
+    assert r["frame0_blank"] is True and r["first_detail_time"] == pytest.approx(1.5, abs=0.002)
+    assert r["warnings"] == [
+        "frame 0 is blank, and feeds show frame 0 as the thumbnail: start on the hook text or UI",
+        "nothing to read until 1.50 s: the hook must show within 1 s"]
+
+
+def test_an_empty_video_gives_only_the_empty_warning(tmp_path):
+    marks(tmp_path)
+    r = checks(tmp_path, np.full((30, 192, 108), 30))
+    assert r["frame0_blank"] is True and r["first_detail_time"] is None and r["events"] == []
+    assert r["warnings"] == ["no frame has anything to read on it: the video looks empty"]
+
+
+def test_a_steady_picture_gives_nothing(tmp_path):
+    marks(tmp_path)
+    r = checks(tmp_path, texture(1, 60))
+    assert r["frame0_blank"] is False and r["first_detail_time"] == 0.0
+    assert r["events"] == [] and r["warnings"] == [] and r["notes"] == []
+
+
+def test_one_odd_frame_is_one_flash(tmp_path):
+    marks(tmp_path)
+    f = texture(1, 60)
+    f[30] = 255
+    r = checks(tmp_path, f)
+    assert r["events"] == [{"type": "flash", "time": 1.0, "frames": 1}]
+    assert r["warnings"] == ["one-frame flash at 1.00 s: a glitch frame (look at it)"]
+
+
+@pytest.mark.parametrize("scenes, beats", [((0.0, 1.0), ()), ((0.0,), (1.1,))])
+def test_a_cut_on_a_scene_start_or_just_before_a_beat_is_planned(tmp_path, scenes, beats):
+    marks(tmp_path, scenes, beats)
+    f = np.concatenate([texture(1, 30), texture(2, 30)])  # hard switch at 1.0 s
+    r = checks(tmp_path, f)
+    assert [(e["type"], e["time"], e["planned"]) for e in r["events"]] == [("cut", 1.0, True)]
+    assert r["warnings"] == []
+
+
+def test_a_cut_near_no_beat_and_no_scene_is_a_warning(tmp_path):
+    marks(tmp_path, (0.0,), (0.5, 1.5))
+    f = np.concatenate([texture(1, 30), texture(2, 30)])
+    r = checks(tmp_path, f)
+    assert [(e["type"], e["planned"]) for e in r["events"]] == [("cut", False)]
+    assert r["warnings"] == ["sudden change at 1.00 s near no beat and no scene start (look at it)"]
+
+
+def test_spikes_a_few_frames_apart_are_one_move(tmp_path):
+    marks(tmp_path, (0.0,), (1.2,))
+    f = np.concatenate([texture(1, 30), texture(2, 2), texture(3, 2), texture(4, 26)])  # 3 jumps in 4 frames
+    r = checks(tmp_path, f)
+    assert [(e["type"], e["time"], e["frames"], e["planned"]) for e in r["events"]] == [("cut", 1.0, 5, True)]
+    assert r["warnings"] == []
+
+
+def test_other_sizes_and_rates_are_timed_right(tmp_path):
+    marks(tmp_path, (0.0,), (0.5,))
+    # 4:5; the cut at frame 300 is 10.010 s at 29.97 fps and 10.000 s if the rate were taken as 30
+    f = np.concatenate([texture(1, 300, 150, 120), texture(2, 30, 150, 120)])
+    r = checks(tmp_path, f, rate="30000/1001")
+    assert len(r["events"]) == 1 and r["events"][0]["time"] == pytest.approx(300 / 29.97, abs=0.002)
+
+
+def test_unreadable_marks_are_notes_not_failures(tmp_path):
+    (tmp_path / "beats.json").write_text("{not json")
+    r = checks(tmp_path, texture(1, 30))
+    assert r["warnings"] == [] and len(r["notes"]) == 2
+    assert r["notes"][0].startswith("index.html not read") and r["notes"][1].startswith("beats.json not read")
+
+
+def test_frame_checks_never_fail_the_reel(tmp_path, proj, monkeypatch, capsys):
+    raw = make_raw_mp4(tmp_path)
+    realize(proj, [(t, True) for t in CLICKS])
+    (proj / "beats.json").write_text("{not json")  # read_json would die() here: SystemExit
+    assert finish.finish(proj, raw) == 0
+    report = json.loads((proj / "renders" / "demo-a-v1-report.json").read_text())
+    assert any(n.startswith("beats.json not read") for n in report["frames"]["notes"])
+
+    def broken(*a, **k):
+        raise RuntimeError("decoder gone")
+    monkeypatch.setattr(finish, "decode_gray", broken)
+    assert finish.finish(proj, raw) == 0
+    report = json.loads((proj / "renders" / "demo-a-v2-report.json").read_text())
+    assert report["frames"]["notes"] == ["frame checks did not run: RuntimeError('decoder gone')"]
+    assert (proj / "renders" / "demo-a-v2.mp4").is_file()
+    assert "note: frame checks did not run" in capsys.readouterr().err
+
+
+def test_a_small_settle_is_not_a_pop(tmp_path):
+    # a headline settling after its slam changes a few gray levels in one frame: not a pop
+    marks(tmp_path, (0.0,), (0.5,))
+    base = texture(1, 60)
+    f = np.concatenate([base[:30], np.clip(base[30:] + 8, 0, 255)])
+    r = checks(tmp_path, f)
+    assert r["events"] == [] and r["warnings"] == []
