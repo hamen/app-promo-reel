@@ -138,6 +138,10 @@ def test_old_jpg_screens_are_cleared_and_a_partial_set_is_removed(tmp_path):
 
 
 def test_app_store_failure_still_fetches_play(tmp_path):
+    # screens of an earlier App Store run must not survive a run that has only Play facts
+    (tmp_path / "screens").mkdir()
+    (tmp_path / "screens" / "05.png").write_bytes(b"old")
+
     def f(url):
         if "itunes.apple.com" in url:
             raise urllib.error.URLError("network down")
@@ -146,6 +150,7 @@ def test_app_store_failure_still_fetches_play(tmp_path):
     meta = json.loads((tmp_path / "metadata.json").read_text())
     assert meta["google_play"]["contains_ads"] and "app_store" not in meta
     assert "lookup failed" in meta["app_store_error"]
+    assert list((tmp_path / "screens").iterdir()) == []
 
 
 def test_app_store_and_play_both_failing_leave_no_listing(tmp_path):

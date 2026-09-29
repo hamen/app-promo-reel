@@ -313,9 +313,10 @@ def finish(project_dir, raw_mp4, frames=None):
     good_sheet = out.with_name(out.stem + "-sheet.jpg")
     report_path = out.with_name(out.stem + "-report.json")
     partial = report_path.with_name("." + report_path.name + ".partial")
+    # reads only the cue sounds, so it runs before the mux: an error here leaves no file in renders/
+    late = late_starts(pdir, realized, project["fps"])
     try:
         problems, report = _checks(pdir, project, raw_mp4, realized, checking, sheet, frames)
-        late = late_starts(pdir, realized, project["fps"])
         final_mp4, final_sheet = (failed, failed_sheet) if problems else (out, good_sheet)
         checking.rename(final_mp4)
         sheet.rename(final_sheet)

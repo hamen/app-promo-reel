@@ -315,15 +315,15 @@ def test_window_energy_matches_the_direct_sum():
     assert abs(found - 0.5) < 1e-3 and score > 0.99
 
 
-def test_error_in_the_warning_step_leaves_only_a_failed_file(tmp_path, proj, monkeypatch):
+def test_error_in_the_warning_step_leaves_no_file(tmp_path, proj, monkeypatch):
+    # late_starts reads only the cue sounds, so it runs before the mux
     raw = make_raw_mp4(tmp_path)
     realize(proj, [(t, True) for t in CLICKS])
 
     def broken(*a, **k):
         raise RuntimeError("cannot decode")
     monkeypatch.setattr(finish, "late_starts", broken)
-    with pytest.raises(RuntimeError):
+    with pytest.raises(RuntimeError, match="cannot decode"):
         finish.finish(proj, raw)
     r = proj / "renders"
-    assert (r / "demo-a-v1-failed.mp4").is_file() and not (r / "demo-a-v1.mp4").exists()
-    assert not (r / "demo-a-v1-report.json").exists()
+    assert not r.exists() or list(r.iterdir()) == []

@@ -24,8 +24,13 @@ KNOWN_STORES = ("app_store", "google_play")
 
 def is_number(v):
     """A finite JSON number: int or float, not bool (True is an int in Python), not NaN/Infinity
-    (Python's json accepts both)."""
-    return isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
+    (Python's json accepts both), not an int too large for a float (a 400-digit JSON integer)."""
+    if not isinstance(v, (int, float)) or isinstance(v, bool):
+        return False
+    try:
+        return math.isfinite(v)
+    except OverflowError:
+        return False
 
 
 def die(msg, code=2):
@@ -79,15 +84,22 @@ class Grid:
     @classmethod
     def load(cls, path, beats_per_bar=4):
         g = read_json(path)
+        phase = g.get("downbeat_phase")
+
+        def bad_phase(top):
+            die(f"{path}: downbeat_phase must be a whole number from 0 to {top} (below beats_per_bar "
+                f"and inside the beat list), got {phase!r}")
+        # checked before Grid() converts it: int(inf) from a JSON 1e999 raises OverflowError
+        if not isinstance(phase, int) or isinstance(phase, bool):
+            bad_phase(int(beats_per_bar) - 1)
+        if not isinstance(g.get("beats"), list):
+            die(f"{path} is not a beat grid from beat_grid.py (beats must be a JSON array, got {g.get('beats')!r})")
         try:
-            grid = cls(g["beats"], g["downbeat_phase"], beats_per_bar)
-        except (KeyError, TypeError, ValueError) as e:
+            grid = cls(g["beats"], phase, beats_per_bar)
+        except (TypeError, ValueError, OverflowError) as e:
             die(f"{path} is not a beat grid from beat_grid.py ({e!r})")
-        phase = g["downbeat_phase"]
-        if not (isinstance(phase, int) and not isinstance(phase, bool)
-                and 0 <= phase < min(grid.bpb, len(grid.beats))):
-            die(f"{path}: downbeat_phase must be a whole number from 0 to "
-                f"{min(grid.bpb, len(grid.beats)) - 1} (below beats_per_bar and inside the beat list), got {phase!r}")
+        if not 0 <= phase < min(grid.bpb, len(grid.beats)):
+            bad_phase(min(grid.bpb, len(grid.beats)) - 1)
         return grid
 
     def _index(self, bar, beat):
