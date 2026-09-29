@@ -64,6 +64,7 @@ BLANK_DETAIL = 2.5   # mean neighbouring-pixel difference below this = nothing t
 POP_MIN = 12.0       # a spike changes at least this many gray levels (mean) from the frame before
 POP_RATIO = 3.0      # ... and this many times the median change of the 3 frames on each side
 POP_GROUP = 3        # spikes at most this many frames apart are one fast move
+FLASH_BACK = 3.0     # a flash: the frame after the odd one is this many times closer to the one before
 POP_LEAD = 0.15      # a fast move may start up to this long before the beat it lands on
 HOOK_BY = 1.0        # seconds: something readable must be on screen by then
 
@@ -299,11 +300,12 @@ def pop_events(frames, dt):
     for a in spikes:
         if a not in spikeset:
             continue
-        if a + 1 in spikeset and np.abs(frames[a + 1] - frames[a - 1]).mean() < d[a] / 3:
+        if a + 1 in spikeset and np.abs(frames[a + 1] - frames[a - 1]).mean() < d[a] / FLASH_BACK:
             events.append({"type": "flash", "time": round(a * dt, 3), "frames": 1})
             spikeset -= {a, a + 1}
         else:
             cuts.append(a)
+    # the chain is not bounded: spikes every <= POP_GROUP frames stay one move, however long
     i = 0
     while i < len(cuts):
         run_ = [cuts[i]]
@@ -407,7 +409,7 @@ def _checks(pdir, project, raw_mp4, realized, checking, sheet, frames):
     try:
         frame_report = frame_checks(pdir, checking, vi_out)
     except Exception as e:  # a heuristic check that cannot run is a note, never a failed reel
-        frame_report = {"warnings": [], "notes": [f"frame checks did not run: {e!r}"]}
+        frame_report = {"error": repr(e), "warnings": [], "notes": [f"frame checks did not run: {e!r}"]}
 
     final = measure(checking)
     problems += loudness_problems(final)

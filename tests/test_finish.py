@@ -446,6 +446,7 @@ def test_frame_checks_never_fail_the_reel(tmp_path, proj, monkeypatch, capsys):
     assert finish.finish(proj, raw) == 0
     report = json.loads((proj / "renders" / "demo-a-v2-report.json").read_text())
     assert report["frames"]["notes"] == ["frame checks did not run: RuntimeError('decoder gone')"]
+    assert report["frames"]["error"] == "RuntimeError('decoder gone')"
     assert (proj / "renders" / "demo-a-v2.mp4").is_file()
     assert "note: frame checks did not run" in capsys.readouterr().err
 
@@ -487,3 +488,29 @@ def test_audio_longer_than_the_video_does_not_stretch_frame_times(tmp_path):
     assert vi["duration"] == pytest.approx(3.0, abs=0.01)
     r = finish.frame_checks(tmp_path, mp4, vi)
     assert [e["time"] for e in r["events"]] == [pytest.approx(2.0, abs=0.002)]
+
+
+def test_a_blank_frame_0_with_an_early_hook_gives_only_the_thumbnail_warning(tmp_path):
+    # what the three delivered reels do: an empty first frame, text by 0.5 s
+    marks(tmp_path, (0.0, 0.5))
+    f = texture(1, 60)
+    f[:15] = 30
+    r = checks(tmp_path, f)
+    assert r["frame0_blank"] is True and r["first_detail_time"] == 0.5
+    assert r["warnings"] == ["frame 0 is blank, and feeds show frame 0 as the thumbnail: start on the hook text or UI"]
+
+
+def test_a_commented_out_scene_is_not_a_planned_cut(tmp_path):
+    (tmp_path / "index.html").write_text('<section data-start="0"></section><!-- <section data-start="1.0"></section> -->')
+    (tmp_path / "beats.json").write_text(json.dumps({"beats": [0.5], "downbeat_phase": 0}))
+    assert finish.scene_starts((tmp_path / "index.html").read_text()) == [0.0]
+    r = checks(tmp_path, np.concatenate([texture(1, 30), texture(2, 30)]))
+    assert [e["planned"] for e in r["events"]] == [False]
+
+
+def test_frame_warnings_reach_stderr(tmp_path, proj, capsys):
+    raw = make_raw_mp4(tmp_path)  # a flat blue picture: nothing to read on it
+    realize(proj, [(t, True) for t in CLICKS])
+    assert finish.finish(proj, raw) == 0
+    err = capsys.readouterr().err
+    assert "warning: no frame has anything to read on it: the video looks empty" in err

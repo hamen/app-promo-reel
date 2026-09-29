@@ -92,5 +92,5 @@ and contact sheet named `…-v<N>-failed.mp4` and the report lists the problems;
 Ctrl-C during the checks also leaves `-failed` (no report). A `.checking` file left behind was
 never checked: do not deliver it.
 Frame checks on the final MP4 print `warning:` lines and never fail the run: frame 0 blank (the
-feed thumbnail), nothing readable by 1 s, a one-frame flash, or a sudden change near no beat and
-no scene start. They are in the report under `"frames"`; the critique step of SKILL.md reads them.
+feed thumbnail), nothing readable by 1 s, nothing readable at all, a one-frame flash, or a sudden
+change near no beat and no scene start. They are in the report under `"frames"`; the critique step of SKILL.md reads them.
