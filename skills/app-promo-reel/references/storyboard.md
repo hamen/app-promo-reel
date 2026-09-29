@@ -12,6 +12,8 @@
 | 12-end | s6 end card | icon, name, tagline, CTA, only the stores the app is on, URL |
 
 Rules:
+- Frame 0 already shows the hook text or UI: feeds use it as the thumbnail. No fade in from an
+  empty background (finish.py warns "frame 0 is blank").
 - Every change lands on a beat. Words slam on downbeats or beat 2. Scene cuts start ~0.3 s
   before a downbeat so the new scene is settled on it.
 - One idea per scene. Text a viewer must read stays on screen ≥ 0.8 s (a sentence: ~0.3 s per

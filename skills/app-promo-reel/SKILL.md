@@ -77,10 +77,28 @@ Commands for every step: `references/pipeline.md`.
    - Snapshots at every scene and every transition; look at them; fix; repeat.
    - `npx --yes hyperframes@0.8.78 render -o renders/raw.mp4 -q delivery --quiet`.
    - `finish.py <project> renders/raw.mp4` → loudness, A/V check, sync report, versioned file
-     `renders/<app>-<variant>-v<N>.mp4`, contact sheet. Look at the contact sheet (frames from
-     the real MP4, not the preview). Exit 1 = a check failed: fix and finish again.
-6. **Deliver.** List each final MP4 path with a one-line summary (angle, seed, tempo, sync
-   result, loudness). Repeat the music licence note. **Nothing is uploaded or sent.**
+     `renders/<app>-<variant>-v<N>.mp4`, contact sheet, frame warnings (blank opening, pops).
+     Exit 1 = a check failed: fix and finish again. Frame warnings never fail the run; the
+     critique below decides.
+6. **Critique, at most 3 rounds.** Be a harsh motion director, not a proud author.
+   - Look at the contact sheet (frames from the real MP4, not the preview) and read every
+     `warning:` line from finish.py.
+   - Stills around every scene change: for each scene start t, every 0.1 s from t-0.2 to t+0.5
+     (this covers the overlap of two scenes and the downbeat it lands on). Always add 0.0; clamp
+     every time to [0, duration-0.05]:
+     `npx --yes hyperframes@0.8.78 snapshot --at <times> --describe false --no-end -o snapshots/c<round>`
+     (a new folder per round).
+   - Score 1-10, one line each: **hook** (something readable in the first 1 s, frame 0 not
+     empty); **readability** (at the 270 px size of the contact sheet); **motion** (no two texts
+     on top of each other, nothing crossing another element by accident, no dead second);
+     **variety** (something new every 2-4 s); **composition**; **claims** (each one is in the
+     DESIGN.md allowed list); **sound** (sync report, and what the storyboard asked for).
+   - Write the 3 worst problems with their timestamps. Fix them in `src.html.tmpl`, then build,
+     check, render and finish again.
+   - Stop when every score is 8 or more, or after 3 critique rounds. Never loop without the cap.
+7. **Deliver.** List each final MP4 path with a one-line summary (angle, seed, tempo, sync
+   result, loudness), its seven scores and any problem still open. Repeat the music licence
+   note. **Nothing is uploaded or sent.**
 
 ## Variants
 
