@@ -16,6 +16,8 @@ Rules:
   empty background (finish.py warns "frame 0 is blank").
 - Every change lands on a beat. Words slam on downbeats or beat 2. Scene cuts start ~0.3 s
   before a downbeat so the new scene is settled on it.
+- 4:5 feed: a feed video starts muted. Every claim and every step is on screen as text; nothing
+  depends on the sound (a sound effect can stress a word, never carry it).
 - One idea per scene. Text a viewer must read stays on screen ≥ 0.8 s (a sentence: ~0.3 s per
   word).
 - A different tempo means a different bar count: re-map the scenes, never squeeze text.

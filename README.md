@@ -1,7 +1,7 @@
 # app-promo-reel
 
 A [Claude Code](https://claude.com/claude-code) skill that makes beat-synced 30-second
-vertical (9:16) promo reels for a mobile app:
+promo reels for a mobile app, vertical (9:16) or for the feed (4:5):
 
 - music generated locally with ACE-Step 1.5 (or MusicGen), or your own track; ranked, and a
   beat grid locked to the kick;

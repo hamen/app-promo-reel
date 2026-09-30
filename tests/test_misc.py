@@ -341,3 +341,30 @@ def test_music_gen_seeding_error_exits_2(tmp_path, monkeypatch, capsys):
     with pytest.raises(SystemExit) as e:
         music_gen.main(["--prompt", "x", "--duration", "30", "--seeds", "1", "--out", str(tmp_path / "o")])
     assert e.value.code == 2 and "driver initialization failed" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("fmt, size", [(None, [1080, 1920]), ("9:16", [1080, 1920]), ("4:5", [1080, 1350])])
+def test_new_project_writes_the_format(tmp_path, fmt, size):
+    r = run_script("new_project.py", "--app", "x", "--variant", "a", "--out", tmp_path / "out",
+                   *(["--format", fmt] if fmt else []))
+    assert r.returncode == 0, r.stderr
+    dest = tmp_path / "out" / "x-a"
+    doc = json.loads((dest / "project.json").read_text())
+    assert [doc["format"], doc["width"], doc["height"]] == [fmt or "9:16", *size]
+    design = (dest / "DESIGN.md").read_text()
+    assert f"(<language>, {fmt or '9:16'}, variant <x>)" in design.splitlines()[0] and "<format>" not in design
+
+
+def test_new_project_refuses_an_unknown_format(tmp_path):
+    r = run_script("new_project.py", "--app", "x", "--variant", "a", "--out", tmp_path / "out", "--format", "16:9")
+    assert r.returncode == 2 and "invalid choice" in r.stderr and not (tmp_path / "out").exists()
+    with pytest.raises(SystemExit):
+        new_project.scaffold("x", "a", tmp_path / "out", fmt="1:1")
+    assert not (tmp_path / "out").exists()
+
+
+def test_docs_scaffold_step_names_the_format():
+    # tripwire: a feed variant scaffolded without --format renders at 9:16
+    skill = (SCRIPTS.parent / "SKILL.md").read_text()
+    assert "--format <9:16|4:5>" in skill[skill.index("1. **Scaffold.**"):skill.index("2. **Research")]
+    assert "--format 9:16" in (SCRIPTS.parent / "references" / "pipeline.md").read_text()
