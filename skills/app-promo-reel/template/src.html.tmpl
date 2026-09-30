@@ -640,16 +640,14 @@
       for (let b = 0; FIRST + b * BPB < BEATS.length && D(b) < DURATION; b++)
         tl.fromTo("#bg-glow", { scale: 1.2, opacity: 1 }, { scale: 1, opacity: 0.5, duration: 1.2, ease: "power2.out", immediateRender: false }, D(b));
 
-      // ===== S1 hook =====
+      // ===== S1 hook: the FULL hook (#hook-words) is static and opaque from frame 0 (average watch time can be ~1 s; the first frame is also the cover). No word build, no fade-in; only the hero chip below slides in. =====
       tl.fromTo("#hero", { y: 700, rotation: 8, opacity: 0 }, { y: 0, rotation: -3, opacity: 1, duration: 0.55, ease: "back.out(1.5)" }, Math.max(0.05, D(0) - 0.6));
-      ["#w-0", "#w-1", "#w-2", "#w-3"].forEach((w, i) => {
-        const t = D(Math.floor(i / 2), (i % 2) * 2);
-        slam(w, t, i % 2 ? 2.2 : 2.8);
-        if (i % 2 === 0) {
-          shake("#s1-cam", t, 18 + i * 3);
-          flash(t, 0.3, 0.25);
-        }
-      });
+      punch("#hook-words", D(0, 0), 1.05);
+      shake("#s1-cam", D(0, 0), 18);
+      flash(D(0, 0), 0.3, 0.25);
+      punch("#hook-words", D(1, 0), 1.04);
+      shake("#s1-cam", D(1, 0), 24);
+      flash(D(1, 0), 0.3, 0.25);
       punch("#hero-chip", D(0, 3), 1.3);
       punch("#hero-chip", D(1, 3), 1.4);
       tl.to("#hero", { y: 900, duration: 0.3, ease: "power3.in" }, D(2) - 0.3);
