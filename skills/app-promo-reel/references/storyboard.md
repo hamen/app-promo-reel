@@ -4,7 +4,7 @@
 
 | Bars | Scene (template id) | Job |
 |---|---|---|
-| 0-1 | s1 hook | 4 hook words slam on beats 0 and 2 of bars 0-1; one real app item card |
+| 0-1 | s1 hook | the full hook (4 words) is static and opaque from frame 0, with a beat punch on beats 0 of bars 0 and 1; one real app item card slides in |
 | 2-5 | s2 the app | phone with two rebuilt screens; rows pop on beats; a tap on beat 3 |
 | 6-7 | s3 the drop | the strongest real feature, slammed on the drop downbeat, flash + shake |
 | 8-9 | s4 benefits | three short true benefits, one per half bar |
