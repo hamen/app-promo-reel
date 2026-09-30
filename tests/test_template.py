@@ -168,10 +168,35 @@ def test_label_id_changes_with_every_build(tmp_path):
 def test_hook_is_static_from_frame_zero(tmp_path):
     """Average watch time can be ~1 s and frame 0 is the cover: no word-by-word hook build."""
     _, html = build(tmp_path)
-    # the four hook words exist, inside #hook-words, which is not inside the #hero card (hero starts at opacity 0)
-    hook = html.split('id="hook-words"', 1)[1].split('id="hero"', 1)[0]
-    for i in range(4):
-        assert f'id="w-{i}"' in hook
+    # the four hook words exist, inside #hook-words, and #hook-words is NOT a descendant of #hero
+    # (#hero starts at opacity 0, so a nested hook would be invisible at frame 0)
+    from html.parser import HTMLParser
+
+    class Tree(HTMLParser):
+        VOID = {"meta", "link", "br", "img", "input", "hr", "source"}
+
+        def __init__(self):
+            super().__init__()
+            self.stack, self.in_hook, self.hook_in_hero = [], set(), False
+
+        def handle_starttag(self, tag, attrs):
+            if tag in self.VOID:
+                return
+            a = dict(attrs)
+            if a.get("id") == "hook-words":
+                self.hook_in_hero = any(i == "hero" for _, i in self.stack)
+            if any(i == "hook-words" for _, i in self.stack) and a.get("id"):
+                self.in_hook.add(a["id"])
+            self.stack.append((tag, a.get("id")))
+
+        def handle_endtag(self, tag):
+            while self.stack and self.stack.pop()[0] != tag:
+                pass
+
+    tree = Tree()
+    tree.feed(html)
+    assert {f"w-{i}" for i in range(4)} <= tree.in_hook
+    assert not tree.hook_in_hero
     # no CSS rule hides the words
     css = html.split("<style", 1)[1].split("</style>", 1)[0]
     kin = re.findall(r"\.kin[^{]*\{([^}]*)\}", css)
