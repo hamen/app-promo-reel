@@ -225,3 +225,21 @@ def test_the_page_takes_its_size_from_the_format(tmp_path, fmt, w, h, scale):
 def test_the_template_fixes_no_frame_height():
     # the 9:16 height lives in common.py and reaches the page only through the size tokens
     assert "1920" not in (TEMPLATE / "src.html.tmpl").read_text()
+
+
+def test_the_4x5_layer_keeps_the_tap_point_on_the_phone(tmp_path):
+    # the tap point sits outside the phone's wrapper, so it is mapped by hand: it must follow the
+    # wrapper's transform, or the ring lands off the button
+    _, html = build(tmp_path, fmt="4:5")
+    css = html.split("<style", 1)[1].split("</style>", 1)[0]
+    fit = re.search(r'#root\[data-format="4:5"\] \.phone-fit \{([^}]*)\}', css).group(1)
+    dy, k = map(float, re.search(r"translateY\((-?[\d.]+)px\) scale\(([\d.]+)\)", fit).groups())
+    ox, oy = map(float, re.search(r"transform-origin: ([\d.]+)px ([\d.]+)px", fit).group(1, 2))
+    x9, y9 = (float(re.search(rf"--tap-{a}: ([\d.]+)px", css).group(1)) for a in "xy")
+    y45 = float(re.search(r'#root\[data-format="4:5"\] \{[^}]*--tap-y: ([\d.]+)px', css).group(1))
+    assert "--tap-x" not in css.split('data-format="4:5"', 1)[1]  # x is on the transform's axis
+    assert x9 == ox and abs(oy + (y9 - oy) * k + dy - y45) <= 0.5
+    # a transformed wrapper breaks the perspective of .scene: it must carry its own
+    assert re.search(r"perspective: \d+px", fit)
+    # in 9:16 the wrapper has no box, so the 9:16 page renders as before it existed
+    assert re.search(r"\n      \.phone-fit \{\s*display: contents;\s*\}", css)

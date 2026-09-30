@@ -14,8 +14,9 @@ It **only generates video files.** It does not post, upload, schedule or send an
 
 ## What the agent does
 
-See [`skills/app-promo-reel/SKILL.md`](skills/app-promo-reel/SKILL.md). In short: research the
-app (site, stores, app strings) → write a design spec with the allowed claims → generate (or
+See [`skills/app-promo-reel/SKILL.md`](skills/app-promo-reel/SKILL.md). In short: scaffold one
+project per variant, in its format (9:16 or 4:5) → research the app (site, stores, app strings)
+→ write a design spec with the allowed claims → generate (or
 import) and rank music → beat grid → storyboard on bars → build, check, snapshot, render → finish and verify.
 The skill has hard truthfulness rules: no invented ratings, numbers, people or features, and an
 "AI-generated" label on screen for the whole video.
