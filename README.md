@@ -3,7 +3,8 @@
 A [Claude Code](https://claude.com/claude-code) skill that makes beat-synced 30-second
 vertical (9:16) promo reels for a mobile app:
 
-- music generated locally with MusicGen, seeds ranked, and a beat grid locked to the kick;
+- music generated locally with ACE-Step 1.5 (or MusicGen), or your own track; ranked, and a
+  beat grid locked to the kick;
 - the app's real screens rebuilt as HTML from its store screenshots and its own strings;
 - every cut, word and sound effect placed on a beat, rendered with
   [HyperFrames](https://hyperframes.heygen.com) (GSAP timeline in a headless browser);
@@ -14,8 +15,8 @@ It **only generates video files.** It does not post, upload, schedule or send an
 ## What the agent does
 
 See [`skills/app-promo-reel/SKILL.md`](skills/app-promo-reel/SKILL.md). In short: research the
-app (site, stores, app strings) → write a design spec with the allowed claims → generate and
-rank music → beat grid → storyboard on bars → build, check, snapshot, render → finish and verify.
+app (site, stores, app strings) → write a design spec with the allowed claims → generate (or
+import) and rank music → beat grid → storyboard on bars → build, check, snapshot, render → finish and verify.
 The skill has hard truthfulness rules: no invented ratings, numbers, people or features, and an
 "AI-generated" label on screen for the whole video.
 
@@ -23,12 +24,25 @@ The skill has hard truthfulness rules: no invented ratings, numbers, people or f
 
 - Python 3.11+, `ffmpeg` and `ffprobe`, `git`.
 - Node 20+ with `npx` and a Chrome/Chromium for HyperFrames (render and check).
-- For music generation only: an NVIDIA GPU with a CUDA build of PyTorch.
+- Music, one of:
+  - **ACE-Step 1.5** (the default): its own clone and environment, about 17 GB on disk (a 7.6 GB
+    environment, and 9.4 GB of model files downloaded on the first run). It runs on an NVIDIA GPU
+    or on the CPU. Measured here on the CPU: about 85 s per seed on 32 threads, with 15 GB of RAM.
+    The GPU path was not measured here (the model card says less than 4 GB of VRAM).
+  - **MusicGen** (`facebook/musicgen-small`): an NVIDIA GPU with a CUDA build of PyTorch.
+  - **Your own track**: nothing to install; `music_import.py` takes a file you downloaded.
 
 ```bash
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt            # analysis, build, finish, tests
-# music generation: install torch for your CUDA version first, see https://pytorch.org
+
+# ACE-Step 1.5 (needs uv, https://docs.astral.sh/uv/)
+git clone https://github.com/ace-step/ACE-Step-1.5 ~/ACE-Step-1.5
+git -C ~/ACE-Step-1.5 checkout ca1e85f                # the version this skill was tested with
+(cd ~/ACE-Step-1.5 && uv sync)
+export ACESTEP_DIR=~/ACE-Step-1.5                     # the skill uses ACE-Step when this is set
+
+# MusicGen: install torch for your CUDA version first, see https://pytorch.org
 .venv/bin/pip install torch --index-url https://download.pytorch.org/whl/cu128
 .venv/bin/pip install -r requirements-gen.txt
 ```
@@ -51,10 +65,16 @@ Then ask Claude Code for "promo reels for <app>". Output goes to `~/app-promo-re
 ## Licences
 
 - The code in this repo is MIT (see LICENSE).
+- ACE-Step 1.5, code and model weights, is published under the **MIT** licence. Its
+  [model card](https://huggingface.co/ACE-Step/Ace-Step1.5) says: "You can strictly use the
+  generated music for commercial purposes." This repo makes no legal claim about the generated
+  music. Read the model card before you publish a video with it.
 - The MusicGen model weights (`facebook/musicgen-small`) are published by Meta under
   **CC-BY-NC 4.0**. This repo makes no claim about what uses of the generated music that licence
   permits. Read the model licence before you publish a video with it; for any doubt (for example
   paid ads), use a licensed music track instead.
+- Your own track: its licence is yours to check. `music_import.py` never downloads anything, and
+  many music sites forbid automated downloads.
 - No sound effects, fonts, screenshots, icons or generated audio are distributed here.
 
 ## Credits
