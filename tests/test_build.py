@@ -38,7 +38,8 @@ def test_calc_rejects_anything_but_arithmetic(expr):
         calc(expr, GRID, 30.0)
 
 
-@pytest.mark.parametrize("src", ["{{D}}", "{{NOPE 1}}", "{{D 1 2 3}}", "{{calc os.system}}", "{{DURATION 3}}"])
+@pytest.mark.parametrize("src", ["{{D}}", "{{NOPE 1}}", "{{D 1 2 3}}", "{{calc os.system}}", "{{DURATION 3}}",
+                                 "{{WIDTH 3}}", "{{FRAME_SCALE 1}}"])
 def test_bad_or_leftover_token_exits_2(src):
     with pytest.raises(SystemExit) as e:
         substitute(src, GRID, PROJECT)
@@ -343,3 +344,39 @@ def test_is_number_rejects_an_int_too_large_for_a_float():
     from common import is_number
     assert is_number(3) and is_number(29.97)
     assert not is_number(10 ** 400) and not is_number(float("inf")) and not is_number(True)
+
+
+@pytest.mark.parametrize("doc, size", [
+    ({}, (1080, 1920)),  # every project made before formats: no format, 9:16
+    ({"format": "9:16", "width": 1080, "height": 1920}, (1080, 1920)),
+    ({"format": "4:5"}, (1080, 1350)),  # no width/height in the file: the 9:16 defaults must not win
+    ({"format": "4:5", "width": 1080, "height": 1350}, (1080, 1350)),
+])
+def test_the_size_comes_from_the_format(tmp_path, doc, size):
+    from common import load_project
+    (tmp_path / "project.json").write_text(json.dumps({"app": "x", "variant": "a", **doc}))
+    p = load_project(tmp_path)
+    assert (p["format"], p["width"], p["height"]) == (doc.get("format", "9:16"), *size)
+
+
+@pytest.mark.parametrize("doc, msg", [
+    ({"format": "1:1"}, "format must be one of 9:16, 4:5, got '1:1'\n"),
+    ({"format": "16:9"}, "(it comes in a later version)"),
+    ({"format": ["4:5"]}, "format must be one of"),
+    ({"format": {"4:5": 1}}, "format must be one of"),
+    ({"format": "4:5", "height": 1920}, "format 4:5 is 1080x1350, but the file says height 1920"),
+    ({"width": 1350}, "format 9:16 is 1080x1920, but the file says width 1350"),
+])
+def test_a_bad_format_or_a_size_against_it_exits_2(tmp_path, doc, msg):
+    from conftest import write_project
+    p = write_project(tmp_path)
+    (p / "project.json").write_text(json.dumps({**json.loads((p / "project.json").read_text()), **doc}))
+    r = run_script("build.py", p)
+    assert r.returncode == 2 and msg in r.stderr and "Traceback" not in r.stderr, r.stderr
+
+
+@pytest.mark.parametrize("fmt, want", [("9:16", "1080 1920 9:16 1"), ("4:5", "1080 1350 4:5 0.703125")])
+def test_size_tokens_come_from_the_format(tmp_path, fmt, want):
+    from common import load_project
+    (tmp_path / "project.json").write_text(json.dumps({"app": "x", "variant": "a", "format": fmt}))
+    assert substitute("{{WIDTH}} {{HEIGHT}} {{FORMAT}} {{FRAME_SCALE}}", GRID, load_project(tmp_path)) == want

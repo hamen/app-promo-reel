@@ -14,7 +14,8 @@ SR = 48000
 CLICKS = [0.5, 1.5, 2.5, 3.0]
 
 
-def make_raw_mp4(tmp_path, seconds=4.0, fps=30):
+def make_raw_mp4(tmp_path, seconds=4.0, fps=30, size="108x192"):
+    # size: the project's frame size, which finish.py checks (see small_9x16 below)
     rng = np.random.default_rng(5)
     y = 0.01 * rng.standard_normal(int(seconds * SR))
     c = click(SR)
@@ -25,9 +26,18 @@ def make_raw_mp4(tmp_path, seconds=4.0, fps=30):
     sf.write(wav, np.stack([y, y], 1).astype(np.float32), SR)
     mp4 = tmp_path / "raw.mp4"
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i",
-                    f"color=c=blue:s=108x192:r={fps}:d={seconds}", "-i", str(wav), "-map", "0:v", "-map", "1:a",
-                    "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", str(mp4)], check=True)
+                    f"color=c=blue:s={size}:r={fps}:d={seconds}", "-i", str(wav), "-map", "0:v", "-map", "1:a",
+                    "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k",
+                    str(mp4)], check=True)
     return mp4
+
+
+@pytest.fixture(autouse=True)
+def small_9x16(monkeypatch):
+    """finish.py checks the video against the format's size; a 9:16 of 108x192 keeps the ~20 encodes
+    of these tests fast. The real sizes are tested in test_build.py and test_template.py."""
+    import common
+    monkeypatch.setitem(common.FORMATS, "9:16", (108, 192))
 
 
 @pytest.fixture
@@ -113,6 +123,21 @@ def test_wrong_duration_fails(tmp_path, proj):
     raw = make_raw_mp4(tmp_path, seconds=3.0)
     realize(proj, [])
     assert finish.finish(proj, raw) == 1
+
+
+def test_a_video_of_another_size_fails(tmp_path, proj, capsys):
+    raw = make_raw_mp4(tmp_path, size="1080x1350")
+    realize(proj, [])
+    assert finish.finish(proj, raw) == 1
+    assert "video is 1080x1350, project.json says 108x192 (format 9:16)" in capsys.readouterr().err
+
+
+def test_a_4x5_project_passes_with_a_4x5_video(tmp_path, proj):
+    doc = json.loads((proj / "project.json").read_text())
+    (proj / "project.json").write_text(json.dumps({**doc, "format": "4:5"}))
+    raw = make_raw_mp4(tmp_path, size="1080x1350")
+    realize(proj, [])
+    assert finish.finish(proj, raw) == 0
 
 
 def test_matched_filter_finds_sfx_under_louder_music():

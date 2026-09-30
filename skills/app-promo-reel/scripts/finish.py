@@ -9,7 +9,8 @@
    N = one more than the highest existing version (a leftover .checking file counts too).
    An existing file is never overwritten.
 4. Picture check: codec, size, frame count and duration of the video stream are unchanged,
-   and the duration matches project.json within one frame.
+   the size is the one of project.json's format, and the duration matches project.json within
+   one frame.
 5. Sync report: for each cue in cues.realized.json (the cues build.py actually mixed) with
    "sync": true, the cue's own sound is located within +-150 ms by a matched filter
    (normalised cross-correlation with the SFX file) on the final audio minus the music bed.
@@ -413,6 +414,9 @@ def _checks(pdir, project, raw_mp4, realized, checking, sheet, frames):
     vi_raw, vi_out = video_info(raw_mp4), video_info(checking)
     if vi_raw != vi_out:
         problems.append(f"video stream changed: {vi_raw} -> {vi_out}")
+    if (vi_out["width"], vi_out["height"]) != (project["width"], project["height"]):
+        problems.append(f"video is {vi_out['width']}x{vi_out['height']}, project.json says "
+                        f"{project['width']}x{project['height']} (format {project['format']}): build and render again")
     frame = 1.0 / project["fps"]
     if abs(vi_out["duration"] - project["duration"]) > frame + 1e-6:
         problems.append(f"video is {vi_out['duration']}s, project.json says {project['duration']:g}s")

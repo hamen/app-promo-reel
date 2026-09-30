@@ -14,6 +14,10 @@ Tokens (the `{{ }}` delimiter never appears in CSS, so @font-face/@media/@keyfra
   {{BEATS_PER_BAR}}            from project.json
   {{DURATION}}                 from project.json
   {{STORES}}                   JSON array of the project's stores (project.json)
+  {{WIDTH}} / {{HEIGHT}}       the frame size of the project's format (project.json)
+  {{FORMAT}}                   the format: 9:16 or 4:5
+  {{FRAME_SCALE}}              the frame height divided by the 9:16 height (1 for 9:16): scales
+                               pixel distances, e.g. a camera shake, to the frame
 
 SFX: cues.json -> <audio> tags in place of `<!--SFX-->`, plus cues.realized.json, the list of
 cues actually mixed (finish.py checks sync against that list only). A cue whose file is
@@ -36,7 +40,7 @@ import unicodedata
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from common import Grid, attack_seconds, die, is_number, load_project, media_duration, read_json  # noqa: E402
+from common import FORMATS, Grid, attack_seconds, die, is_number, load_project, media_duration, read_json  # noqa: E402
 
 TOKEN = re.compile(r"\{\{\s*([A-Za-z_]+)\s*(.*?)\s*\}\}", re.S)
 SFX_FIRST_TRACK = 21
@@ -126,6 +130,12 @@ def substitute(src, grid, project):
             return f"{duration:g}"
         if name == "STORES":
             return json.dumps(project["stores"])
+        if name in ("WIDTH", "HEIGHT"):
+            return str(project[name.lower()])
+        if name == "FORMAT":
+            return project["format"]
+        if name == "FRAME_SCALE":
+            return f"{project['height'] / FORMATS['9:16'][1]:g}"
         raise CalcError(f"unknown token {{{{{name}}}}}")
 
     try:

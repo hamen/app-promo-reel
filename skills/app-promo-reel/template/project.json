@@ -4,6 +4,7 @@
   "lang": "en",
   "duration": 30,
   "fps": 30,
+  "format": "9:16",
   "width": 1080,
   "height": 1920,
   "beats_per_bar": 4,

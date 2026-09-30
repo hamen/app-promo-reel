@@ -5,12 +5,13 @@ import re
 import numpy as np
 import pytest
 
-from conftest import run_script, steady_grid
+from conftest import TEMPLATE, run_script, steady_grid
 
 
-def build(tmp_path, stores="app_store,google_play", edit=None, grid=None, expect=0):
+def build(tmp_path, stores="app_store,google_play", edit=None, grid=None, expect=0, fmt="9:16"):
     out = tmp_path / "out"
-    r = run_script("new_project.py", "--app", "demo", "--variant", "a", "--out", out, "--force", "--stores", stores)
+    r = run_script("new_project.py", "--app", "demo", "--variant", "a", "--out", out, "--force", "--stores", stores,
+                   "--format", fmt)
     assert r.returncode == 0, r.stderr
     p = out / "demo-a"
     (p / "beats.json").write_text(json.dumps(grid or steady_grid(first=0.7, iv=0.5, n=64, phase=1)))
@@ -210,3 +211,17 @@ def test_hook_is_static_from_frame_zero(tmp_path):
         assert f'punch("#hook-words", {beat}' in s1
         assert f'shake("#s1-cam", {beat}' in s1
         assert f"flash({beat}" in s1
+
+
+@pytest.mark.parametrize("fmt, w, h, scale", [("9:16", 1080, 1920, "1"), ("4:5", 1080, 1350, "0.703125")])
+def test_the_page_takes_its_size_from_the_format(tmp_path, fmt, w, h, scale):
+    _, html = build(tmp_path, fmt=fmt)
+    assert f'<meta name="viewport" content="width={w}, height={h}" />' in html
+    assert re.search(rf"html,\s*body \{{\s*width: {w}px;\s*height: {h}px;", html)
+    assert re.search(rf'id="root"[^>]*data-width="{w}" data-height="{h}" data-format="{fmt}"', html)
+    assert f"const FRAME_SCALE = {scale};" in html
+
+
+def test_the_template_fixes_no_frame_height():
+    # the 9:16 height lives in common.py and reaches the page only through the size tokens
+    assert "1920" not in (TEMPLATE / "src.html.tmpl").read_text()

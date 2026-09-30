@@ -11,9 +11,13 @@ import subprocess
 import sys
 from pathlib import Path
 
+# the frame size of each format; "9:16" is the default and the reference for FRAME_SCALE
+FORMATS = {"9:16": (1080, 1920), "4:5": (1080, 1350)}
+LATER_FORMATS = ("16:9",)
 PROJECT_DEFAULTS = {
     "duration": 30.0,
     "fps": 30,
+    "format": "9:16",
     "width": 1080,
     "height": 1920,
     "beats_per_bar": 4,
@@ -54,7 +58,8 @@ def load_project(project_dir):
     path = Path(project_dir) / "project.json"
     if not path.is_file():
         die(f"{path} not found (is this a project folder made by new_project.py?)")
-    data = {**PROJECT_DEFAULTS, **read_json(path)}
+    raw = read_json(path)
+    data = {**PROJECT_DEFAULTS, **raw}
     missing = [k for k in ("app", "variant") if not data.get(k)]
     if missing:
         die(f"{path} has no {' / '.join(missing)}")
@@ -68,6 +73,18 @@ def load_project(project_dir):
     data["beats_per_bar"] = int(data["beats_per_bar"])  # fps stays as given: 29.97 is a real rate
     if data["duration"] <= 1 or data["fps"] <= 0 or data["beats_per_bar"] <= 0:
         die(f"{path}: duration must be above 1 s (the bed fades take 0.8 s), fps and beats_per_bar above 0")
+    fmt = data["format"]
+    if not isinstance(fmt, str) or fmt not in FORMATS:
+        later = " (it comes in a later version)" if fmt in LATER_FORMATS else ""
+        die(f"{path}: format must be one of {', '.join(FORMATS)}, got {fmt!r}{later}")
+    size = dict(zip(("width", "height"), FORMATS[fmt]))
+    # the file's own keys, not the merged defaults: a 4:5 file with no width/height takes 1080x1350
+    wrong = {k: raw[k] for k in size if k in raw and raw[k] != size[k]}
+    if wrong:
+        die(f"{path}: format {fmt} is {size['width']}x{size['height']}, but the file says "
+            f"{', '.join(f'{k} {v!r}' for k, v in wrong.items())}; the size comes from the format: "
+            f"fix or remove width and height")
+    data.update(size)
     stores = data["stores"]
     bad = [s for s in stores if s not in KNOWN_STORES] if isinstance(stores, list) else [stores]
     if bad or not stores:
