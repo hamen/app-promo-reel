@@ -5,8 +5,17 @@ refine to the kick (or hi-hat), local linear smoothing and the downbeat phase.
 Writes beats.json: {"beats": [...], "downbeat_phase": p, "downbeats": [...]}.
 All band filters are zero-phase (sosfiltfilt) so they do not shift the kick times.
 
-Usage: beat_grid.py <audio.wav> <project_dir>      (writes <project_dir>/beats.json)
+--bpm N   the tempo the grid must be built on: the tempo asked of ACE-Step, or the tempo column
+          of music_rank.py. The tracker is primed with it, and the grid must come out within
+          4 % of it, else the run stops and writes nothing (take the next seed). It stops a
+          tracker that locks onto another pulse (a 3+3+2 kick pattern read as 2/3 of the tempo);
+          it cannot find a WRONG --bpm that is a simple ratio of the real tempo: the tracker
+          follows that too.
+A failed run never touches an existing beats.json (build.py needs it to keep the page).
+
+Usage: beat_grid.py <audio.wav> <project_dir> [--bpm N]      (writes <project_dir>/beats.json)
 """
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -20,6 +29,7 @@ from common import die, load_project  # noqa: E402
 SR = 32000
 HOP = 256
 REFINE_WINDOW = 0.040  # a refined beat never moves more than this from its input time
+BPM_TOLERANCE = 0.04   # --bpm: the heard grid must be within 4 % of it
 
 
 def band_envelope(y, sr, lo, hi=None, hop=HOP):
@@ -123,9 +133,9 @@ def full_grid(heard, strengths, duration, bpb=4):
     return beats, (downbeat_phase(strengths, bpb) + prepended) % bpb
 
 
-def analyse(y, sr, duration, bpb=4):
+def analyse(y, sr, duration, bpb=4, bpm=None):
     import librosa
-    _, beats = librosa.beat.beat_track(y=y, sr=sr, units="time", hop_length=HOP)
+    _, beats = librosa.beat.beat_track(y=y, sr=sr, units="time", hop_length=HOP, bpm=bpm)
     if len(beats) < 8:
         die(f"beat_track found only {len(beats)} beats; pick another seed")
     kick, t_env = band_envelope(y, sr, 40, 160)
@@ -135,16 +145,25 @@ def analyse(y, sr, duration, bpb=4):
     # statistics from the beats in the audio; extrapolated beats would dilute them
     strengths = [peak_near(kick, t_env, b) + 25 * loudness_at(y, sr, b) for b in heard]
     iv = np.diff(heard)
+    if bpm is not None:
+        got = 60 / float(np.median(iv))
+        if abs(got - bpm) > BPM_TOLERANCE * bpm:
+            die(f"the grid came out at {got:.1f} BPM, not {bpm:g}: pick another seed")
     beats, phase = full_grid(heard, strengths, duration, bpb)
     print(f"half-beat shift: {'yes' if shifted else 'no'}; interval {iv.mean():.4f}s sd {iv.std() * 1000:.2f}ms; "
           f"first beat {beats[0]:.3f}; downbeat phase {phase}; {len(beats)} beats")
     return beats, phase
 
 
-def main():
-    if len(sys.argv) != 3:
-        die(__doc__.strip().splitlines()[-1])
-    audio, project_dir = sys.argv[1], Path(sys.argv[2])
+def main(argv=None):
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("audio")
+    ap.add_argument("project_dir")
+    ap.add_argument("--bpm", type=float)
+    a = ap.parse_args(argv)
+    if a.bpm is not None and not 30 <= a.bpm <= 300:  # also NaN: every comparison is False
+        die(f"--bpm must be a tempo from 30 to 300, got {a.bpm:g}")
+    audio, project_dir = a.audio, Path(a.project_dir)
     project = load_project(project_dir)
     import librosa
     try:
@@ -154,7 +173,7 @@ def main():
     except (OSError, RuntimeError, ValueError) as e:
         die(f"cannot read {audio}: {e}")
     bpb = project["beats_per_bar"]
-    beats, phase = analyse(y, sr, project["duration"], bpb)
+    beats, phase = analyse(y, sr, project["duration"], bpb, a.bpm)
     doc = {"beats": [round(float(b), 4) for b in beats], "downbeat_phase": phase,
            "downbeats": [round(float(b), 3) for b in beats[phase::bpb]]}
     (project_dir / "beats.json").write_text(json.dumps(doc, indent=0) + "\n")

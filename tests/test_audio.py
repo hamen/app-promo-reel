@@ -404,3 +404,60 @@ def test_music_rank_refuses_a_duration_that_is_not_a_length(tmp_path, duration):
     sf.write(f, kick_track(np.arange(0.5, 10.0, 0.5), 10.0), SR)
     r = run_script("music_rank.py", "--duration", duration, f)
     assert r.returncode == 2 and "--duration must be" in r.stderr and "Traceback" not in r.stderr
+
+
+# ---------------- beat_grid --bpm ----------------
+
+def tresillo_track(tmp_path, seconds=30.0):
+    """Kicks on eighths 1, 4 and 7 of every bar (3+3+2) at 117.2 bpm and nothing on the other
+    quarters: the tracker alone reads it as ~84 bpm, the pulse of the kicks (an ACE-Step seed did
+    the same, 80.6 bpm for 121)."""
+    times = [t for i, t in enumerate(np.arange(0.5, seconds, 0.256)) if i % 8 in (0, 3, 6)]
+    f = tmp_path / "tresillo.wav"
+    sf.write(f, kick_track(times, seconds, accent_every=1), SR)
+    return f
+
+
+def heard_interval(p, duration=30):
+    return float(np.median(np.diff([b for b in json.loads((p / "beats.json").read_text())["beats"] if b < duration])))
+
+
+def test_bpm_keeps_the_grid_on_the_asked_tempo(tmp_path):
+    f = tresillo_track(tmp_path)
+    p = write_project(tmp_path, duration=30)
+    assert run_script("beat_grid.py", f, p).returncode == 0
+    assert 60 / heard_interval(p) < 100  # without a tempo: the wrong pulse
+    r = run_script("beat_grid.py", f, p, "--bpm", "117.2")
+    assert r.returncode == 0, r.stderr
+    assert abs(heard_interval(p) - 0.512) < 0.005
+
+
+def test_bpm_on_the_true_tempo_changes_nothing(tmp_path):
+    f = tmp_path / "clicks.wav"
+    sf.write(f, kick_track(np.arange(0.5, 30.0, 0.512), 30.0), SR)
+    p = write_project(tmp_path, duration=30)
+    assert run_script("beat_grid.py", f, p).returncode == 0
+    plain = json.loads((p / "beats.json").read_text())
+    assert run_script("beat_grid.py", f, p, "--bpm", "117.2").returncode == 0
+    primed = json.loads((p / "beats.json").read_text())
+    assert primed["downbeat_phase"] == plain["downbeat_phase"]
+    assert np.max(np.abs(np.array(primed["beats"]) - plain["beats"])) < 0.001
+
+
+@pytest.mark.parametrize("bpm", ["100", "110"])  # 15 % and 6 % away from the kicks
+def test_bpm_far_from_the_heard_beat_stops_and_keeps_the_old_grid(tmp_path, bpm):
+    f = tmp_path / "clicks.wav"
+    sf.write(f, kick_track(np.arange(0.5, 30.0, 0.512), 30.0), SR)
+    p = write_project(tmp_path, duration=30)
+    (p / "beats.json").write_text(json.dumps(steady_grid()))
+    old = (p / "beats.json").read_bytes()
+    r = run_script("beat_grid.py", f, p, "--bpm", bpm)  # the kicks are strong: the tracker keeps 117.2
+    assert r.returncode == 2 and f"the grid came out at 117.2 BPM, not {bpm}" in r.stderr
+    assert (p / "beats.json").read_bytes() == old
+
+
+@pytest.mark.parametrize("bpm", ["0", "29", "301", "nan", "inf"])
+def test_bpm_must_be_a_tempo(tmp_path, bpm):
+    p = write_project(tmp_path, duration=30)
+    r = run_script("beat_grid.py", tmp_path / "none.wav", p, "--bpm", bpm)
+    assert r.returncode == 2 and "--bpm must be a tempo" in r.stderr and not (p / "beats.json").exists()
