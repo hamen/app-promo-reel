@@ -168,6 +168,20 @@ def test_label_id_changes_with_every_build(tmp_path):
 def test_hook_is_static_from_frame_zero(tmp_path):
     """Average watch time can be ~1 s and frame 0 is the cover: no word-by-word hook build."""
     _, html = build(tmp_path)
+    # the four hook words exist, inside #hook-words, which is not inside the #hero card (hero starts at opacity 0)
+    hook = html.split('id="hook-words"', 1)[1].split('id="hero"', 1)[0]
+    for i in range(4):
+        assert f'id="w-{i}"' in hook
+    # no CSS rule hides the words
+    css = html.split("<style", 1)[1].split("</style>", 1)[0]
+    kin = re.findall(r"\.kin[^{]*\{([^}]*)\}", css)
+    assert kin and not any(re.search(r"opacity\s*:\s*0\s*;|visibility\s*:\s*hidden|display\s*:\s*none", b) for b in kin)
     s1 = html.split("// ===== S1 hook", 1)[1].split("// =====", 1)[0]
-    assert 'punch("#hook-words", D(0, 0)' in s1
-    assert 'slam("#w-' not in s1 and '"#w-0"' not in s1
+    # no tween starts the hook words hidden or builds them one by one
+    assert not re.search(r'(fromTo|from|set)\(\s*"#(hook-words|w-\d)"', s1)
+    assert '"#w-0"' not in s1
+    # both downbeats keep punch, shake and flash
+    for beat in ("D(0, 0)", "D(1, 0)"):
+        assert f'punch("#hook-words", {beat}' in s1
+        assert f'shake("#s1-cam", {beat}' in s1
+        assert f"flash({beat}" in s1
