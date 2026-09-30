@@ -163,3 +163,11 @@ def test_label_id_changes_with_every_build(tmp_path):
         assert "Math.random" not in html and "__AI_LABEL_ID__" not in html
         ids.add(_re.search(r'el\.id = "(ai-label-[0-9a-f]{12})"', html).group(1))
     assert len(ids) == 2
+
+
+def test_hook_is_static_from_frame_zero(tmp_path):
+    """Average watch time can be ~1 s and frame 0 is the cover: no word-by-word hook build."""
+    _, html = build(tmp_path)
+    s1 = html.split("// ===== S1 hook", 1)[1].split("// =====", 1)[0]
+    assert 'punch("#hook-words", D(0, 0)' in s1
+    assert 'slam("#w-' not in s1 and '"#w-0"' not in s1
