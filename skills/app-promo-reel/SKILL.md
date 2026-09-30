@@ -1,6 +1,6 @@
 ---
 name: app-promo-reel
-description: Generate beat-synced 30 s vertical (9:16) promo reels for a mobile app — MusicGen music, a kick-locked beat grid, the app's real UI rebuilt as HTML, HyperFrames render, loudness and sync checks. Use when the user asks for promo / social / showreel videos of an app. Generation only; it never posts or uploads anything.
+description: Generate beat-synced 30 s vertical (9:16) promo reels for a mobile app — music from ACE-Step 1.5, MusicGen or the user's own track, a kick-locked beat grid, the app's real UI rebuilt as HTML, HyperFrames render, loudness and sync checks. Use when the user asks for promo / social / showreel videos of an app. Generation only; it never posts or uploads anything.
 ---
 
 # app-promo-reel
@@ -57,16 +57,33 @@ Commands for every step: `references/pipeline.md`.
    - `sample_colors.py` on the screenshots for the app's real UI colours.
    - Search the user's notes/memory for rules about this app (forbidden words, spelling).
    - Fill `DESIGN.md` from the template: angle, sources, colours, type, copy rules.
-3. **Music first, per variant.**
-   - Show this note once, before the first generation: *"The music model (musicgen-small) is
-     published under CC-BY-NC 4.0. Read that licence before you publish; for any doubt, use a
-     licensed track."* Then continue.
-   - `music_gen.py` with 3 seeds → `music_rank.py`. Pick the best accepted seed.
+3. **Music first, per variant.** Commands in `references/pipeline.md`.
+   - Choose the source once per session:
+     1. ACE-Step 1.5 (`music_gen_ace.py`, run with `$ACESTEP_DIR/.venv/bin/python`) when
+        `ACESTEP_DIR` is set and `$ACESTEP_DIR/.venv` exists. This is the default.
+     2. Otherwise ask the user once: install ACE-Step (README, about 17 GB), use MusicGen
+        (`music_gen.py`, needs an NVIDIA GPU), or give a track they downloaded themselves.
+     3. A track from the user: `music_import.py` with `--source` (where it came from). Never
+        download music yourself.
+   - Show the licence note of that source once, before the first generation, then continue:
+     ACE-Step: *"ACE-Step 1.5 is MIT; its model card says the generated music can be used for
+     commercial purposes. Read the model card before you publish."* MusicGen: *"The music model
+     (musicgen-small) is published under CC-BY-NC 4.0. Read that licence before you publish;
+     for any doubt, use a licensed track."* Own track: *"The licence of this track is yours to
+     check."*
+   - 3 seeds → `music_rank.py` with those 3 files by name (never `bgm_*.wav`: it also ranks
+     the tracks of an earlier source or batch). Pick the best accepted seed. `music_gen_ace.py` exit 3 = the
+     GPU ran out of memory: run the same command once with `--device cpu`.
    - If all 3 are rejected: one more batch of 3 new seeds. If that batch is rejected too, simplify
      the prompt once (steadier genre words) and try a last batch. Then stop and show the rank
-     tables to the user. Never use a rejected seed.
-   - `beat_grid.py` → `beats.json`. Place the drop (rule in `references/storyboard.md`), then
-     `make_bed.py` (with `--drop-bar` for a synthetic lift when the seed has no lift there).
+     tables to the user. Never use a rejected seed. A seed that `beat_grid.py` stops on counts as
+     rejected.
+   - Own track rejected: show the rank table and ask for another `--start` or another track.
+   - `beat_grid.py --bpm <tempo>` → `beats.json`. The tempo: the `--bpm` asked of ACE-Step, else
+     the `tempo` column of the rank table. If beat_grid stops ("the grid came out at X BPM"),
+     never run make_bed on that seed: take the next one. Place the drop (rule in
+     `references/storyboard.md`), then `make_bed.py` (with `--drop-bar` for a synthetic lift
+     when the seed has no lift there).
 4. **Storyboard on bars, then build the scenes.** Fill `CONFIG` at the top of `src.html.tmpl`
    (all text, colours, screens) and edit the scenes. Rebuild the app's real screens as HTML
    components from the screenshots and strings — no pasted screenshots. Timing uses beat tokens
@@ -97,9 +114,10 @@ Commands for every step: `references/pipeline.md`.
      it: scenes, text and motion in `src.html.tmpl`; sound effects in `cues.json`; the music bed
      with `make_bed.py` (or a new seed, step 3). Then build, check, render and finish again.
    - Stop when every score is 8 or more, or after 3 critique rounds. Never loop without the cap.
-7. **Deliver.** List each final MP4 path with a one-line summary (angle, seed, tempo, sync
-   result, loudness), its seven scores and any problem still open. Repeat the music licence
-   note. **Nothing is uploaded or sent.**
+7. **Deliver.** List each final MP4 path with a one-line summary (angle, music source and seed,
+   tempo, sync result, loudness), its seven scores and any problem still open. Repeat the music
+   licence note; for the user's own track, give the contents of `bgm_user.source.txt`.
+   **Nothing is uploaded or sent.**
 
 ## Variants
 

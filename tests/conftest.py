@@ -46,6 +46,13 @@ def no_user_sfx(monkeypatch):
     monkeypatch.delenv("SFX_DIR", raising=False)
 
 
+@pytest.fixture(autouse=True)
+def no_user_acestep(monkeypatch):
+    """The README has users export ACESTEP_DIR. A test must never load the user's real ACE-Step;
+    tests that need one point it at a fake package themselves."""
+    monkeypatch.delenv("ACESTEP_DIR", raising=False)
+
+
 @pytest.fixture
 def project(tmp_path):
     p = write_project(tmp_path)

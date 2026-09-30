@@ -45,7 +45,7 @@ import numpy as np
 import scipy.signal as ss
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from common import attack_index, decode_audio, die, load_project, read_json  # noqa: E402
+from common import attack_index, decode_audio, die, is_number, load_project, read_json  # noqa: E402
 
 SR = 48000
 TARGET_I, TARGET_TP, TARGET_LRA = -14.0, -2.0, 11.0
@@ -117,7 +117,7 @@ LOUDNORM = f"loudnorm=I={TARGET_I}:TP={TARGET_TP}:LRA={TARGET_LRA}"
 
 def measure(path):
     """loudnorm analysis pass: input_i, input_tp, input_lra, input_thresh, target_offset."""
-    p = subprocess.run(["ffmpeg", "-hide_banner", "-nostats", "-i", str(path), "-af",
+    p = subprocess.run(["ffmpeg", "-nostdin", "-hide_banner", "-nostats", "-i", str(path), "-af",
                         LOUDNORM + ":print_format=json", "-f", "null", "-"], capture_output=True, text=True)
     m = re.search(r"\{[^{}]*\"input_i\"[^{}]*\}", p.stderr)
     if p.returncode or not m:
@@ -130,7 +130,7 @@ def loudnorm(src_wav, dst_wav):
     s = measure(src_wav)
     af = (f"{base}:measured_I={s['input_i']}:measured_TP={s['input_tp']}:measured_LRA={s['input_lra']}"
           f":measured_thresh={s['input_thresh']}:offset={s['target_offset']}:linear=true")
-    run(["ffmpeg", "-v", "error", "-y", "-i", str(src_wav), "-af", af, "-ar", str(SR), "-c:a", "pcm_s16le",
+    run(["ffmpeg", "-nostdin", "-v", "error", "-y", "-i", str(src_wav), "-af", af, "-ar", str(SR), "-c:a", "pcm_s16le",
          str(dst_wav)])
     return s
 
@@ -252,7 +252,7 @@ def contact_sheet(mp4, times, dest):
         thumbs = []
         for i, t in enumerate(times):
             f = tmp / f"{i:03d}.png"
-            run(["ffmpeg", "-v", "error", "-y", "-ss", f"{t:.3f}", "-i", str(mp4), "-frames:v", "1",
+            run(["ffmpeg", "-nostdin", "-v", "error", "-y", "-ss", f"{t:.3f}", "-i", str(mp4), "-frames:v", "1",
                  "-vf", "scale=270:-2", str(f)])
             thumbs.append(Image.open(f).convert("RGB"))
         tw, th = thumbs[0].size
@@ -270,7 +270,7 @@ def decode_gray(mp4, width, height):
     """Every frame of mp4 as float32 grayscale, FRAME_W px wide, height kept in proportion.
     Raises (never die()): the frame checks must not end the run."""
     h = max(2, round(FRAME_W * height / width / 2) * 2)
-    r = subprocess.run(["ffmpeg", "-v", "error", "-i", str(mp4), "-vf", f"scale={FRAME_W}:{h},format=gray",
+    r = subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-i", str(mp4), "-vf", f"scale={FRAME_W}:{h},format=gray",
                         "-f", "rawvideo", "-"], capture_output=True)
     if r.returncode:
         raise RuntimeError(f"ffmpeg could not decode the frames: {r.stderr.decode(errors='replace')[-300:]}")
@@ -321,14 +321,25 @@ def pop_events(frames, dt):
 
 
 def scene_starts(html):
-    """data-start of every live <section> of the built index.html (as build.check_scenes reads it)."""
+    """data-start of every live <section> of the built index.html (as build.check_scenes reads it).
+    Returns (starts, notes): a value that is not a finite number skips only its own section, with
+    a note, so one bad section never drops the other scene starts."""
     live = re.sub(r"<!--.*?-->", "", html, flags=re.S)
-    starts = []
+    starts, notes = [], []
     for tag in re.findall(r"<section\b[^>]*>", live):
         m = re.search(r"""\bdata-start\s*=\s*(["'])(.*?)\1""", tag)
-        if m:
-            starts.append(float(m.group(2)))
-    return starts
+        if not m:
+            continue
+        try:
+            t = float(m.group(2))
+        except ValueError:
+            t = None
+        if not is_number(t):
+            notes.append(f"index.html: data-start {m.group(2)!r} is not a number: that scene start is "
+                         f"not compared with cuts")
+            continue
+        starts.append(t)
+    return starts, notes
 
 
 def frame_checks(pdir, mp4, vi):
@@ -355,8 +366,13 @@ def frame_checks(pdir, mp4, vi):
         if first > HOOK_BY:
             warnings.append(f"nothing to read until {first:.2f} s: the hook must show within {HOOK_BY:g} s")
 
+    def html_starts():
+        starts, html_notes = scene_starts((pdir / "index.html").read_text())
+        notes.extend(html_notes)
+        return starts
+
     marks = []
-    sources = (("index.html", lambda: scene_starts((pdir / "index.html").read_text())),
+    sources = (("index.html", html_starts),
                ("beats.json", lambda: [float(b) for b in json.loads((pdir / "beats.json").read_text())["beats"]]))
     for name, load in sources:
         try:
@@ -382,13 +398,13 @@ def _checks(pdir, project, raw_mp4, realized, checking, sheet, frames):
     problems = []
     try:
         raw_wav, norm_wav = work / "raw.wav", work / "norm.wav"
-        run(["ffmpeg", "-v", "error", "-y", "-i", str(raw_mp4), "-vn", "-ar", str(SR), "-ac", "2",
+        run(["ffmpeg", "-nostdin", "-v", "error", "-y", "-i", str(raw_mp4), "-vn", "-ar", str(SR), "-ac", "2",
              "-c:a", "pcm_s16le", str(raw_wav)])
         meas = loudnorm(raw_wav, norm_wav)
         lag = lag_seconds(decode_audio(raw_wav, SR), decode_audio(norm_wav, SR))
         if abs(lag) >= MAX_LAG:
             problems.append(f"loudnorm moved audio by {lag * 1000:.1f} ms")
-        run(["ffmpeg", "-v", "error", "-n", "-i", str(raw_mp4), "-i", str(norm_wav), "-map", "0:v:0",
+        run(["ffmpeg", "-nostdin", "-v", "error", "-n", "-i", str(raw_mp4), "-i", str(norm_wav), "-map", "0:v:0",
              "-map", "1:a:0", "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart",
              str(checking)])
     finally:

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Cut the chosen MusicGen seed into the music bed: exact duration, short fade-in, fade-out,
-and an optional synthetic lift before the drop.
+"""Cut the chosen music file (a generated seed or your own track) into the music bed: exact
+duration, short fade-in, fade-out, and an optional synthetic lift before the drop.
 
 --drop-bar k   high-passes the half bar before bar k: samples [D(k-1, bpb/2), D(k)), with
                equal-gain ramps at both edges, so the full band "drops" back in on D(k).
