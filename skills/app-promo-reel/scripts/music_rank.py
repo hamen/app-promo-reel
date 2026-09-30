@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Rank MusicGen seeds for a beat-synced reel.
+"""Rank music files (generated seeds or your own track) for a beat-synced reel.
 
 Per file: per-second RMS drop-outs, beat-interval sd, tempo wobble, and the percussive-energy lift (the "drop"), if any.
 Tempo wobble is the larger of two numbers, each a fraction of the median beat interval:
@@ -7,6 +7,8 @@ Tempo wobble is the larger of two numbers, each a fraction of the median beat in
           beat_grid.py uses), so a slow tempo change counts but frame jitter does not;
   glitch  the largest deviation of a RAW interval, minus the tracker's own error (two
           analysis frames, 32 ms), so a stutter of one or two beats counts.
+Only the first --duration seconds are judged (the part make_bed keeps); the length check uses
+the whole file.
 A file is REJECTED when it has a drop-out, is shorter than the target duration, or wobbles.
 Ranking of accepted files: lowest wobble, then lowest interval sd.
 
@@ -14,6 +16,7 @@ Usage: music_rank.py --duration 30 [--json rank.json] bgm_5.wav bgm_17.wav ...
 """
 import argparse
 import json
+import math
 import sys
 
 import numpy as np
@@ -75,10 +78,12 @@ def lift_time(perc, sr, win=0.5, span=2.0, min_t=4.0):
 def rank_file(path, duration):
     import librosa
     try:
-        y, sr = librosa.load(path, sr=SR, mono=True)
+        length = librosa.get_duration(path=str(path))
+        # only the part the reel uses is decoded and judged: an outro or a later section of a long
+        # track never reaches the drop-out check, the beat tracker or the lift
+        y, sr = librosa.load(path, sr=SR, mono=True, duration=duration)
     except (OSError, RuntimeError, ValueError) as e:
         die(f"cannot read {path}: {e}")
-    length = len(y) / sr
     _, beats = librosa.beat.beat_track(y=y, sr=sr, units="time")
     stats = beat_stats(beats) if len(beats) > 8 else {"tempo": 0, "interval_sd_ms": 999, "wobble": 1.0}
     _, perc = librosa.effects.hpss(y)
@@ -106,6 +111,8 @@ def main():
     ap.add_argument("--duration", type=float, required=True)
     ap.add_argument("--json")
     a = ap.parse_args()
+    if not math.isfinite(a.duration) or a.duration <= 0:
+        die(f"--duration must be a number of seconds above 0, got {a.duration:g}")
     results = order([rank_file(f, a.duration) for f in a.files])
     print(f"{'file':<28} {'tempo':>6} {'sd ms':>6} {'wobble':>7} {'lift':>10}  verdict")
     for r in results:

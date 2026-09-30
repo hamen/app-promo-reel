@@ -366,3 +366,41 @@ def test_riser_cli_ends_on_the_drop(tmp_path):
     last = int(np.flatnonzero(np.abs(y) > 1e-3)[-1])
     assert abs(last / sr - 6.5) < 2 / sr
     assert run_script("make_bed.py", seed, p, "--riser", riser).returncode == 2  # needs --drop-bar
+
+
+# ---------------- the reel window: only the first `duration` seconds are judged ----------------
+
+def two_tempo_track(tmp_path):
+    """30 s at 117.2 bpm, then 60 s at 89.3 bpm: a long track whose later part has another beat.
+    Both intervals are whole analysis frames (16 ms), so the tracker's frame rounding adds no wobble."""
+    times = np.concatenate([np.arange(0.5, 30.0, 0.512), np.arange(30.2, 90.0, 0.672)])
+    f = tmp_path / "two-tempo.wav"
+    sf.write(f, kick_track(times, 90.0), SR)
+    return f
+
+
+def test_music_rank_ignores_what_comes_after_the_reel(tmp_path):
+    f = tmp_path / "outro.wav"
+    y = kick_track(np.arange(0.5, 30.0, 0.512), 40.0)
+    y[30 * SR:] = 0  # a silent outro after the reel's 30 s
+    sf.write(f, y, SR)
+    r = mr.rank_file(f, 30)
+    assert (r["rejected"], r["reasons"], r["length"]) == (False, [], 40.0)
+    r = mr.rank_file(two_tempo_track(tmp_path), 30)
+    assert (r["rejected"], r["length"]) == (False, 90.0) and r["tempo"] == pytest.approx(117.2, abs=1)
+
+
+def test_beat_grid_ignores_what_comes_after_the_reel(tmp_path):
+    p = write_project(tmp_path, duration=30)
+    r = run_script("beat_grid.py", two_tempo_track(tmp_path), p)
+    assert r.returncode == 0, r.stderr
+    heard = [b for b in json.loads((p / "beats.json").read_text())["beats"] if b < 30]
+    assert abs(np.median(np.diff(heard)) - 0.512) < 0.005
+
+
+@pytest.mark.parametrize("duration", ["0", "-1", "nan", "inf"])
+def test_music_rank_refuses_a_duration_that_is_not_a_length(tmp_path, duration):
+    f = tmp_path / "s.wav"
+    sf.write(f, kick_track(np.arange(0.5, 10.0, 0.5), 10.0), SR)
+    r = run_script("music_rank.py", "--duration", duration, f)
+    assert r.returncode == 2 and "--duration must be" in r.stderr and "Traceback" not in r.stderr

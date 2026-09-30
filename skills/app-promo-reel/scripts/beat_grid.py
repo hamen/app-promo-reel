@@ -148,7 +148,9 @@ def main():
     project = load_project(project_dir)
     import librosa
     try:
-        y, sr = librosa.load(audio, sr=SR, mono=True)
+        # only the part the reel uses: make_bed cuts the same part, so an outro or a later section
+        # of a long track never reaches the tracker
+        y, sr = librosa.load(audio, sr=SR, mono=True, duration=project["duration"])
     except (OSError, RuntimeError, ValueError) as e:
         die(f"cannot read {audio}: {e}")
     bpb = project["beats_per_bar"]
