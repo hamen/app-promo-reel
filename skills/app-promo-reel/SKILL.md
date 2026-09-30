@@ -71,7 +71,8 @@ Commands for every step: `references/pipeline.md`.
      (musicgen-small) is published under CC-BY-NC 4.0. Read that licence before you publish;
      for any doubt, use a licensed track."* Own track: *"The licence of this track is yours to
      check."*
-   - 3 seeds → `music_rank.py`. Pick the best accepted seed. `music_gen_ace.py` exit 3 = the
+   - 3 seeds → `music_rank.py` with those 3 files by name (never `bgm_*.wav`: it also ranks
+     the tracks of an earlier source or batch). Pick the best accepted seed. `music_gen_ace.py` exit 3 = the
      GPU ran out of memory: run the same command once with `--device cpu`.
    - If all 3 are rejected: one more batch of 3 new seeds. If that batch is rejected too, simplify
      the prompt once (steadier genre words) and try a last batch. Then stop and show the rank

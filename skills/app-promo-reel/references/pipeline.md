@@ -57,9 +57,10 @@ The user's own track, downloaded by hand (writes `bgm_user.wav` and `bgm_user.so
 ```bash
 $PY $S/music_import.py ~/Downloads/track.mp3 --out $P/work/music --source "<page URL, licence>" --start 12.5
 ```
-Then, for every source:
+Then, for every source, rank the files of this batch by name (`bgm_user.wav` for an own track).
+Never a `bgm_*.wav` glob: it also ranks the tracks left by an earlier source or batch.
 ```bash
-$PY $S/music_rank.py --duration 30 --json $P/work/music/rank.json $P/work/music/bgm_*.wav
+$PY $S/music_rank.py --duration 30 --json $P/work/music/rank.json $P/work/music/bgm_{5,17,23}.wav
 $PY $S/beat_grid.py $P/work/music/bgm_5.wav $P --bpm 122
 $PY $S/make_bed.py $P/work/music/bgm_5.wav $P --drop-bar 6
 ```
