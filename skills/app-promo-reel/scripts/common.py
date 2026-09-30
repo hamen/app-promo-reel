@@ -136,7 +136,7 @@ def media_duration(path):
 def decode_audio(path, sr, mono=True):
     """Decode any audio/video file to float32 numpy samples with ffmpeg."""
     import numpy as np
-    cmd = ["ffmpeg", "-v", "error", "-i", str(path), "-f", "f32le", "-acodec", "pcm_f32le", "-ar", str(sr)]
+    cmd = ["ffmpeg", "-nostdin", "-v", "error", "-i", str(path), "-f", "f32le", "-acodec", "pcm_f32le", "-ar", str(sr)]
     if mono:
         cmd += ["-ac", "1"]
     cmd.append("-")

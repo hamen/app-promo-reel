@@ -503,9 +503,32 @@ def test_a_blank_frame_0_with_an_early_hook_gives_only_the_thumbnail_warning(tmp
 def test_a_commented_out_scene_is_not_a_planned_cut(tmp_path):
     (tmp_path / "index.html").write_text('<section data-start="0"></section><!-- <section data-start="1.0"></section> -->')
     (tmp_path / "beats.json").write_text(json.dumps({"beats": [0.5], "downbeat_phase": 0}))
-    assert finish.scene_starts((tmp_path / "index.html").read_text()) == [0.0]
+    assert finish.scene_starts((tmp_path / "index.html").read_text()) == ([0.0], [])
     r = checks(tmp_path, np.concatenate([texture(1, 30), texture(2, 30)]))
     assert [e["planned"] for e in r["events"]] == [False]
+
+
+@pytest.mark.parametrize("frames_before, planned", [(1, True), (2, True), (3, False)])
+def test_a_beat_up_to_two_frames_before_a_cut_plans_it(tmp_path, frames_before, planned):
+    mp4 = gray_clip(tmp_path, np.concatenate([texture(1, 30), texture(2, 30)]))  # hard switch at frame 30
+    vi = finish.video_info(mp4)
+    dt = vi["duration"] / 60  # the same frame time frame_checks uses
+    marks(tmp_path, (0.0,), (30 * dt - frames_before * dt,))
+    r = finish.frame_checks(tmp_path, mp4, vi)
+    assert [(e["type"], e["time"], e["planned"]) for e in r["events"]] == [("cut", 1.0, planned)]
+
+
+def test_a_bad_data_start_skips_only_its_own_scene(tmp_path):
+    marks(tmp_path, (0.0, "x", "1e999", 1.0))
+    assert finish.scene_starts((tmp_path / "index.html").read_text()) == ([0.0, 1.0], [
+        "index.html: data-start 'x' is not a number: that scene start is not compared with cuts",
+        "index.html: data-start '1e999' is not a number: that scene start is not compared with cuts"])
+    r = checks(tmp_path, np.concatenate([texture(1, 30), texture(2, 30)]))
+    assert [(e["type"], e["time"], e["planned"]) for e in r["events"]] == [("cut", 1.0, True)]
+    assert r["warnings"] == []
+    assert r["notes"] == [
+        "index.html: data-start 'x' is not a number: that scene start is not compared with cuts",
+        "index.html: data-start '1e999' is not a number: that scene start is not compared with cuts"]
 
 
 def test_frame_warnings_reach_stderr(tmp_path, proj, capsys):
