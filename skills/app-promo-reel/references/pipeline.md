@@ -45,7 +45,7 @@ website only. Play facts are best-effort and never guessed.
 
 One source per session (SKILL.md step 3 says which). ACE-Step 1.5, with its own Python:
 ```bash
-$ACESTEP_DIR/.venv/bin/python $S/music_gen_ace.py --bpm 120 --duration 30 --seeds 5,17,23 \
+$ACESTEP_DIR/.venv/bin/python $S/music_gen_ace.py --bpm 122 --duration 30 --seeds 5,17,23 \
   --out $P/work/music --prompt "upbeat indie pop, punchy four on the floor kick, crisp handclaps on the backbeat, bright synth hooks, energetic from the first bar"
 ```
 MusicGen (needs an NVIDIA GPU):
@@ -60,7 +60,7 @@ $PY $S/music_import.py ~/Downloads/track.mp3 --out $P/work/music --source "<page
 Then, for every source:
 ```bash
 $PY $S/music_rank.py --duration 30 --json $P/work/music/rank.json $P/work/music/bgm_*.wav
-$PY $S/beat_grid.py $P/work/music/bgm_5.wav $P --bpm 120
+$PY $S/beat_grid.py $P/work/music/bgm_5.wav $P --bpm 122
 $PY $S/make_bed.py $P/work/music/bgm_5.wav $P --drop-bar 6
 ```
 - One music generator at a time (either script); exit 2 = a hard failure, no file written.
@@ -71,6 +71,11 @@ $PY $S/make_bed.py $P/work/music/bgm_5.wav $P --drop-bar 6
   ~120 bpm a 30 s video has 15 bars — the template's scenes assume bars 0-14. ACE-Step takes the
   tempo as `--bpm`: its prompt names genre and instruments, no tempo words. A MusicGen prompt
   names the tempo, a steady kick, and "clear steady beat".
+- ACE-Step, measured on 9 seeds: at 120 bpm all 3 passed the rank gate, but their first bar
+  starts late (1.48-2.04 s), so the stock template's last line lands under 1.1 s before the end
+  and build.py stops; at 122 bpm 2 of 3 passed and one fitted; at 124 bpm none passed (the
+  tempo drifted to 125-127). Start at 122; when build.py stops with the re-map message, take
+  the next seed or re-map the scenes to fewer bars.
 - `beat_grid.py --bpm`: the value asked of ACE-Step; for MusicGen and an own track, the `tempo`
   column of the rank table. When beat_grid stops ("the grid came out at X BPM") it writes
   nothing: count the seed as rejected and never run make_bed on it.
