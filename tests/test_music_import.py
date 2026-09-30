@@ -60,7 +60,7 @@ def test_only_a_local_file_is_taken(tmp_path, capsys, what):
     assert not (tmp_path / "work").exists()
 
 
-@pytest.mark.parametrize("start", ["-1", "nan", "inf"])
+@pytest.mark.parametrize("start", ["-1", "nan", "inf", "12s"])
 def test_start_must_be_a_time_in_the_track(tmp_path, start):
     assert run(mp3(tmp_path), "--out", tmp_path / "work", "--source", "x", "--start", start) == 2
     assert not (tmp_path / "work").exists()
@@ -79,6 +79,30 @@ def old_import(out):
     out.mkdir()
     (out / "bgm_user.wav").write_bytes(b"the previous track")
     (out / "bgm_user.source.txt").write_text("file: old.mp3\n")
+
+
+@pytest.mark.parametrize("bad", ["url", "dir", "missing", "no-source", "blank-source", "start-negative",
+                                 "start-nan", "start-text"])
+def test_bad_input_also_clears_the_old_import(tmp_path, bad):
+    out, src = tmp_path / "work", mp3(tmp_path)
+    old_import(out)
+    (out / ".partial-user.wav").write_bytes(b"half a file")
+    file = {"url": "https://example.com/track.mp3", "dir": tmp_path, "missing": tmp_path / "nope.mp3"}.get(bad, src)
+    args = [file, "--out", out]
+    if bad != "no-source":
+        args += ["--source", "   " if bad == "blank-source" else "x"]
+    start = {"start-negative": "-1", "start-nan": "nan", "start-text": "12s"}.get(bad)
+    if start:
+        args += ["--start", start]
+    assert run(*args) == 2
+    assert list(out.iterdir()) == []
+
+
+def test_an_out_that_is_a_file_exits_2(tmp_path, capsys):
+    out = tmp_path / "work"
+    out.write_text("not a folder")
+    assert run(mp3(tmp_path), "--out", out, "--source", "x") == 2
+    assert "cannot clear the old import" in capsys.readouterr().err
 
 
 def test_a_start_past_the_end_fails_and_leaves_no_track(tmp_path, capsys):
