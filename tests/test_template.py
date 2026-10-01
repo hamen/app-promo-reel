@@ -5,12 +5,13 @@ import re
 import numpy as np
 import pytest
 
-from conftest import run_script, steady_grid
+from conftest import TEMPLATE, run_script, steady_grid
 
 
-def build(tmp_path, stores="app_store,google_play", edit=None, grid=None, expect=0):
+def build(tmp_path, stores="app_store,google_play", edit=None, grid=None, expect=0, fmt="9:16"):
     out = tmp_path / "out"
-    r = run_script("new_project.py", "--app", "demo", "--variant", "a", "--out", out, "--force", "--stores", stores)
+    r = run_script("new_project.py", "--app", "demo", "--variant", "a", "--out", out, "--force", "--stores", stores,
+                   "--format", fmt)
     assert r.returncode == 0, r.stderr
     p = out / "demo-a"
     (p / "beats.json").write_text(json.dumps(grid or steady_grid(first=0.7, iv=0.5, n=64, phase=1)))
@@ -210,3 +211,35 @@ def test_hook_is_static_from_frame_zero(tmp_path):
         assert f'punch("#hook-words", {beat}' in s1
         assert f'shake("#s1-cam", {beat}' in s1
         assert f"flash({beat}" in s1
+
+
+@pytest.mark.parametrize("fmt, w, h, scale", [("9:16", 1080, 1920, "1"), ("4:5", 1080, 1350, "0.703125")])
+def test_the_page_takes_its_size_from_the_format(tmp_path, fmt, w, h, scale):
+    _, html = build(tmp_path, fmt=fmt)
+    assert f'<meta name="viewport" content="width={w}, height={h}" />' in html
+    assert re.search(rf"html,\s*body \{{\s*width: {w}px;\s*height: {h}px;", html)
+    assert re.search(rf'id="root"[^>]*data-width="{w}" data-height="{h}" data-format="{fmt}"', html)
+    assert f"const FRAME_SCALE = {scale};" in html
+
+
+def test_the_template_fixes_no_frame_height():
+    # the 9:16 height lives in common.py and reaches the page only through the size tokens
+    assert "1920" not in (TEMPLATE / "src.html.tmpl").read_text()
+
+
+def test_the_4x5_layer_keeps_the_tap_point_on_the_phone(tmp_path):
+    # the tap point sits outside the phone's wrapper, so it is mapped by hand: it must follow the
+    # wrapper's transform, or the ring lands off the button
+    _, html = build(tmp_path, fmt="4:5")
+    css = html.split("<style", 1)[1].split("</style>", 1)[0]
+    fit = re.search(r'#root\[data-format="4:5"\] \.phone-fit \{([^}]*)\}', css).group(1)
+    dy, k = map(float, re.search(r"translateY\((-?[\d.]+)px\) scale\(([\d.]+)\)", fit).groups())
+    ox, oy = map(float, re.search(r"transform-origin: ([\d.]+)px ([\d.]+)px", fit).group(1, 2))
+    x9, y9 = (float(re.search(rf"--tap-{a}: ([\d.]+)px", css).group(1)) for a in "xy")
+    y45 = float(re.search(r'#root\[data-format="4:5"\] \{[^}]*--tap-y: ([\d.]+)px', css).group(1))
+    assert "--tap-x" not in css.split('data-format="4:5"', 1)[1]  # x is on the transform's axis
+    assert x9 == ox and abs(oy + (y9 - oy) * k + dy - y45) <= 0.5
+    # a transformed wrapper breaks the perspective of .scene: it must carry its own
+    assert re.search(r"perspective: \d+px", fit)
+    # in 9:16 the wrapper has no box, so the 9:16 page renders as before it existed
+    assert re.search(r"\n      \.phone-fit \{\s*display: contents;\s*\}", css)

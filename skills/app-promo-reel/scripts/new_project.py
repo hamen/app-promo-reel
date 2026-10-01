@@ -8,8 +8,10 @@ in it are COPIED (not linked) into assets/audio/ so the renderer sees real files
 The default <out> is ~/app-promo-reels. An <out> inside a git work tree is refused unless
 --force; an <out> inside the app-promo-reel repo itself is always refused.
 
-Usage: new_project.py --app my-app --variant a [--out DIR] [--lang en]
+Usage: new_project.py --app my-app --variant a [--out DIR] [--lang en] [--format 9:16|4:5]
                       [--stores app_store,google_play] [--duration 30] [--force]
+--format: 9:16 (1080x1920, Reels / TikTok / Shorts / Stories, the default) or 4:5 (1080x1350,
+a feed post). It sets format, width and height in project.json and the DESIGN.md header.
 """
 import argparse
 import json
@@ -21,7 +23,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from common import KNOWN_STORES, PROJECT_DEFAULTS, die  # noqa: E402
+from common import FORMATS, KNOWN_STORES, PROJECT_DEFAULTS, die  # noqa: E402
 
 SKILL_DIR = Path(__file__).resolve().parent.parent
 TEMPLATE = SKILL_DIR / "template"
@@ -67,12 +69,15 @@ def check_out_dir(out, force):
             f"(use --force if you are sure)")
 
 
-def scaffold(app, variant, out, lang="en", stores=None, duration=None, force=False, sfx_dir=None):
+def scaffold(app, variant, out, lang="en", stores=None, duration=None, force=False, sfx_dir=None,
+             fmt="9:16"):
     if not re.fullmatch(r"[a-z0-9][a-z0-9-]*", app) or not re.fullmatch(r"[a-z0-9][a-z0-9-]*", variant):
         die("--app and --variant must be lowercase slugs (a-z, 0-9, -)")
     stores = stores or list(PROJECT_DEFAULTS["stores"])
     if not stores or any(s not in KNOWN_STORES for s in stores):
         die(f"--stores must be a non-empty subset of {list(KNOWN_STORES)}")
+    if fmt not in FORMATS:
+        die(f"--format must be one of {', '.join(FORMATS)}")
     if duration is not None and duration <= 1:
         die("--duration must be above 1 second")
     out = Path(out).expanduser()
@@ -83,12 +88,15 @@ def scaffold(app, variant, out, lang="en", stores=None, duration=None, force=Fal
     dest.mkdir(parents=True)
     for name in ("src.html.tmpl", "hyperframes.json", "cues.json"):
         shutil.copy2(TEMPLATE / name, dest / name)
-    shutil.copy2(TEMPLATE / "DESIGN.md.tmpl", dest / "DESIGN.md")
+    design = (TEMPLATE / "DESIGN.md.tmpl").read_text()
+    (dest / "DESIGN.md").write_text(design.replace("<format>", fmt, 1))
     pkg = json.loads((TEMPLATE / "package.json").read_text())
     pkg["name"] = f"{app}-{variant}-reel"
     (dest / "package.json").write_text(json.dumps(pkg, indent=2) + "\n")
     project = json.loads((TEMPLATE / "project.json").read_text())
-    project.update({"app": app, "variant": variant, "lang": lang, "stores": stores})
+    width, height = FORMATS[fmt]
+    project.update({"app": app, "variant": variant, "lang": lang, "format": fmt, "width": width,
+                    "height": height, "stores": stores})
     if duration is not None:
         project["duration"] = duration
     (dest / "project.json").write_text(json.dumps(project, indent=2) + "\n")
@@ -109,6 +117,7 @@ def main():
     ap.add_argument("--variant", required=True)
     ap.add_argument("--out", default="~/app-promo-reels")
     ap.add_argument("--lang", default="en")
+    ap.add_argument("--format", default="9:16", choices=tuple(FORMATS))
     ap.add_argument("--stores", default="app_store,google_play")
     ap.add_argument("--duration", type=float)
     ap.add_argument("--force", action="store_true")
@@ -116,7 +125,8 @@ def main():
     sfx = os.environ.get("SFX_DIR")
     if sfx and not Path(sfx).expanduser().is_dir():
         die(f"SFX_DIR={sfx} is not a folder")
-    dest, copied = scaffold(a.app, a.variant, a.out, a.lang, a.stores.split(","), a.duration, a.force, sfx)
+    dest, copied = scaffold(a.app, a.variant, a.out, a.lang, a.stores.split(","), a.duration, a.force, sfx,
+                            a.format)
     print(f"created {dest}")
     print(f"copied {copied} SFX files from $SFX_DIR" if sfx else
           "no $SFX_DIR: the reel builds without SFX (cues are skipped with a warning)")

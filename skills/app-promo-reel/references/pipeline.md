@@ -20,14 +20,20 @@ pickup beats before it); `beat` is 0-based inside the bar; `beats_per_bar` is in
 ## 1. Scaffold
 
 ```bash
-SFX_DIR=~/my-sfx $PY $S/new_project.py --app myapp --variant a --lang en --stores <STORES>
+SFX_DIR=~/my-sfx $PY $S/new_project.py --app myapp --variant a --lang en --stores <STORES> --format 9:16
 ```
 `<STORES>` is the stores the app is really on: `app_store`, `google_play`, or
 `app_store,google_play`. The default (both) is wrong for a single-store app: its end card
 would show a badge for a store the app is not in.
 Default out folder `~/app-promo-reels`. Refuses a folder inside a git work tree (use `--force`
 if you are sure) and always refuses the app-promo-reel repo itself. project.json is the one
-place for duration, fps, size, beats per bar and stores.
+place for duration, fps, format, beats per bar and stores.
+`--format`: `9:16` (1080x1920; Reels, TikTok, Shorts, Stories; the default) or `4:5` (1080x1350; a
+feed post). The format sets the frame size: width and height in project.json must match it, and
+finish.py fails a render of another size. The template is the same for both: a `4:5` layer at the
+end of its CSS moves only what depends on the frame height (the phone at 0.66, the hook card, the
+captions). Pixel distances in motion (the camera shake) scale with `{{FRAME_SCALE}}`. A new
+format for an existing variant is a new project: its copy of the template was built for its size.
 
 ## 2. Research
 

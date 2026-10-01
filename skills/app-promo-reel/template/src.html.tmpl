@@ -4,7 +4,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=1080, height=1920" />
+    <meta name="viewport" content="width={{WIDTH}}, height={{HEIGHT}}" />
     <title>App promo reel</title>
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
     <script>
@@ -78,12 +78,15 @@
       }
       html,
       body {
-        width: 1080px;
-        height: 1920px;
+        width: {{WIDTH}}px;
+        height: {{HEIGHT}}px;
         overflow: hidden;
         background: var(--bg-deep);
       }
       #root {
+        /* the tap point on the phone's button, in frame coordinates (the 4:5 layer maps it) */
+        --tap-x: 540px;
+        --tap-y: 1640px;
         position: relative;
         width: 100%;
         height: 100%;
@@ -255,6 +258,11 @@
         line-height: 1.08;
         color: var(--ink);
         opacity: 0;
+      }
+      /* holds #phone only: no box in 9:16; the 4:5 layer scales it (caption and tap points stay
+         outside, in frame coordinates) */
+      .phone-fit {
+        display: contents;
       }
       #phone {
         position: absolute;
@@ -433,6 +441,34 @@
         color: var(--ink);
         opacity: 0.8;
       }
+
+      /* ---------- 4:5 feed (1080x1350): only the numbers that depend on the frame height ---------- */
+      #root[data-format="4:5"] {
+        --tap-y: 1095px; /* 250 + (1640 - 360) x 0.66: the 9:16 tap point through the phone's transform */
+      }
+      #root[data-format="4:5"] #bg-glow {
+        top: 225px;
+      }
+      #root[data-format="4:5"] #hook-words {
+        padding-bottom: 300px;
+      }
+      #root[data-format="4:5"] #hero {
+        bottom: 90px;
+      }
+      #root[data-format="4:5"] #caption {
+        top: 40px;
+      }
+      /* the phone at 0.66, its top edge at y 250 and its bottom at y 1240, above the AI label. The
+         transform breaks the perspective of .scene, so the wrapper carries it: the 9:16 projection */
+      #root[data-format="4:5"] .phone-fit {
+        display: block;
+        position: absolute;
+        inset: 0;
+        transform: translateY(-110px) scale(0.66);
+        transform-origin: 540px 360px;
+        perspective: 1800px;
+        perspective-origin: 540px 960px;
+      }
     </style>
   </head>
   <body>
@@ -443,7 +479,7 @@
       </defs>
     </svg>
 
-    <div id="root" data-composition-id="main" data-start="0" data-width="1080" data-height="1920" data-duration="{{DURATION}}">
+    <div id="root" data-composition-id="main" data-start="0" data-width="{{WIDTH}}" data-height="{{HEIGHT}}" data-format="{{FORMAT}}" data-duration="{{DURATION}}">
       <div id="bg">
         <div id="bg-main" class="bgl"></div>
         <div id="bg-light" class="bgl"></div>
@@ -481,28 +517,30 @@
             <div class="cap" id="cap-a" data-cfg="screens.0.caption"></div>
             <div class="cap" id="cap-b" data-cfg="screens.1.caption"></div>
           </div>
-          <div id="phone">
-            <div id="screen">
-              <div class="scr" id="scr-a">
-                <h5 data-cfg="screens.0.title"></h5>
-                <div class="card" id="a-row-0"><div class="tile"></div><div><h6 data-cfg="screens.0.rows.0.title"></h6><div class="sub" data-cfg="screens.0.rows.0.sub"></div><div class="chip" data-cfg="screens.0.rows.0.chip"></div></div></div>
-                <div class="card" id="a-row-1"><div class="tile"></div><div><h6 data-cfg="screens.0.rows.1.title"></h6><div class="sub" data-cfg="screens.0.rows.1.sub"></div><div class="chip" data-cfg="screens.0.rows.1.chip"></div></div></div>
-                <div class="card" id="a-row-2"><div class="tile"></div><div><h6 data-cfg="screens.0.rows.2.title"></h6><div class="sub" data-cfg="screens.0.rows.2.sub"></div><div class="chip" data-cfg="screens.0.rows.2.chip"></div></div></div>
-                <div class="btn" id="a-btn" data-cfg="screens.0.button"></div>
-              </div>
-              <div class="scr" id="scr-b">
-                <h5 data-cfg="screens.1.title"></h5>
-                <div class="card" id="b-row-0"><div class="tile"></div><div><h6 data-cfg="screens.1.rows.0.title"></h6><div class="sub" data-cfg="screens.1.rows.0.sub"></div><div class="chip" data-cfg="screens.1.rows.0.chip"></div></div></div>
-                <div class="card" id="b-row-1"><div class="tile"></div><div><h6 data-cfg="screens.1.rows.1.title"></h6><div class="sub" data-cfg="screens.1.rows.1.sub"></div><div class="chip" data-cfg="screens.1.rows.1.chip"></div></div></div>
-                <div class="card" id="b-row-2"><div class="tile"></div><div><h6 data-cfg="screens.1.rows.2.title"></h6><div class="sub" data-cfg="screens.1.rows.2.sub"></div><div class="chip" data-cfg="screens.1.rows.2.chip"></div></div></div>
-                <div class="btn" id="b-btn" data-cfg="screens.1.button"></div>
+          <div class="phone-fit">
+            <div id="phone">
+              <div id="screen">
+                <div class="scr" id="scr-a">
+                  <h5 data-cfg="screens.0.title"></h5>
+                  <div class="card" id="a-row-0"><div class="tile"></div><div><h6 data-cfg="screens.0.rows.0.title"></h6><div class="sub" data-cfg="screens.0.rows.0.sub"></div><div class="chip" data-cfg="screens.0.rows.0.chip"></div></div></div>
+                  <div class="card" id="a-row-1"><div class="tile"></div><div><h6 data-cfg="screens.0.rows.1.title"></h6><div class="sub" data-cfg="screens.0.rows.1.sub"></div><div class="chip" data-cfg="screens.0.rows.1.chip"></div></div></div>
+                  <div class="card" id="a-row-2"><div class="tile"></div><div><h6 data-cfg="screens.0.rows.2.title"></h6><div class="sub" data-cfg="screens.0.rows.2.sub"></div><div class="chip" data-cfg="screens.0.rows.2.chip"></div></div></div>
+                  <div class="btn" id="a-btn" data-cfg="screens.0.button"></div>
+                </div>
+                <div class="scr" id="scr-b">
+                  <h5 data-cfg="screens.1.title"></h5>
+                  <div class="card" id="b-row-0"><div class="tile"></div><div><h6 data-cfg="screens.1.rows.0.title"></h6><div class="sub" data-cfg="screens.1.rows.0.sub"></div><div class="chip" data-cfg="screens.1.rows.0.chip"></div></div></div>
+                  <div class="card" id="b-row-1"><div class="tile"></div><div><h6 data-cfg="screens.1.rows.1.title"></h6><div class="sub" data-cfg="screens.1.rows.1.sub"></div><div class="chip" data-cfg="screens.1.rows.1.chip"></div></div></div>
+                  <div class="card" id="b-row-2"><div class="tile"></div><div><h6 data-cfg="screens.1.rows.2.title"></h6><div class="sub" data-cfg="screens.1.rows.2.sub"></div><div class="chip" data-cfg="screens.1.rows.2.chip"></div></div></div>
+                  <div class="btn" id="b-btn" data-cfg="screens.1.button"></div>
+                </div>
               </div>
             </div>
           </div>
-          <div class="tapdot" id="tap-a" style="left: 540px; top: 1640px"></div>
-          <div class="tapring" id="ring-a" style="left: 540px; top: 1640px"></div>
-          <div class="tapdot" id="tap-b" style="left: 540px; top: 1640px"></div>
-          <div class="tapring" id="ring-b" style="left: 540px; top: 1640px"></div>
+          <div class="tapdot" id="tap-a" style="left: var(--tap-x); top: var(--tap-y)"></div>
+          <div class="tapring" id="ring-a" style="left: var(--tap-x); top: var(--tap-y)"></div>
+          <div class="tapdot" id="tap-b" style="left: var(--tap-x); top: var(--tap-y)"></div>
+          <div class="tapring" id="ring-b" style="left: var(--tap-x); top: var(--tap-y)"></div>
         </div>
       </section>
 
@@ -621,8 +659,12 @@
       // ---------- helpers (HyperFrames 0.8.78 gotchas built in) ----------
       // Every fromTo whose from-state is visible uses immediateRender:false, or it shows at t=0.
       const tl = gsap.timeline({ paused: true });
-      const shake = (sel, t, amp = 18) =>
-        tl.fromTo(sel, { x: 0, y: 0 }, { keyframes: { x: [0, -amp, amp * 0.8, -amp * 0.5, amp * 0.3, 0], y: [0, amp * 0.6, -amp * 0.5, amp * 0.3, -amp * 0.1, 0] }, duration: 0.3, ease: "none", immediateRender: false }, t);
+      // amp is in 9:16 pixels; FRAME_SCALE keeps the shake the same share of a shorter frame
+      const FRAME_SCALE = {{FRAME_SCALE}};
+      const shake = (sel, t, amp = 18) => {
+        const a = amp * FRAME_SCALE;
+        return tl.fromTo(sel, { x: 0, y: 0 }, { keyframes: { x: [0, -a, a * 0.8, -a * 0.5, a * 0.3, 0], y: [0, a * 0.6, -a * 0.5, a * 0.3, -a * 0.1, 0] }, duration: 0.3, ease: "none", immediateRender: false }, t);
+      };
       const punch = (sel, t, s = 1.06) => tl.fromTo(sel, { scale: s }, { scale: 1, duration: 0.45, ease: "power3.out", immediateRender: false }, t);
       const flash = (t, peak = 0.6, dur = 0.35) =>
         tl.fromTo("#flash", { opacity: peak }, { opacity: 0, duration: dur, ease: "power2.out", immediateRender: false }, t);

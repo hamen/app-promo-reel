@@ -1,7 +1,7 @@
 # app-promo-reel
 
 A [Claude Code](https://claude.com/claude-code) skill that makes beat-synced 30-second
-vertical (9:16) promo reels for a mobile app:
+promo reels for a mobile app, vertical (9:16) or for the feed (4:5):
 
 - music generated locally with ACE-Step 1.5 (or MusicGen), or your own track; ranked, and a
   beat grid locked to the kick;
@@ -14,8 +14,9 @@ It **only generates video files.** It does not post, upload, schedule or send an
 
 ## What the agent does
 
-See [`skills/app-promo-reel/SKILL.md`](skills/app-promo-reel/SKILL.md). In short: research the
-app (site, stores, app strings) → write a design spec with the allowed claims → generate (or
+See [`skills/app-promo-reel/SKILL.md`](skills/app-promo-reel/SKILL.md). In short: scaffold one
+project per variant, in its format (9:16 or 4:5) → research the app (site, stores, app strings)
+→ write a design spec with the allowed claims → generate (or
 import) and rank music → beat grid → storyboard on bars → build, check, snapshot, render → finish and verify.
 The skill has hard truthfulness rules: no invented ratings, numbers, people or features, and an
 "AI-generated" label on screen for the whole video.

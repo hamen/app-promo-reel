@@ -1,6 +1,6 @@
 ---
 name: app-promo-reel
-description: Generate beat-synced 30 s vertical (9:16) promo reels for a mobile app — music from ACE-Step 1.5, MusicGen or the user's own track, a kick-locked beat grid, the app's real UI rebuilt as HTML, HyperFrames render, loudness and sync checks. Use when the user asks for promo / social / showreel videos of an app. Generation only; it never posts or uploads anything.
+description: Generate beat-synced 30 s vertical (9:16) or feed (4:5) promo reels for a mobile app — music from ACE-Step 1.5, MusicGen or the user's own track, a kick-locked beat grid, the app's real UI rebuilt as HTML, HyperFrames render, loudness and sync checks. Use when the user asks for promo / social / showreel videos of an app. Generation only; it never posts or uploads anything.
 ---
 
 # app-promo-reel
@@ -37,6 +37,8 @@ Detail: `references/copy-rules.md`.
 - App name; website URL; App Store id and/or Google Play package; storefront country.
 - Language of the copy (can differ from the storefront country).
 - N variants (default 2); output folder (default `~/app-promo-reels`).
+- Format per variant: `9:16` (Reels, TikTok, Shorts, Stories; the default) or `4:5` (a feed
+  post, which starts muted).
 - Optional: a local path to the app's source repo (read-only), a folder of SFX (`$SFX_DIR`),
   and the user's own brand notes / memory system for app-specific rules.
 
@@ -44,10 +46,11 @@ Detail: `references/copy-rules.md`.
 
 Commands for every step: `references/pipeline.md`.
 
-1. **Scaffold.** `new_project.py --app <slug> --variant <a|b|…> --stores <stores>` once per
-   variant. `--stores` lists only the stores the app is really on (`app_store`, `google_play`
-   or both): the default is both, which puts a false badge on a single-store app's end card.
-   Each variant is its own folder and renders on its own.
+1. **Scaffold.** `new_project.py --app <slug> --variant <a|b|…> --stores <stores>
+   --format <9:16|4:5>` once per variant. `--stores` lists only the stores the app is really on
+   (`app_store`, `google_play` or both): the default is both, which puts a false badge on a
+   single-store app's end card. `--format` is the variant's format (inputs above). Each variant
+   is its own folder and renders on its own.
 2. **Research, then DESIGN.md — before any copy.**
    - `store_assets.py` (screenshots, listing text, Play labels).
    - The website: copy, CSS colours, fonts.
