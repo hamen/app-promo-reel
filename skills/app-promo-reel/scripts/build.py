@@ -15,7 +15,7 @@ Tokens (the `{{ }}` delimiter never appears in CSS, so @font-face/@media/@keyfra
   {{DURATION}}                 from project.json
   {{STORES}}                   JSON array of the project's stores (project.json)
   {{WIDTH}} / {{HEIGHT}}       the frame size of the project's format (project.json)
-  {{FORMAT}}                   the format: 9:16 or 4:5
+  {{FORMAT}}                   the format: 9:16, 4:5 or 16:9
   {{FRAME_SCALE}}              the frame height divided by the 9:16 height (1 for 9:16): scales
                                pixel distances, e.g. a camera shake, to the frame
 
@@ -26,6 +26,11 @@ expression), offset (s, default 0), volume (default 0.5), align ("attack" defaul
 sound's audible attack lands on `at`, skipping any leading silence in the file; "start": the
 file starts at `at`; "end": the sound ends at `at`, e.g. a riser tail into the drop), sync
 (default true, false for align "end": finish.py checks only cues with a sharp attack).
+
+A silent format (16:9, a web hero) has no beat grid and no sound: no beats.json is read, every
+beat token (D, E, LEN, TO_END, BEFORE_END, BEATS, DOWNBEAT_INDEX, BEATS_PER_BAR, and D()/E() inside
+calc) exits 2, cues in cues.json or an <audio>/<video> tag in the page exit 2, and cues.realized.json
+is written as an empty list. Time the scenes with {{DURATION}} and {{calc DURATION*0.4}}.
 
 Usage: build.py <project_dir>
 """
@@ -40,7 +45,8 @@ import unicodedata
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from common import FORMATS, Grid, attack_seconds, die, is_number, load_project, media_duration, read_json  # noqa: E402
+from common import (FORMATS, SILENT_FORMATS, Grid, attack_seconds, die, is_number, is_silent,  # noqa: E402
+                    load_project, media_duration, read_json)
 
 TOKEN = re.compile(r"\{\{\s*([A-Za-z_]+)\s*(.*?)\s*\}\}", re.S)
 SFX_FIRST_TRACK = 21
@@ -49,6 +55,11 @@ _OPS = {ast.Add: operator.add, ast.Sub: operator.sub, ast.Mult: operator.mul, as
 
 class CalcError(ValueError):
     pass
+
+
+BEAT_TOKENS = ("D", "E", "LEN", "TO_END", "BEFORE_END", "BEATS", "DOWNBEAT_INDEX", "BEATS_PER_BAR")
+NO_GRID = (f"{', '.join(SILENT_FORMATS)} is silent and has no beat grid: time the scenes with "
+           f"{{{{DURATION}}}} (for example {{{{calc DURATION*0.4}}}})")
 
 
 def calc(expr, grid, duration):
@@ -72,6 +83,8 @@ def calc(expr, grid, duration):
             return duration
         if (isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in ("D", "E")
                 and not node.keywords and 1 <= len(node.args) <= 2):
+            if grid is None:
+                raise CalcError(NO_GRID)
             args = [ev(a) for a in node.args]
             if any(a != int(a) for a in args):
                 raise CalcError(f"{node.func.id}() takes whole numbers in {expr!r}")
@@ -96,6 +109,8 @@ def substitute(src, grid, project):
 
     def sub(m):
         name, args = m.group(1), m.group(2)
+        if grid is None and name in BEAT_TOKENS:
+            raise CalcError(NO_GRID)
         if name in ("D", "E"):
             return f"{getattr(grid, name)(*_ints(name, args, 1, 2)):.3f}"
         if name == "LEN":
@@ -355,6 +370,17 @@ def add_ai_label_guard(html_out):
     return html_out[:end] + guard + html_out[end:]
 
 
+def check_silent(html_out, cues_doc, fmt):
+    """A silent format carries no sound: no cues, and no <audio> or <video> in the page (the render
+    would put it in the file; finish.py strips audio too, this stops it before the render)."""
+    if cues_doc.get("cues"):
+        die(f"{fmt} is silent: cues.json has cues. Empty the cue list (or delete cues.json)")
+    live = re.sub(r"<!--.*?-->", "", html_out, flags=re.S)
+    tag = re.search(r"<(audio|video)\b", live, re.I)
+    if tag:
+        die(f"{fmt} is silent: the page has a <{tag.group(1).lower()}> tag. Remove it")
+
+
 def build(project_dir):
     project_dir = Path(project_dir)
     # a build that fails, for any reason, must not leave the previous build behind for a render
@@ -363,10 +389,11 @@ def build(project_dir):
     project = load_project(project_dir)
     tmpl = project_dir / "src.html.tmpl"
     beats = project_dir / "beats.json"
-    for p in (tmpl, beats):
+    silent = is_silent(project)
+    for p in (tmpl,) if silent else (tmpl, beats):
         if not p.is_file():
             die(f"{p} not found")
-    grid = Grid.load(beats, project["beats_per_bar"])
+    grid = None if silent else Grid.load(beats, project["beats_per_bar"])
     try:
         src = tmpl.read_text(encoding="utf-8")
     except UnicodeDecodeError as e:
@@ -374,7 +401,11 @@ def build(project_dir):
     out = substitute(src, grid, project)
     cues_path = project_dir / "cues.json"
     cues_doc = read_json(cues_path) if cues_path.is_file() else {}
-    lines, realized = sfx_tags(project_dir, cues_doc, grid, project["duration"])
+    if silent:
+        check_silent(out, cues_doc, project["format"])
+        lines, realized = [], []
+    else:
+        lines, realized = sfx_tags(project_dir, cues_doc, grid, project["duration"])
     if out.count("<!--SFX-->") > 1:
         die("src.html.tmpl has more than one <!--SFX--> marker: every sound would play twice")
     if "<!--SFX-->" in out:
@@ -386,6 +417,9 @@ def build(project_dir):
     out = add_ai_label_guard(out)
     (project_dir / "index.html").write_text(out)
     (project_dir / "cues.realized.json").write_text(json.dumps(realized, indent=1) + "\n")
+    if silent:
+        print(f"built {project_dir / 'index.html'}: silent {project['format']} loop, {project['duration']:g} s")
+        return
     print(f"built {project_dir / 'index.html'}: {len(realized)} SFX cues mixed; downbeats "
           f"{[round(b, 2) for b in grid.beats[grid.first::grid.bpb]]}")
 

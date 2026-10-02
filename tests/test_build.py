@@ -360,8 +360,9 @@ def test_the_size_comes_from_the_format(tmp_path, doc, size):
 
 
 @pytest.mark.parametrize("doc, msg", [
-    ({"format": "1:1"}, "format must be one of 9:16, 4:5, got '1:1'\n"),
-    ({"format": "16:9"}, "(it comes in a later version)"),
+    ({"format": "1:1"}, "format must be one of 9:16, 4:5, 16:9, got '1:1'\n"),
+    ({"format": "16:9", "duration": 3}, "a 16:9 loop needs a duration of at least 4 s"),
+    ({"format": "16:9", "width": 1080}, "format 16:9 is 1920x1080, but the file says width 1080"),
     ({"format": ["4:5"]}, "format must be one of"),
     ({"format": {"4:5": 1}}, "format must be one of"),
     ({"format": "4:5", "height": 1920}, "format 4:5 is 1080x1350, but the file says height 1920"),
@@ -375,7 +376,7 @@ def test_a_bad_format_or_a_size_against_it_exits_2(tmp_path, doc, msg):
     assert r.returncode == 2 and msg in r.stderr and "Traceback" not in r.stderr, r.stderr
 
 
-@pytest.mark.parametrize("fmt, want", [("9:16", "1080 1920 9:16 1"), ("4:5", "1080 1350 4:5 0.703125")])
+@pytest.mark.parametrize("fmt, want", [("9:16", "1080 1920 9:16 1"), ("4:5", "1080 1350 4:5 0.703125"), ("16:9", "1920 1080 16:9 0.5625")])
 def test_size_tokens_come_from_the_format(tmp_path, fmt, want):
     from common import load_project
     (tmp_path / "project.json").write_text(json.dumps({"app": "x", "variant": "a", "format": fmt}))
