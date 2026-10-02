@@ -1,7 +1,8 @@
 # app-promo-reel
 
 A [Claude Code](https://claude.com/claude-code) skill that makes beat-synced 30-second
-promo reels for a mobile app, vertical (9:16) or for the feed (4:5):
+promo reels for a mobile app, vertical (9:16) or for the feed (4:5), and a silent 16:9 loop for a
+web hero:
 
 - music generated locally with ACE-Step 1.5 (or MusicGen), or your own track; ranked, and a
   beat grid locked to the kick;
@@ -9,6 +10,10 @@ promo reels for a mobile app, vertical (9:16) or for the feed (4:5):
 - every cut, word and sound effect placed on a beat, rendered with
   [HyperFrames](https://hyperframes.heygen.com) (GSAP timeline in a headless browser);
 - loudness normalised to -14 LUFS, audio/video sync checked, versioned MP4 output.
+
+The 16:9 hero is a different product: 8 seconds, no music, no sound at all, and a seamless loop. The
+last frame flows into the first, and `finish.py` measures that seam. Details:
+[`references/hero.md`](skills/app-promo-reel/references/hero.md).
 
 It **only generates video files.** It does not post, upload, schedule or send anything.
 
@@ -31,7 +36,7 @@ on screen for the whole video.
 ## What the agent does
 
 See [`skills/app-promo-reel/SKILL.md`](skills/app-promo-reel/SKILL.md). In short: scaffold one
-project per variant, in its format (9:16 or 4:5) → research the app (site, stores, app strings)
+project per variant, in its format (9:16, 4:5 or 16:9) → research the app (site, stores, app strings)
 → write a design spec with the allowed claims → generate (or
 import) and rank music → beat grid → storyboard on bars → build, check, snapshot, render → finish and verify.
 The skill has hard truthfulness rules: no invented ratings, numbers, people or features, and an
