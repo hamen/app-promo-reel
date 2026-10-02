@@ -308,7 +308,7 @@
           <div id="headline">
             <div class="hl-line" data-cfg="headline.0"></div>
             <div class="hl-line" data-cfg="headline.1"></div>
-            <div class="hl-line" data-cfg="headline.2"></div>
+            <div class="hl-line" data-cfg="headline.2" data-optional></div>
           </div>
           <div id="sub" data-cfg="sub"></div>
         </div>
@@ -358,9 +358,13 @@
         if (v === undefined) throw new Error(`CONFIG has no value for "${path}"`);
         return v;
       };
+      // an optional element (a headline of two lines has no third) is empty when its value is missing
+      const cfgOpt = (path) => {
+        try { return cfgGet(path); } catch (e) { return ""; }
+      };
       // an empty string hides the element (e.g. a screen with no bottom button, a row with no chip)
       document.querySelectorAll("[data-cfg]").forEach((el) => {
-        const v = String(cfgGet(el.dataset.cfg));
+        const v = el.hasAttribute("data-optional") ? String(cfgOpt(el.dataset.cfg)) : String(cfgGet(el.dataset.cfg));
         el.textContent = v;
         if (v === "") el.style.display = "none";
       });

@@ -504,18 +504,38 @@ def contact_sheet_times(project, vi_out, frames):
 
 
 def _checks_silent(pdir, project, raw_mp4, checking, sheet, frames):
-    """The checks of a silent loop (see the module docstring). Same return as _checks."""
-    run(["ffmpeg", "-nostdin", "-v", "error", "-n", "-i", str(raw_mp4), "-map", "0:v:0", "-c:v", "copy", "-an",
-         "-movflags", "+faststart", str(checking)])
-    vi_raw, vi_out = video_info(raw_mp4), video_info(checking)
-    problems = picture_problems(project, vi_raw, vi_out)
-    if has_audio_stream(checking):
-        problems.append("the output has an audio stream: a silent format must not")
-    contact_sheet(checking, contact_sheet_times(project, vi_out, frames), sheet)
+    """The checks of a silent loop (see the module docstring). Same return as _checks. A clip that
+    cannot be copied, probed or decoded is a problem in the report, never an unreported crash: the
+    seam is the whole contract of the format, and an unchecked seam is not a pass."""
+    problems = []
+    vi_out = None
+    try:
+        run(["ffmpeg", "-nostdin", "-v", "error", "-n", "-i", str(raw_mp4), "-map", "0:v:0", "-c:v", "copy", "-an",
+             "-movflags", "+faststart", str(checking)])
+        vi_raw, vi_out = video_info(raw_mp4), video_info(checking)
+        problems += picture_problems(project, vi_raw, vi_out)
+        if has_audio_stream(checking):
+            problems.append("the output has an audio stream: a silent format must not")
+    except (Exception, SystemExit) as e:  # die() in video_info is a SystemExit
+        vi_out = None
+        problems.append(f"seam: could not be checked (the clip could not be read: {e!r})")
+        if not checking.exists():
+            shutil.copyfile(raw_mp4, checking)  # keep the raw clip as the -failed file, to look at
+    if vi_out is None:
+        return problems, {"silent": True, "video": None, "seam": {"ok": False, "error": "clip not readable"},
+                          "frames": {"warnings": [], "notes": []}, "problems": problems}
+    try:
+        contact_sheet(checking, contact_sheet_times(project, vi_out, frames), sheet)
+    except (Exception, SystemExit) as e:  # a sheet that cannot be made is a note: the seam still decides
+        sheet_note = f"contact sheet not made: {e!r}"
+    else:
+        sheet_note = None
     try:
         frame_report = frame_checks(pdir, checking, vi_out, silent=True)
     except Exception as e:  # a heuristic check that cannot run is a note, never a failed reel
         frame_report = {"error": repr(e), "warnings": [], "notes": [f"frame checks did not run: {e!r}"]}
+    if sheet_note:
+        frame_report["notes"].append(sheet_note)
     loop_problems, seam = silent_loop_problems(checking, project, vi_out)
     problems += loop_problems
     return problems, {"silent": True, "video": vi_out, "seam": seam, "frames": frame_report,
@@ -596,8 +616,11 @@ def finish(project_dir, raw_mp4, frames=None):
             problems, report = _checks(pdir, project, raw_mp4, realized, checking, sheet, frames)
         final_mp4, final_sheet = (failed, failed_sheet) if problems else (out, good_sheet)
         checking.rename(final_mp4)
-        sheet.rename(final_sheet)
-        report = {"output": str(final_mp4), "sheet": str(final_sheet), **report}
+        if silent and not sheet.exists():  # a silent run can fail before it made a sheet
+            final_sheet = None
+        else:
+            sheet.rename(final_sheet)
+        report = {"output": str(final_mp4), "sheet": str(final_sheet) if final_sheet else None, **report}
         partial.write_text(json.dumps(report, indent=1) + "\n")
         os.replace(partial, report_path)
     except BaseException:

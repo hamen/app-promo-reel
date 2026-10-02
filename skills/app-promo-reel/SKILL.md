@@ -39,7 +39,7 @@ Detail: `references/copy-rules.md`.
 - N variants (default 2); output folder (default `~/app-promo-reels`).
 - Format per variant: `9:16` (Reels, TikTok, Shorts, Stories; the default) or `4:5` (a feed
   post, which starts muted) or `16:9` (a silent 8 s web-hero loop with no music and no sound;
-  read `references/hero.md` first and follow its workflow instead of steps 3, 4 and 6 below).
+  read `references/hero.md` first; the section "16:9 hero loop" below says which steps change).
 - Optional: a local path to the app's source repo (read-only), a folder of SFX (`$SFX_DIR`),
   and the user's own brand notes / memory system for app-specific rules.
 
@@ -126,9 +126,10 @@ Commands for every step: `references/pipeline.md`.
 ## 16:9 hero loop (silent)
 
 For `--format 16:9` skip step 3 (no music, no beat grid, no cues) and use the hero template.
-Steps 1, 2, 5, 7 stay; the loop contract, the build and the checks are in `references/hero.md`.
-In step 6 the **sound** score becomes **loop**: the `seam:` numbers in the finish report, and a
-look at the strip of the clip played twice. Never put an `<audio>` or `<video>` tag in the page.
+Steps 1, 2, 5 and 7 stay. In step 4 fill `CONFIG` but write no bar storyboard. The loop contract,
+the build and the checks are in `references/hero.md`. In step 6 the **sound** score becomes
+**loop**: the `seam:` numbers in the finish report, and a look at the strip of the clip played
+twice. Never put an `<audio>` or `<video>` tag in the page.
 The AI-generated label rule (truthfulness 7) applies to the hero too.
 
 ## Variants

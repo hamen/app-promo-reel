@@ -1,6 +1,7 @@
 """The 16:9 hero: a silent, seamless loop. Scaffold, build, template and finish (seam check)."""
 import json
 import re
+import shutil
 import subprocess
 
 import numpy as np
@@ -50,6 +51,13 @@ def test_a_16x9_scaffold_takes_a_duration_of_four_seconds_or_more(tmp_path):
     assert r.returncode == 2 and "at least 4" in r.stderr and not (tmp_path / "short" / "out").exists()
 
 
+def test_a_bad_sfx_dir_does_not_stop_a_16x9_scaffold(tmp_path, monkeypatch):
+    monkeypatch.setenv("SFX_DIR", str(tmp_path / "gone"))
+    r, p = scaffold(tmp_path)
+    assert r.returncode == 0, r.stderr
+    assert "no SFX copied" in r.stdout and not (p / "assets" / "audio").exists()
+
+
 def test_a_9x16_scaffold_is_unchanged_by_the_hero(tmp_path):
     r = run_script("new_project.py", "--app", "demo", "--variant", "a", "--out", tmp_path / "out")
     assert r.returncode == 0, r.stderr
@@ -84,7 +92,42 @@ def test_a_16x9_build_needs_no_beats_and_writes_no_sound(tmp_path):
     assert not re.search(r"\{\{", html)
     assert re.search(r'id="root"[^>]*data-width="1920" data-height="1080" data-format="16:9"', html)
     # the AI label survives: it is the EU AI Act disclosure
-    assert '"aiLabel"' in html and "aiLabel" in html.split("</script>", 1)[1] + html
+    assert '"aiLabel"' in html and html.rfind("data-ai-label-guard") > html.index('"aiLabel"')
+
+
+def test_the_built_hero_registers_its_timeline_as_main(tmp_path):
+    p, _ = built(tmp_path)
+    html = (p / "index.html").read_text()
+    assert 'window.__timelines["main"] = tl;' in html
+    assert 'data-composition-id="main"' in html
+
+
+def test_only_the_third_headline_line_is_optional(tmp_path):
+    p, _ = built(tmp_path)
+    html = (p / "index.html").read_text()
+    assert re.findall(r'data-cfg="headline\.(\d)"( data-optional)?', html) == [("0", ""), ("1", ""), ("2", " data-optional")]
+    assert "const cfgOpt" in html
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="needs node")
+@pytest.mark.parametrize("headline, shown", [(["A", "B", "C"], ["A", "B", "C"]), (["A", "B"], ["A", "B", ""])])
+def test_the_config_fill_accepts_a_headline_of_two_lines_and_still_rejects_a_missing_required_key(
+        tmp_path, headline, shown):
+    html = built(tmp_path)[0].joinpath("index.html").read_text()
+    fill = html[html.index("const cfgGet"):html.index("const css")]
+    prog = f"""
+      const CONFIG = {{ headline: {json.dumps(headline)}, sub: "s" }};
+      const mk = (cfg, optional) => ({{ dataset: {{ cfg }}, style: {{}}, textContent: null,
+                                       hasAttribute: (a) => a === "data-optional" && optional }});
+      const els = [mk("headline.0", false), mk("headline.1", false), mk("headline.2", true)];
+      const document = {{ querySelectorAll: () => els }};
+      {fill}
+      console.log(JSON.stringify(els.map((e) => e.textContent)));
+      try {{ cfgGet("nope.x"); console.log("no throw"); }} catch (e) {{ console.log("throws"); }}
+    """
+    r = subprocess.run(["node", "-e", prog], capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.split("\n")[:2] == [json.dumps(shown, separators=(",", ":")), "throws"]
 
 
 @pytest.mark.parametrize("token", ["{{D 1}}", "{{E 0}}", "{{LEN 1 2}}", "{{TO_END 1}}", "{{BEFORE_END 1 2}}", "{{BEATS}}",
@@ -256,6 +299,34 @@ def test_a_silent_finish_does_not_read_or_need_cues_or_audio(tmp_path, hero):
     assert not (hero / "cues.realized.json").exists()
     raw = encode(tmp_path / "raw.mp4", loop_frames(eased))
     assert finish.finish(hero, raw) == 0
+
+
+def test_a_corrupt_clip_is_reported_not_a_crash(tmp_path, hero, capsys):
+    raw = tmp_path / "raw.mp4"
+    raw.write_bytes(b"this is not a video")
+    assert finish.finish(hero, raw) == 1
+    assert "seam: could not be checked" in capsys.readouterr().err
+    assert "demo-a-v1-failed.mp4" in outputs(hero)
+    rep = json.loads((hero / "renders" / "demo-a-v1-report.json").read_text())
+    assert len(rep["problems"]) == 1 and rep["seam"]["ok"] is False and rep["video"] is None
+
+
+def test_a_clip_of_five_frames_is_reported_not_a_crash(tmp_path, hero, capsys):
+    raw = encode(tmp_path / "raw.mp4", loop_frames(eased)[:5])
+    assert finish.finish(hero, raw) == 1
+    err = capsys.readouterr().err
+    assert "FAILED" in err and "seam: could not be checked" in err
+    assert (hero / "renders" / "demo-a-v1-report.json").is_file()
+
+
+def test_a_contact_sheet_that_cannot_be_made_does_not_fail_a_good_loop(tmp_path, hero, monkeypatch):
+    def broken(*a, **k):
+        raise RuntimeError("no sheet")
+    monkeypatch.setattr(finish, "contact_sheet", broken)
+    raw = encode(tmp_path / "raw.mp4", loop_frames(eased))
+    assert finish.finish(hero, raw) == 0
+    rep = json.loads((hero / "renders" / "demo-a-v1-report.json").read_text())
+    assert rep["sheet"] is None and any("contact sheet not made" in n for n in rep["frames"]["notes"])
 
 
 # --- seam_check -----------------------------------------------------------------------------
