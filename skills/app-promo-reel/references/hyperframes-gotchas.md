@@ -41,3 +41,11 @@ Pin the version: `npx --yes hyperframes@0.8.78 …` (the project's package.json 
   round (the shell may refuse a recursive delete of old snapshots).
 - Verify on frames from the **final MP4** (finish.py contact sheet), not only on snapshots.
 - `render -o renders/raw.mp4 -q delivery --quiet`. Then finish.py.
+
+## Off-page text and the contrast check
+`hyperframes check` measures the text of a clipped, off-page element (a screen parked at
+`x: 760` inside an `overflow: hidden` frame) against the page behind it, and the contrast gate
+fails. Keep an element that waits off the page at `opacity: 0` (`gsap.set(el, {x: 760, opacity: 0})`),
+and fade it to 0 again right after it slides out (`tl.to(el, {opacity: 0, duration: 0.02}, t)`).
+Keep backup copies of `index.html` outside the project folder: a second root composition makes
+`check` report `multiple_root_compositions` and a bogus "0/0" contrast result.

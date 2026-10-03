@@ -29,6 +29,16 @@ failed check exits 1 and names it ...-v<N>-failed.mp4; so does any other exit af
 (an error, Ctrl-C). The report, -v<N>-report.json, is written last, with the final names. A
 .checking file left by a killed run was never checked; the script never deletes it.
 
+A silent format (16:9, a web hero that loops) skips everything about sound: no loudnorm, lag
+check, sync report or loudness gate, and cues.realized.json is not read. The mux drops the audio
+(-c:v copy -an), and the checks that stay are the picture checks, the contact sheet and the frame
+checks, plus three more, each of which fails the run: the output has no audio stream; the frame
+count is exactly duration x fps (a loop is that many frames: one more or less is a hitch at the
+seam); and the SEAM check (seam_check below): frame N-1 to frame 0 must look like any other step,
+measured on a 480 px decode of the whole clip, because the 54 px frames of the frame checks cannot
+see a small shift of a phone. A seam that cannot be checked (a decode failure, fewer than 8
+frames) is a problem too, never a pass.
+
 Usage: finish.py <project_dir> <raw_render.mp4> [--frames 1.0,5.2,...]
 """
 import argparse
@@ -46,7 +56,7 @@ import numpy as np
 import scipy.signal as ss
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from common import attack_index, decode_audio, die, is_number, load_project, read_json  # noqa: E402
+from common import attack_index, decode_audio, die, is_number, is_silent, load_project, read_json  # noqa: E402
 
 SR = 48000
 TARGET_I, TARGET_TP, TARGET_LRA = -14.0, -2.0, 11.0
@@ -69,6 +79,18 @@ POP_MOVE_MAX = 0.3   # seconds: a fast move is never longer (the longest in the 
 FLASH_BACK = 3.0     # a flash: the frame after the odd one is this many times closer to the one before
 POP_LEAD = 0.15      # a fast move may start up to this long before the beat it lands on
 HOOK_BY = 1.0        # seconds: something readable must be on screen by then
+# the seam check of a silent loop, on frames decoded SEAM_W px wide: the 54 px frames of the frame
+# checks turn a 5 px shift of a phone into 0.14 px. A step is judged by two measures: `mad` (mean
+# gray-level change) and `moved` (the share of pixels that change by more than SEAM_PIX levels: a
+# shifted sharp edge changes few pixels a lot, which the mean hides). The seam is bad when either
+# is above max(its floor, SEAM_RATIO x the largest of the SEAM_REST steps on each side of the seam).
+SEAM_W = 480
+SEAM_PIX = 16
+SEAM_REST = 3
+SEAM_MIN_FRAMES = 8
+SEAM_MIN_MAD = 0.6
+SEAM_MIN_MOVED = 0.002
+SEAM_RATIO = 3.0
 
 
 def run(cmd):
@@ -267,16 +289,16 @@ def contact_sheet(mp4, times, dest):
         shutil.rmtree(tmp, ignore_errors=True)
 
 
-def decode_gray(mp4, width, height):
-    """Every frame of mp4 as float32 grayscale, FRAME_W px wide, height kept in proportion.
-    Raises (never die()): the frame checks must not end the run."""
-    h = max(2, round(FRAME_W * height / width / 2) * 2)
-    r = subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-i", str(mp4), "-vf", f"scale={FRAME_W}:{h},format=gray",
+def decode_gray(mp4, width, height, frame_w=FRAME_W, dtype=np.float32):
+    """Every frame of mp4 as grayscale (float32, or `dtype`), frame_w px wide, height kept in
+    proportion. Raises (never die()): the frame checks must not end the run."""
+    h = max(2, round(frame_w * height / width / 2) * 2)
+    r = subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-i", str(mp4), "-vf", f"scale={frame_w}:{h},format=gray",
                         "-f", "rawvideo", "-"], capture_output=True)
     if r.returncode:
         raise RuntimeError(f"ffmpeg could not decode the frames: {r.stderr.decode(errors='replace')[-300:]}")
-    n = len(r.stdout) // (FRAME_W * h)
-    return np.frombuffer(r.stdout[:n * FRAME_W * h], np.uint8).reshape(n, h, FRAME_W).astype(np.float32)
+    n = len(r.stdout) // (frame_w * h)
+    return np.frombuffer(r.stdout[:n * frame_w * h], np.uint8).reshape(n, h, frame_w).astype(dtype, copy=False)
 
 
 def frame_detail(frames):
@@ -343,10 +365,75 @@ def scene_starts(html):
     return starts, notes
 
 
-def frame_checks(pdir, mp4, vi):
+def _step(a, b):
+    """(mean change in gray levels, share of pixels that change by more than SEAM_PIX) between two frames."""
+    diff = np.abs(a.astype(np.float32) - b.astype(np.float32))
+    return float(diff.mean()), float((diff > SEAM_PIX).mean())
+
+
+def seam_check(frames):
+    """The step from the last frame of a loop to its first, against the steps beside the seam.
+    Returns {"ok", "mad", "moved", "rest_mad", "rest_moved", "limit_mad", "limit_moved", "frames"}
+    or, with fewer than SEAM_MIN_FRAMES frames, {"ok": False, "frames": n, "error": ...}: a seam
+    that cannot be measured is not a good seam."""
+    n = len(frames)
+    if n < SEAM_MIN_FRAMES:
+        return {"ok": False, "frames": n, "error": f"only {n} frames, at least {SEAM_MIN_FRAMES} are needed"}
+    mad, moved = _step(frames[n - 1], frames[0])
+    rest = ([_step(frames[i], frames[i + 1]) for i in range(n - 1 - SEAM_REST, n - 1)]
+            + [_step(frames[i], frames[i + 1]) for i in range(SEAM_REST)])
+    rest_mad, rest_moved = max(r[0] for r in rest), max(r[1] for r in rest)
+    limit_mad = max(SEAM_MIN_MAD, SEAM_RATIO * rest_mad)
+    limit_moved = max(SEAM_MIN_MOVED, SEAM_RATIO * rest_moved)
+    return {"ok": bool(mad <= limit_mad and moved <= limit_moved), "frames": n,
+            "mad": round(mad, 4), "moved": round(moved, 5), "rest_mad": round(rest_mad, 4),
+            "rest_moved": round(rest_moved, 5), "limit_mad": round(limit_mad, 4),
+            "limit_moved": round(limit_moved, 5)}
+
+
+def expected_frames(project):
+    """(frames, tolerance) of a loop: exactly duration x fps for a whole number of frames at a
+    whole fps; one frame either way for a rate like 29.97, where the renderer rounds."""
+    exact = project["duration"] * project["fps"]
+    whole = float(project["fps"]).is_integer() and abs(exact - round(exact)) < 1e-6
+    return round(exact), 0 if whole else 1
+
+
+def silent_loop_problems(mp4, project, vi):
+    """Frame count and seam of a silent loop, on one decode of the whole clip. Returns
+    (problems, seam_report). Never raises: a decode that fails is a problem, because the seam is
+    the whole contract of the format."""
+    try:
+        frames = decode_gray(mp4, vi["width"], vi["height"], SEAM_W, np.uint8)
+        seam = seam_check(frames)
+    except Exception as e:  # noqa: BLE001
+        return [f"seam: could not be checked ({e!r})"], {"ok": False, "error": repr(e)}
+    problems = []
+    want, tol = expected_frames(project)
+    if abs(len(frames) - want) > tol:
+        problems.append(f"{len(frames)} frames, a {project['duration']:g} s loop at {project['fps']:g} fps "
+                        f"is {want}{f' (+-{tol})' if tol else ''}: one frame more or less is a hitch at the seam")
+    if "error" in seam:
+        problems.append(f"seam: could not be checked ({seam['error']})")
+    elif not seam["ok"]:
+        problems.append(
+            f"seam: the loop jumps from its last frame to its first (mean change {seam['mad']:.2f} gray levels, "
+            f"limit {seam['limit_mad']:.2f}; {seam['moved'] * 100:.2f}% of pixels changed, limit "
+            f"{seam['limit_moved'] * 100:.2f}%): every animated property must end at its value at t = 0")
+    seam["frames_expected"] = want
+    return problems, seam
+
+
+def has_audio_stream(path):
+    return bool(run(["ffprobe", "-v", "error", "-select_streams", "a", "-show_entries", "stream=index",
+                     "-of", "csv=p=0", str(path)]).stdout.strip())
+
+
+def frame_checks(pdir, mp4, vi, silent=False):
     """Blank opening and pops on the final MP4. Returns the report dict; its "warnings" are
     printed and never change the exit code. Reads files with plain read_text/json.loads, never
-    read_json or die(): a SystemExit here would turn a good reel into -failed."""
+    read_json or die(): a SystemExit here would turn a good reel into -failed. A silent project
+    has no beats.json to compare cuts with."""
     frames = decode_gray(mp4, vi["width"], vi["height"])
     if not len(frames):
         raise RuntimeError("no frame decoded")
@@ -375,6 +462,8 @@ def frame_checks(pdir, mp4, vi):
     marks = []
     sources = (("index.html", html_starts),
                ("beats.json", lambda: [float(b) for b in json.loads((pdir / "beats.json").read_text())["beats"]]))
+    if silent:
+        sources = sources[:1]
     for name, load in sources:
         try:
             marks += load()
@@ -390,6 +479,67 @@ def frame_checks(pdir, mp4, vi):
             warnings.append(f"sudden change at {e['time']:.2f} s near no beat and no scene start (look at it)")
     return {"frame0_blank": bool(detail[0] < BLANK_DETAIL), "first_detail_time": first,
             "events": events, "warnings": warnings, "notes": notes}
+
+
+def picture_problems(project, vi_raw, vi_out):
+    """The video stream is unchanged by the mux, has the size of the format and the duration of
+    project.json (within one frame)."""
+    problems = []
+    if vi_raw != vi_out:
+        problems.append(f"video stream changed: {vi_raw} -> {vi_out}")
+    if (vi_out["width"], vi_out["height"]) != (project["width"], project["height"]):
+        problems.append(f"video is {vi_out['width']}x{vi_out['height']}, project.json says "
+                        f"{project['width']}x{project['height']} (format {project['format']}): build and render again")
+    frame = 1.0 / project["fps"]
+    if abs(vi_out["duration"] - project["duration"]) > frame + 1e-6:
+        problems.append(f"video is {vi_out['duration']}s, project.json says {project['duration']:g}s")
+    return problems
+
+
+def contact_sheet_times(project, vi_out, frames):
+    dur = project["duration"]
+    times = frames or [round(dur * i / 9, 2) for i in range(9)] + [round(dur - 0.1, 2)]
+    last = min(dur, vi_out["duration"]) - 0.05
+    return [min(t, last) for t in times]
+
+
+def _checks_silent(pdir, project, raw_mp4, checking, sheet, frames):
+    """The checks of a silent loop (see the module docstring). Same return as _checks. A clip that
+    cannot be copied, probed or decoded is a problem in the report, never an unreported crash: the
+    seam is the whole contract of the format, and an unchecked seam is not a pass."""
+    problems = []
+    vi_out = None
+    try:
+        run(["ffmpeg", "-nostdin", "-v", "error", "-n", "-i", str(raw_mp4), "-map", "0:v:0", "-c:v", "copy", "-an",
+             "-movflags", "+faststart", str(checking)])
+        vi_raw, vi_out = video_info(raw_mp4), video_info(checking)
+        problems += picture_problems(project, vi_raw, vi_out)
+        if has_audio_stream(checking):
+            problems.append("the output has an audio stream: a silent format must not")
+    except (Exception, SystemExit) as e:  # die() in video_info is a SystemExit
+        vi_out = None
+        problems.append(f"seam: could not be checked (the clip could not be read: {e!r})")
+        if not checking.exists():
+            shutil.copyfile(raw_mp4, checking)  # keep the raw clip as the -failed file, to look at
+    if vi_out is None:
+        return problems, {"silent": True, "video": None, "seam": {"ok": False, "error": "clip not readable"},
+                          "frames": {"warnings": [], "notes": []}, "problems": problems}
+    try:
+        contact_sheet(checking, contact_sheet_times(project, vi_out, frames), sheet)
+    except (Exception, SystemExit) as e:  # a sheet that cannot be made is a note: the seam still decides
+        sheet_note = f"contact sheet not made: {e!r}"
+    else:
+        sheet_note = None
+    try:
+        frame_report = frame_checks(pdir, checking, vi_out, silent=True)
+    except Exception as e:  # a heuristic check that cannot run is a note, never a failed reel
+        frame_report = {"error": repr(e), "warnings": [], "notes": [f"frame checks did not run: {e!r}"]}
+    if sheet_note:
+        frame_report["notes"].append(sheet_note)
+    loop_problems, seam = silent_loop_problems(checking, project, vi_out)
+    problems += loop_problems
+    return problems, {"silent": True, "video": vi_out, "seam": seam, "frames": frame_report,
+                      "problems": problems}
 
 
 def _checks(pdir, project, raw_mp4, realized, checking, sheet, frames):
@@ -412,22 +562,12 @@ def _checks(pdir, project, raw_mp4, realized, checking, sheet, frames):
         shutil.rmtree(work, ignore_errors=True)
 
     vi_raw, vi_out = video_info(raw_mp4), video_info(checking)
-    if vi_raw != vi_out:
-        problems.append(f"video stream changed: {vi_raw} -> {vi_out}")
-    if (vi_out["width"], vi_out["height"]) != (project["width"], project["height"]):
-        problems.append(f"video is {vi_out['width']}x{vi_out['height']}, project.json says "
-                        f"{project['width']}x{project['height']} (format {project['format']}): build and render again")
-    frame = 1.0 / project["fps"]
-    if abs(vi_out["duration"] - project["duration"]) > frame + 1e-6:
-        problems.append(f"video is {vi_out['duration']}s, project.json says {project['duration']:g}s")
+    problems += picture_problems(project, vi_raw, vi_out)
 
     rows, sync_problems = sync_report(decode_audio(checking, SR), realized, project["fps"], pdir)
     problems += sync_problems
 
-    dur = project["duration"]
-    times = frames or [round(dur * i / 9, 2) for i in range(9)] + [round(dur - 0.1, 2)]
-    last = min(dur, vi_out["duration"]) - 0.05
-    contact_sheet(checking, [min(t, last) for t in times], sheet)
+    contact_sheet(checking, contact_sheet_times(project, vi_out, frames), sheet)
     try:
         frame_report = frame_checks(pdir, checking, vi_out)
     except Exception as e:  # a heuristic check that cannot run is a note, never a failed reel
@@ -446,10 +586,13 @@ def finish(project_dir, raw_mp4, frames=None):
     raw_mp4 = Path(raw_mp4)
     if not raw_mp4.is_file():
         die(f"{raw_mp4} not found")
+    silent = is_silent(project)
+    realized = []
     realized_path = pdir / "cues.realized.json"
-    if not realized_path.is_file():
-        die(f"{realized_path} not found: run build.py before finish.py")
-    realized = read_json(realized_path, list)
+    if not silent:
+        if not realized_path.is_file():
+            die(f"{realized_path} not found: run build.py before finish.py")
+        realized = read_json(realized_path, list)
     for cue in realized:
         if not (isinstance(cue, dict) and isinstance(cue.get("id"), str) and isinstance(cue.get("file"), str)
                 and isinstance(cue.get("time"), (int, float)) and not isinstance(cue.get("time"), bool)):
@@ -467,11 +610,17 @@ def finish(project_dir, raw_mp4, frames=None):
     # reads only the cue sounds, so it runs before the mux: an error here leaves no file in renders/
     late = late_starts(pdir, realized, project["fps"])
     try:
-        problems, report = _checks(pdir, project, raw_mp4, realized, checking, sheet, frames)
+        if silent:
+            problems, report = _checks_silent(pdir, project, raw_mp4, checking, sheet, frames)
+        else:
+            problems, report = _checks(pdir, project, raw_mp4, realized, checking, sheet, frames)
         final_mp4, final_sheet = (failed, failed_sheet) if problems else (out, good_sheet)
         checking.rename(final_mp4)
-        sheet.rename(final_sheet)
-        report = {"output": str(final_mp4), "sheet": str(final_sheet), **report}
+        if silent and not sheet.exists():  # a silent run can fail before it made a sheet
+            final_sheet = None
+        else:
+            sheet.rename(final_sheet)
+        report = {"output": str(final_mp4), "sheet": str(final_sheet) if final_sheet else None, **report}
         partial.write_text(json.dumps(report, indent=1) + "\n")
         os.replace(partial, report_path)
     except BaseException:
@@ -483,8 +632,10 @@ def finish(project_dir, raw_mp4, frames=None):
         partial.unlink(missing_ok=True)
         raise
 
-    rows, vi_out = report["sync"], report["video"]
-    if rows:
+    rows, vi_out = report.get("sync"), report["video"]
+    if silent:
+        pass
+    elif rows:
         found = [r for r in rows if r["delta_ms"] is not None]
         worst = max((abs(r["delta_ms"]) for r in found), default=0)
         masked = [r["id"] for r in rows if r["delta_ms"] is None]
@@ -499,8 +650,13 @@ def finish(project_dir, raw_mp4, frames=None):
     for f, ms in late.items():
         print(f"warning: {f} starts with {ms:.0f} ms of silence and its cues use align \"start\", so it "
               f"sounds {ms:.0f} ms after the cue time; use align \"attack\" or trim the file", file=sys.stderr)
-    print(f"loudness {report['final_lufs']} LUFS, true peak {report['final_tp']} dBTP; loudnorm lag "
-          f"{report['lag_ms']:.2f} ms; video {vi_out}")
+    if silent:
+        seam = report["seam"]
+        print(f"silent: no audio; seam {seam.get('mad', 'n/a')} gray levels (limit {seam.get('limit_mad', 'n/a')}); "
+              f"video {vi_out}")
+    else:
+        print(f"loudness {report['final_lufs']} LUFS, true peak {report['final_tp']} dBTP; loudnorm lag "
+              f"{report['lag_ms']:.2f} ms; video {vi_out}")
     if problems:
         print("FAILED:\n  " + "\n  ".join(problems), file=sys.stderr)
         print(f"output kept as {final_mp4}", file=sys.stderr)

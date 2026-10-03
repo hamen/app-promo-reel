@@ -12,8 +12,11 @@ import sys
 from pathlib import Path
 
 # the frame size of each format; "9:16" is the default and the reference for FRAME_SCALE
-FORMATS = {"9:16": (1080, 1920), "4:5": (1080, 1350)}
-LATER_FORMATS = ("16:9",)
+FORMATS = {"9:16": (1080, 1920), "4:5": (1080, 1350), "16:9": (1920, 1080)}
+# formats with no music, no beat grid, no cues and no audio: a web hero that loops
+SILENT_FORMATS = ("16:9",)
+HERO_DURATION = 8.0
+SILENT_MIN_DURATION = 4.0
 PROJECT_DEFAULTS = {
     "duration": 30.0,
     "fps": 30,
@@ -24,6 +27,12 @@ PROJECT_DEFAULTS = {
     "stores": ["app_store", "google_play"],
 }
 KNOWN_STORES = ("app_store", "google_play")
+
+
+def is_silent(project):
+    """True for a project (or format string) of a silent format."""
+    fmt = project if isinstance(project, str) else project.get("format")
+    return fmt in SILENT_FORMATS
 
 
 def is_number(v):
@@ -60,6 +69,9 @@ def load_project(project_dir):
         die(f"{path} not found (is this a project folder made by new_project.py?)")
     raw = read_json(path)
     data = {**PROJECT_DEFAULTS, **raw}
+    # the file's own keys: the merged defaults always hold a duration
+    if is_silent(raw) and "duration" not in raw:
+        data["duration"] = HERO_DURATION
     missing = [k for k in ("app", "variant") if not data.get(k)]
     if missing:
         die(f"{path} has no {' / '.join(missing)}")
@@ -75,8 +87,10 @@ def load_project(project_dir):
         die(f"{path}: duration must be above 1 s (the bed fades take 0.8 s), fps and beats_per_bar above 0")
     fmt = data["format"]
     if not isinstance(fmt, str) or fmt not in FORMATS:
-        later = " (it comes in a later version)" if fmt in LATER_FORMATS else ""
-        die(f"{path}: format must be one of {', '.join(FORMATS)}, got {fmt!r}{later}")
+        die(f"{path}: format must be one of {', '.join(FORMATS)}, got {fmt!r}")
+    if is_silent(fmt) and data["duration"] < SILENT_MIN_DURATION:
+        die(f"{path}: a {fmt} loop needs a duration of at least {SILENT_MIN_DURATION:g} s "
+            f"(it starts from rest, moves and comes back to rest), got {data['duration']:g}")
     size = dict(zip(("width", "height"), FORMATS[fmt]))
     # the file's own keys, not the merged defaults: a 4:5 file with no width/height takes 1080x1350
     wrong = {k: raw[k] for k in size if k in raw and raw[k] != size[k]}

@@ -1,6 +1,6 @@
 ---
 name: app-promo-reel
-description: Generate beat-synced 30 s vertical (9:16) or feed (4:5) promo reels for a mobile app — music from ACE-Step 1.5, MusicGen or the user's own track, a kick-locked beat grid, the app's real UI rebuilt as HTML, HyperFrames render, loudness and sync checks. Use when the user asks for promo / social / showreel videos of an app. Generation only; it never posts or uploads anything.
+description: Generate beat-synced 30 s vertical (9:16) or feed (4:5) promo reels, or a silent seamless 16:9 web-hero loop, for a mobile app — music from ACE-Step 1.5, MusicGen or the user's own track, a kick-locked beat grid, the app's real UI rebuilt as HTML, HyperFrames render, loudness and sync checks. Use when the user asks for promo / social / showreel videos of an app. Generation only; it never posts or uploads anything.
 ---
 
 # app-promo-reel
@@ -38,7 +38,8 @@ Detail: `references/copy-rules.md`.
 - Language of the copy (can differ from the storefront country).
 - N variants (default 2); output folder (default `~/app-promo-reels`).
 - Format per variant: `9:16` (Reels, TikTok, Shorts, Stories; the default) or `4:5` (a feed
-  post, which starts muted).
+  post, which starts muted) or `16:9` (a silent 8 s web-hero loop with no music and no sound;
+  read `references/hero.md` first; the section "16:9 hero loop" below says which steps change).
 - Optional: a local path to the app's source repo (read-only), a folder of SFX (`$SFX_DIR`),
   and the user's own brand notes / memory system for app-specific rules.
 
@@ -47,7 +48,7 @@ Detail: `references/copy-rules.md`.
 Commands for every step: `references/pipeline.md`.
 
 1. **Scaffold.** `new_project.py --app <slug> --variant <a|b|…> --stores <stores>
-   --format <9:16|4:5>` once per variant. `--stores` lists only the stores the app is really on
+   --format <9:16|4:5|16:9>` once per variant. `--stores` lists only the stores the app is really on
    (`app_store`, `google_play` or both): the default is both, which puts a false badge on a
    single-store app's end card. `--format` is the variant's format (inputs above). Each variant
    is its own folder and renders on its own.
@@ -121,6 +122,15 @@ Commands for every step: `references/pipeline.md`.
    tempo, sync result, loudness), its seven scores and any problem still open. Repeat the music
    licence note; for the user's own track, give the contents of `bgm_user.source.txt`.
    **Nothing is uploaded or sent.**
+
+## 16:9 hero loop (silent)
+
+For `--format 16:9` skip step 3 (no music, no beat grid, no cues) and use the hero template.
+Steps 1, 2, 5 and 7 stay. In step 4 fill `CONFIG` but write no bar storyboard. The loop contract,
+the build and the checks are in `references/hero.md`. In step 6 the **sound** score becomes
+**loop**: the `seam:` numbers in the finish report, and a look at the strip of the clip played
+twice. Never put an `<audio>` or `<video>` tag in the page.
+The AI-generated label rule (truthfulness 7) applies to the hero too.
 
 ## Variants
 

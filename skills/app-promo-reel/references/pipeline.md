@@ -30,7 +30,8 @@ if you are sure) and always refuses the app-promo-reel repo itself. project.json
 place for duration, fps, format, beats per bar and stores.
 `--format`: `9:16` (1080x1920; Reels, TikTok, Shorts, Stories; the default) or `4:5` (1080x1350; a
 feed post). The format sets the frame size: width and height in project.json must match it, and
-finish.py fails a render of another size. The template is the same for both: a `4:5` layer at the
+`16:9` (1920x1080; a silent web-hero loop, see `hero.md`) is a different product, not a wider
+copy of the others. finish.py fails a render of another size. The template is the same for both: a `4:5` layer at the
 end of its CSS moves only what depends on the frame height (the phone at 0.66, the hook card, the
 captions). Pixel distances in motion (the camera shake) scale with `{{FRAME_SCALE}}`. A new
 format for an existing variant is a new project: its copy of the template was built for its size.
@@ -112,6 +113,9 @@ npx --yes hyperframes@0.8.78 snapshot --at 1.0,2.4,4.6,... --describe false --no
   `-o snapshots/rN` folder.
 
 ## 5. Render and finish
+
+For `16:9` the same two commands apply, and the run has no loudness, A/V or sync step: it checks the
+picture, the frame count, the seam and that the file has no audio. See `hero.md`.
 
 ```bash
 cd $P && npx --yes hyperframes@0.8.78 render -o renders/raw.mp4 -q delivery --quiet

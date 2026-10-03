@@ -8,10 +8,12 @@ in it are COPIED (not linked) into assets/audio/ so the renderer sees real files
 The default <out> is ~/app-promo-reels. An <out> inside a git work tree is refused unless
 --force; an <out> inside the app-promo-reel repo itself is always refused.
 
-Usage: new_project.py --app my-app --variant a [--out DIR] [--lang en] [--format 9:16|4:5]
+Usage: new_project.py --app my-app --variant a [--out DIR] [--lang en] [--format 9:16|4:5|16:9]
                       [--stores app_store,google_play] [--duration 30] [--force]
 --format: 9:16 (1080x1920, Reels / TikTok / Shorts / Stories, the default) or 4:5 (1080x1350,
-a feed post). It sets format, width and height in project.json and the DESIGN.md header.
+a feed post) or 16:9 (1920x1080, a silent web hero that loops, 8 s by default: it gets the hero
+template, no cues.json, no assets/audio and no SFX). It sets format, width and height in
+project.json and the DESIGN.md header.
 """
 import argparse
 import json
@@ -23,7 +25,8 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from common import FORMATS, KNOWN_STORES, PROJECT_DEFAULTS, die  # noqa: E402
+from common import (FORMATS, HERO_DURATION, KNOWN_STORES, PROJECT_DEFAULTS,  # noqa: E402
+                    SILENT_MIN_DURATION, die, is_silent)
 
 SKILL_DIR = Path(__file__).resolve().parent.parent
 TEMPLATE = SKILL_DIR / "template"
@@ -78,18 +81,25 @@ def scaffold(app, variant, out, lang="en", stores=None, duration=None, force=Fal
         die(f"--stores must be a non-empty subset of {list(KNOWN_STORES)}")
     if fmt not in FORMATS:
         die(f"--format must be one of {', '.join(FORMATS)}")
+    silent = is_silent(fmt)
     if duration is not None and duration <= 1:
         die("--duration must be above 1 second")
+    if silent and duration is not None and duration < SILENT_MIN_DURATION:
+        die(f"--duration for a {fmt} loop must be at least {SILENT_MIN_DURATION:g} s "
+            f"(it starts from rest, moves and comes back to rest)")
     out = Path(out).expanduser()
     check_out_dir(out, force)
     dest = out / f"{app}-{variant}"
     if dest.exists():
         die(f"{dest} already exists; pick another --variant")
     dest.mkdir(parents=True)
-    for name in ("src.html.tmpl", "hyperframes.json", "cues.json"):
+    shutil.copy2(TEMPLATE / ("hero.html.tmpl" if silent else "src.html.tmpl"), dest / "src.html.tmpl")
+    for name in ("hyperframes.json",) if silent else ("hyperframes.json", "cues.json"):
         shutil.copy2(TEMPLATE / name, dest / name)
-    design = (TEMPLATE / "DESIGN.md.tmpl").read_text()
-    (dest / "DESIGN.md").write_text(design.replace("<format>", fmt, 1))
+    design = (TEMPLATE / "DESIGN.md.tmpl").read_text().replace("<format>", fmt, 1)
+    if silent:
+        design = re.sub(r"(?ms)^## Music\n.*?(?=^## |\Z)", "## Music\n\n16:9 is silent: no music.\n\n", design)
+    (dest / "DESIGN.md").write_text(design)
     pkg = json.loads((TEMPLATE / "package.json").read_text())
     pkg["name"] = f"{app}-{variant}-reel"
     (dest / "package.json").write_text(json.dumps(pkg, indent=2) + "\n")
@@ -97,13 +107,16 @@ def scaffold(app, variant, out, lang="en", stores=None, duration=None, force=Fal
     width, height = FORMATS[fmt]
     project.update({"app": app, "variant": variant, "lang": lang, "format": fmt, "width": width,
                     "height": height, "stores": stores})
+    if silent:
+        project["duration"] = HERO_DURATION
     if duration is not None:
         project["duration"] = duration
     (dest / "project.json").write_text(json.dumps(project, indent=2) + "\n")
-    for sub in ("assets/audio", "assets/img", "assets/fonts", "renders", "work"):
+    for sub in ("assets/img", "assets/fonts", "renders", "work") if silent else \
+            ("assets/audio", "assets/img", "assets/fonts", "renders", "work"):
         (dest / sub).mkdir(parents=True, exist_ok=True)
     copied = 0
-    if sfx_dir:
+    if sfx_dir and not silent:
         for f in sorted(Path(sfx_dir).expanduser().iterdir()):
             if f.is_file() and f.suffix.lower() in AUDIO_EXT:
                 shutil.copy2(f, dest / "assets" / "audio" / f.name)
@@ -123,11 +136,14 @@ def main():
     ap.add_argument("--force", action="store_true")
     a = ap.parse_args()
     sfx = os.environ.get("SFX_DIR")
-    if sfx and not Path(sfx).expanduser().is_dir():
+    if sfx and not is_silent(a.format) and not Path(sfx).expanduser().is_dir():
         die(f"SFX_DIR={sfx} is not a folder")
     dest, copied = scaffold(a.app, a.variant, a.out, a.lang, a.stores.split(","), a.duration, a.force, sfx,
                             a.format)
     print(f"created {dest}")
+    if is_silent(a.format):
+        print(f"{a.format} is silent: no SFX copied")
+        return
     print(f"copied {copied} SFX files from $SFX_DIR" if sfx else
           "no $SFX_DIR: the reel builds without SFX (cues are skipped with a warning)")
 
