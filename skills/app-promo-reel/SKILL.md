@@ -61,6 +61,10 @@ Commands for every step: `references/pipeline.md`.
    - `sample_colors.py` on the screenshots for the app's real UI colours.
    - Search the user's notes/memory for rules about this app (forbidden words, spelling).
    - Fill `DESIGN.md` from the template: angle, sources, colours, type, copy rules.
+   - If the user gives a reference video or image for the look, fill the optional `## Reference`
+     section of `DESIGN.md` (palette, type, composition, pacing, motion, texture, what not to copy).
+     Sample the palette with `sample_colors.py`; mark a value judged by eye as "estimated".
+     The reference sets the craft only: no logo, text, music or claim comes from it.
 3. **Music first, per variant.** Commands in `references/pipeline.md`.
    - Choose the source once per session:
      1. ACE-Step 1.5 (`music_gen_ace.py`, run with `$ACESTEP_DIR/.venv/bin/python`) when
