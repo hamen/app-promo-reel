@@ -446,6 +446,30 @@ def test_a_data_attribute_does_not_hide_a_script_from_the_check(capsys, attrs):
     assert "Math.random" in seekable_error(page("Math.random()", attrs), capsys)
 
 
+@pytest.mark.parametrize("attrs", [
+    ' id="src=x"', " id='src=x'", ' id="type=application/json"', ' data-note="a > b" id="src=x"',
+    ' title="type=text/plain"', ' id=a"src=x"',
+])
+def test_text_inside_an_attribute_value_does_not_hide_a_script_from_the_check(capsys, attrs):
+    assert "Math.random" in seekable_error(page("Math.random()", attrs), capsys)
+
+
+@pytest.mark.parametrize("attrs", [' type="module"', ' type="text/javascript"', ' type="application/javascript"',
+                                   " type=module", ' TYPE="Module"', ' type=""', ' type',
+                                   ' type="module" type="application/json"'])
+def test_a_script_that_runs_is_scanned(capsys, attrs):
+    assert "Math.random" in seekable_error(page("Math.random()", attrs), capsys)
+
+
+@pytest.mark.parametrize("attrs", [' src="x.js"', " src='x.js'", " src=x.js", ' type="application/json"',
+                                   ' type="text/template"', ' data-x="1" src="x.js"',
+                                   ' data-note="a > b" src="x.js"', " data-note='a > b' type='application/json'",
+                                   ' type="application/json" type="module"'])
+def test_a_script_that_does_not_run_inline_is_not_scanned(attrs):
+    from build import check_seekable
+    check_seekable(page("Math.random()", attrs))
+
+
 def test_every_hit_in_every_inline_script_gets_its_own_line(capsys):
     html = ("<html><body><script>\nMath.random();\nconst t = Date.now();\n</script>"
             "<script>\nrequestAnimationFrame(tick);\n</script></body></html>")

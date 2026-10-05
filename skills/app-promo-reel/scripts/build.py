@@ -356,6 +356,8 @@ SEEKABLE_BANNED = (
     ("crypto.getRandomValues", r"(?<![\w$])crypto\s*\.\s*getRandomValues(?![\w$])"),
     ("crypto.randomUUID", r"(?<![\w$])crypto\s*\.\s*randomUUID(?![\w$])"),
 )
+SCRIPT_TAG = r"<script\b((?:\"[^\"]*\"|'[^']*'|[^'\">])*)>(.*?)</script\s*>"
+ATTRIBUTE = r"""([^\s"'>/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?"""
 JS_TYPES = ("", "module", "text/javascript", "application/javascript")
 
 
@@ -434,12 +436,11 @@ def check_seekable(html_out):
     template-literal text are blanked first, so a name in prose does not fail the build. Runs before the
     AI-label guard is added, so the guard's own code is never read."""
     found = []
-    for m in re.finditer(r"<script\b([^>]*)>(.*?)</script\s*>", html_out, re.S | re.I):
-        attrs, body = m.group(1), m.group(2)
-        if re.search(r"(?<![\w:.-])src\s*=", attrs, re.I):
-            continue
-        t = re.search(r"(?<![\w:.-])type\s*=\s*[\"']?([^\"'\s>]*)", attrs, re.I)
-        if t and t.group(1).lower() not in JS_TYPES:
+    for m in re.finditer(SCRIPT_TAG, html_out, re.S | re.I):
+        attrs, body = {}, m.group(2)
+        for a in re.finditer(ATTRIBUTE, m.group(1)):
+            attrs.setdefault(a.group(1).lower(), next((g for g in a.groups()[1:] if g is not None), ""))
+        if "src" in attrs or attrs.get("type", "").lower() not in JS_TYPES:
             continue
         code = blank_js(body)
         hits = sorted((h.start(), name) for name, rx in SEEKABLE_BANNED for h in re.finditer(rx, code))
