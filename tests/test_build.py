@@ -381,3 +381,114 @@ def test_size_tokens_come_from_the_format(tmp_path, fmt, want):
     from common import load_project
     (tmp_path / "project.json").write_text(json.dumps({"app": "x", "variant": "a", "format": fmt}))
     assert substitute("{{WIDTH}} {{HEIGHT}} {{FORMAT}} {{FRAME_SCALE}}", GRID, load_project(tmp_path)) == want
+
+
+# --- the seekability check and the {{MOTION}} token (the motion language) ---------------------
+
+def page(js, attrs=""):
+    return f"<html><body><script{attrs}>\n{js}\n</script></body></html>"
+
+
+def seekable_error(html, capsys):
+    from build import check_seekable
+    with pytest.raises(SystemExit) as e:
+        check_seekable(html)
+    assert e.value.code == 2
+    return capsys.readouterr().err
+
+
+@pytest.mark.parametrize("name, line", [
+    ("Math.random", "const r = Math.random();"),
+    ("Math.random", "const r = Math . random();"),
+    ("Date.now", "const t = Date.now();"),
+    ("new Date", "const d = new Date;"),
+    ("Date(", "const d = Date();"),
+    ("Date(", "const d = new Date(0);"),
+    ("performance.now", "const t = performance.now();"),
+    ("setTimeout", "setTimeout(() => {}, 10);"),
+    ("setInterval", "window.setInterval(f, 10);"),
+    ("requestAnimationFrame", "requestAnimationFrame(tick);"),
+    ("crypto.getRandomValues", "crypto.getRandomValues(a);"),
+    ("crypto.randomUUID", "const id = crypto.randomUUID();"),
+])
+def test_a_hidden_clock_or_random_value_exits_2_and_quotes_its_line(capsys, name, line):
+    err = seekable_error(page(f"const a = 1;\n    {line}\nconst b = 2;"), capsys)
+    assert name in err and f"`{line}`" in err and "depend only on t" in err
+
+
+@pytest.mark.parametrize("js", [
+    "// Math.random() would break the seek",
+    "/* Date.now() */ const a = 1;",
+    "const a = 1; // setTimeout later",
+    'const s = "Math.random()";',
+    "const s = 'Date.now()';",
+    "const s = `Math.random() is banned`;",
+    "const s = `\\${Math.random()}`;",
+    "const a = Date.UTC(2020, 0, 1);",
+    "const a = Math.sin(1); gsap.to(x, { repeat: -1 });",
+    "const mathRandom = 1, mydate = 2, setTimeoutLater = 3;",
+])
+def test_a_name_in_a_comment_a_string_or_a_longer_name_does_not_fail(js):
+    from build import check_seekable
+    check_seekable(page(js))
+
+
+def test_a_script_with_a_src_or_a_json_script_is_not_read():
+    from build import check_seekable
+    check_seekable(page("Math.random()", ' src="x.js"'))
+    check_seekable(page("Math.random()", ' type="application/json"'))
+
+
+@pytest.mark.parametrize("js", [
+    "const s = `${Math.random()}`;",
+    'const s = "//"; Math.random();',
+    "const s = `a ${ `b ${Math.random()}` } c`;",
+    "const s = '\\''; Math.random();",
+    "/* a */ Math.random(); /* b */",
+])
+def test_code_next_to_a_comment_or_a_string_is_still_read(capsys, js):
+    assert "Math.random" in seekable_error(page(js), capsys)
+
+
+def test_a_clean_page_passes():
+    from build import check_seekable
+    check_seekable(page("const tl = gsap.timeline({ paused: true });\ntl.to('#a', { x: 1 }, 0);"))
+
+
+def test_the_motion_token_is_replaced_by_the_file_text_literally():
+    motion = "const spring = (os) => (p) => p; // $1 \\1 \\g<0>"
+    assert substitute("a\n{{MOTION}}\nb", GRID, PROJECT, motion) == f"a\n{motion}\nb"
+
+
+def test_the_motion_token_without_a_file_exits_2(capsys):
+    with pytest.raises(SystemExit) as e:
+        substitute("{{MOTION}}", GRID, PROJECT)
+    assert e.value.code == 2 and "no motion.js" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("motion", ["const a = {{}};", "x = {{ y }}"])
+def test_a_double_brace_in_motion_js_exits_2(capsys, motion):
+    with pytest.raises(SystemExit) as e:
+        substitute("{{MOTION}}", GRID, PROJECT, motion)
+    assert e.value.code == 2 and "double brace" in capsys.readouterr().err
+
+
+def test_a_page_without_the_token_builds_without_motion_js(tmp_path):
+    from conftest import write_project
+    p = write_project(tmp_path)
+    (p / "beats.json").write_text(json.dumps({"beats": [0.5 + 0.5 * i for i in range(70)], "downbeat_phase": 0}))
+    (p / "src.html.tmpl").write_text(f"<html><body>{AI_LABEL}")
+    r = run_script("build.py", p)
+    assert r.returncode == 0, r.stderr
+    assert not (p / "motion.js").exists()
+
+
+def test_the_motion_token_without_motion_js_exits_2_with_one_line(tmp_path):
+    from conftest import write_project
+    p = write_project(tmp_path)
+    (p / "beats.json").write_text(json.dumps({"beats": [0.5 + 0.5 * i for i in range(70)], "downbeat_phase": 0}))
+    (p / "src.html.tmpl").write_text(f"<html><body><script>{{{{MOTION}}}}</script>{AI_LABEL}")
+    r = run_script("build.py", p)
+    assert r.returncode == 2 and "no motion.js" in r.stderr and "Traceback" not in r.stderr
+    assert len(r.stderr.strip().splitlines()) == 1
+    assert not (p / "index.html").exists()

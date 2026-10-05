@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Scaffold a reel project from template/.
 
-Creates <out>/<app>-<variant>/ with src.html.tmpl, DESIGN.md, project.json, cues.json,
+Creates <out>/<app>-<variant>/ with src.html.tmpl, DESIGN.md, project.json, cues.json, motion.js (9:16 and 4:5),
 hyperframes.json and package.json (HyperFrames pinned). If $SFX_DIR is set, the audio files
 in it are COPIED (not linked) into assets/audio/ so the renderer sees real files.
 
@@ -94,7 +94,7 @@ def scaffold(app, variant, out, lang="en", stores=None, duration=None, force=Fal
         die(f"{dest} already exists; pick another --variant")
     dest.mkdir(parents=True)
     shutil.copy2(TEMPLATE / ("hero.html.tmpl" if silent else "src.html.tmpl"), dest / "src.html.tmpl")
-    for name in ("hyperframes.json",) if silent else ("hyperframes.json", "cues.json"):
+    for name in ("hyperframes.json",) if silent else ("hyperframes.json", "cues.json", "motion.js"):
         shutil.copy2(TEMPLATE / name, dest / name)
     design = (TEMPLATE / "DESIGN.md.tmpl").read_text().replace("<format>", fmt, 1)
     if silent:
