@@ -243,3 +243,38 @@ def test_the_4x5_layer_keeps_the_tap_point_on_the_phone(tmp_path):
     assert re.search(r"perspective: \d+px", fit)
     # in 9:16 the wrapper has no box, so the 9:16 page renders as before it existed
     assert re.search(r"\n      \.phone-fit \{\s*display: contents;\s*\}", css)
+
+
+# --- the motion language in the shipped templates ---------------------------------------------
+
+@pytest.mark.parametrize("fmt", ["9:16", "4:5", "16:9"])
+def test_the_shipped_templates_pass_the_seekability_check(tmp_path, fmt):
+    build(tmp_path, fmt=fmt)
+
+
+@pytest.mark.parametrize("fmt, has_motion", [("9:16", True), ("4:5", True), ("16:9", False)])
+def test_new_project_copies_motion_js_for_the_formats_that_use_it(tmp_path, fmt, has_motion):
+    p, html = build(tmp_path, fmt=fmt)
+    assert (p / "motion.js").is_file() == has_motion
+    assert ("const MOTION" in html) == has_motion
+
+
+def test_the_9x16_template_uses_the_motion_classes_and_no_back_ease(tmp_path):
+    src = (TEMPLATE / "src.html.tmpl").read_text()
+    bad = [ln.strip() for ln in src.splitlines() if "back." in ln and "motion-exception:" not in ln]
+    assert bad == []
+    assert src.count("{{MOTION}}") == 1
+    assert len(re.findall(r"ease: MOTION\.(?:icon|panel|headline|micro)\.ease", src)) == 8
+
+
+def test_a_random_value_added_to_the_template_fails_the_build(tmp_path):
+    def edit(p):
+        t = p / "src.html.tmpl"
+        t.write_text(t.read_text().replace("const tl = gsap.timeline", "const jitter = Math.random();\n      const tl = gsap.timeline", 1))
+    _, err = build(tmp_path, edit=edit, expect=2)
+    assert "Math.random" in err and "const jitter = Math.random();" in err
+
+
+def test_a_project_without_motion_js_fails_when_the_template_has_the_token(tmp_path):
+    _, err = build(tmp_path, edit=lambda p: (p / "motion.js").unlink(), expect=2)
+    assert "no motion.js" in err
