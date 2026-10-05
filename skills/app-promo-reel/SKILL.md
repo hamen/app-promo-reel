@@ -92,8 +92,10 @@ Commands for every step: `references/pipeline.md`.
    (all text, colours, screens) and edit the scenes. Rebuild the app's real screens as HTML
    components from the screenshots and strings — no pasted screenshots. Timing uses beat tokens
    only. Put the SFX cues in `cues.json`. Give each object the ease of its motion class
-   (`motion.js`). See `references/storyboard.md`, `references/motion.md` and
-   `references/hyperframes-gotchas.md`.
+   (`motion.js`). Keep `shotlist.md` in step with the scenes: one row per scene with its
+   purpose, entry state and exit state. If you cannot say why a scene exists, it does not belong
+   in the render. `build.py` fails when a scene has no row. Never delete `shotlist.md`. See
+   `references/storyboard.md`, `references/motion.md` and `references/hyperframes-gotchas.md`.
 5. **Build, check, look, render, finish.**
    - `build.py <project>` → `npx --yes hyperframes@0.8.78 check` until 0 errors.
    - Snapshots at every scene and every transition; look at them; fix; repeat.

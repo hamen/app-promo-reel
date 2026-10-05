@@ -123,3 +123,12 @@ def test_a_table_with_no_rows_stops_the_build(tmp_path):
         sep = next(i for i, x in enumerate(lines) if x.startswith("| --- "))
         return "\n".join(lines[:sep + 1]) + "\n"
     fails(tmp_path, edit, "no rows")
+
+
+def test_the_docs_state_the_shotlist_rule():
+    from conftest import SCRIPTS
+    skill = (SCRIPTS.parent / "SKILL.md").read_text()
+    story = (SCRIPTS.parent / "references" / "storyboard.md").read_text()
+    for text in (" ".join(skill.split()), " ".join(story.split())):
+        assert "If you cannot say why a scene exists, it does not belong in the render" in text
+        assert "Never delete `shotlist.md`" in text
