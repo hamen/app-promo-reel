@@ -640,6 +640,19 @@ def test_poster_candidates_never_include_frame_zero_or_the_last_frame():
     assert finish.poster_candidates([(0.0, None)], 0.5) == []
 
 
+def test_poster_candidates_keep_a_zero_duration_as_a_real_end():
+    # data-duration="0": the first scene ends where it starts, so it has no window; the later scene keeps its own
+    assert finish.poster_candidates([(0.0, 0.0), (1.0, None)], 4.0) == [3.5]
+
+
+def test_poster_never_picks_frame_zero_for_a_candidate_that_rounds_to_it():
+    # one scene in a 0.516 s clip: the last-scene candidate is 0.016 s, and round(0.016 * 30) is frame 0
+    assert finish.poster_candidates([(0.0, None)], 0.516) == [0.016]
+    frames = with_detail(flat_frames(), 0, 1)
+    i, info = finish.pick_poster(frames, 30, [(0.0, None)], 0.516)
+    assert i == 60 and info["t"] == 2.0
+
+
 def flat_frames(n=120, h=64, w=36):
     return np.zeros((n, h, w), np.float32)
 
@@ -720,6 +733,22 @@ def test_finish_writes_a_full_size_poster_with_the_label_and_reports_it(tmp_path
     marker = px[102:108, 92:98]  # red in frame 105 only: the JPEG is that frame, not its neighbour
     assert marker[..., 0].min() > 200 and marker[..., 1].max() < 80
     assert not list(r.glob("*checking*"))
+
+
+def test_the_poster_is_a_second_encode_of_the_scored_frame_at_quality_90(tmp_path, proj):
+    from PIL import Image
+    raw = label_clip(tmp_path)
+    (proj / "index.html").write_text(html_of((0.0, 2.1), (2.0, 2.0)))
+    realize(proj, [(t, True) for t in CLICKS])
+    assert finish.finish(proj, raw) == 0
+    r = proj / "renders"
+    png = tmp_path / "again.png"
+    subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-y", "-i", str(r / "demo-a-v1.mp4"),
+                    "-vf", f"select=eq(n\\,{MARKER_FRAME})", "-fps_mode", "passthrough", "-frames:v", "1", str(png)],
+                   check=True)
+    again = tmp_path / "again.jpg"
+    Image.open(png).convert("RGB").save(again, quality=90)
+    assert (r / "demo-a-v1-poster.jpg").read_bytes() == again.read_bytes()
 
 
 def test_a_failed_check_leaves_no_poster_and_no_poster_entry(tmp_path, proj):

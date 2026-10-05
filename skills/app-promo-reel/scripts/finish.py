@@ -403,7 +403,7 @@ def poster_candidates(spans, duration):
     scene), moved back inside the window; a scene whose candidate falls outside its window (an empty
     window always does) or outside the video gives none. Frame 0 is never a candidate."""
     times = []
-    ends = [min(s + d, duration) if d else duration for s, d in spans]
+    ends = [min(s + d, duration) if d is not None else duration for s, d in spans]
     for i, (start, _) in enumerate(spans):
         last = i == len(spans) - 1
         lo = max(start, ends[i - 1]) if i else start
@@ -434,6 +434,7 @@ def pick_poster(frames, fps, spans, duration, silent=False, forced_t=None):
         i, row = at(forced_t)
         return i, {"t": row["t"], "score": row["score"], "candidates": [row]}
     times = [] if silent and len(spans) <= 1 else poster_candidates(spans, duration)
+    times = [t for t in times if round(t * fps) > 0]
     if not times:
         i = n // 2
         row = {"t": round(i / fps, 3), "score": round(float(detail[i]), 3)}

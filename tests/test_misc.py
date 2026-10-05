@@ -378,7 +378,7 @@ def test_every_design_md_keeps_the_reference_section_before_what_not_to_do(tmp_p
     heads = [l for l in design.splitlines() if l.startswith("## ")]
     assert "## Reference" in heads and heads.index("## Reference") == heads.index("## What NOT to do") - 1
     ref = design[design.index("## Reference"):design.index("## What NOT to do")]
-    for word in ("Palette", "Typography", "Composition", "Pacing", "Motion", "Texture", "Do not copy", "estimated", "sample_colors.py"):
+    for word in ("Palette", "Typography", "Composition", "Pacing", "Motion", "Texture", "Do not copy", "product screen", "estimated", "sample_colors.py"):
         assert word in ref
     music = design[design.index("## Music"):design.index("## Reference")]
     assert ("16:9 is silent: no music." in music) == (fmt == "16:9")
@@ -388,6 +388,7 @@ def test_skill_step_2_points_at_the_reference_section():
     skill = " ".join((SCRIPTS.parent / "SKILL.md").read_text().split())
     step2 = skill[skill.index("2. **Research"):skill.index("3. **Music first")]
     assert "`## Reference`" in step2 and "sample_colors.py" in step2 and "estimated" in step2
+    assert "no logo, text, music, claim or product screen comes from it" in step2
 
 
 def test_gated_run_is_opt_in_and_names_its_triggers_and_four_stops():
