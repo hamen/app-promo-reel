@@ -265,6 +265,83 @@ def check_scenes(html_out, duration):
             f"this tempo/duration: re-map the scenes (references/storyboard.md)")
 
 
+SHOTLIST_HEADER = ["scene", "purpose", "entry state", "exit state"]
+
+
+def shotlist_rows(text):
+    """The rows of the one table headed `scene | purpose | entry state | exit state`: a list of
+    four-cell lists, or a string that says what is wrong with the file."""
+    lines = text.splitlines()
+    tables = [i for i, line in enumerate(lines) if split_row(line) is not None
+              and [c.lower() for c in split_row(line)] == SHOTLIST_HEADER]
+    if len(tables) != 1:
+        return (f"it needs exactly one table headed `{' | '.join(SHOTLIST_HEADER)}`, "
+                f"found {len(tables)}")
+    rows = []
+    for line in lines[tables[0] + 2:]:  # skip the header and the separator row
+        cells = split_row(line)
+        if cells is None:
+            break
+        rows.append(cells)
+    if not rows:
+        return "the table has no rows"
+    return rows
+
+
+def split_row(line):
+    line = line.strip()
+    if not line.startswith("|"):
+        return None
+    line = line[1:-1] if line.endswith("|") and len(line) > 1 else line[1:]
+    return [c.strip() for c in line.split("|")]
+
+
+def check_shotlist(project_dir, html_out):
+    """When <project>/shotlist.md exists, every live scene needs exactly one row with a purpose, an
+    entry state and an exit state: a scene whose job nobody can state does not belong in the render."""
+    path = Path(project_dir) / "shotlist.md"
+    if not path.is_file():
+        return
+    try:
+        rows = shotlist_rows(path.read_text(encoding="utf-8"))
+    except UnicodeDecodeError as e:
+        die(f"{path} is not UTF-8 text ({e}); save it as UTF-8")
+    if isinstance(rows, str):
+        die(f"shotlist.md: {rows}")
+    problems = []
+    live = re.sub(r"<!--.*?-->", "", html_out, flags=re.S)
+    scenes = []
+    for tag in re.findall(r"<section\b[^>]*>", live):
+        if not re.search(r"""\bdata-start\s*=\s*(["']).*?\1""", tag):
+            continue
+        name = re.search(r"""\bid\s*=\s*(["'])(.*?)\1""", tag)
+        if name and name.group(2):
+            scenes.append(name.group(2))
+        else:
+            problems.append(f"a scene has no id: {tag[:60]}")
+    seen = {}
+    for row in rows:
+        if len(row) != len(SHOTLIST_HEADER):
+            problems.append(f"the row for {row[0] if row else '?'!r} has {len(row)} cells, not "
+                            f"{len(SHOTLIST_HEADER)}")
+            continue
+        scene = row[0]
+        seen[scene] = seen.get(scene, 0) + 1
+        if seen[scene] == 2:
+            problems.append(f"scene {scene} has more than one row")
+        for label, cell in zip(SHOTLIST_HEADER[1:], row[1:]):
+            if not cell or cell.upper() == "TODO":
+                problems.append(f"scene {scene}: the {label} is empty or TODO")
+    for scene in scenes:
+        if scene not in seen:
+            problems.append(f"scene {scene} has no row: add one to shotlist.md")
+    for scene in seen:
+        if scene not in scenes:
+            problems.append(f"shotlist.md has a row for {scene}, which is not a scene in the page")
+    if problems:
+        die("shotlist.md does not match the scenes:\n  " + "\n  ".join(problems))
+
+
 # Injected by build.py as the LAST script of the page. The label is not part of the template: this
 # script creates it from CONFIG.aiLabel, with an id drawn at build time (no Math.random in the page:
 # HyperFrames needs deterministic scripts) that no template rule or tween can know, and
@@ -537,6 +614,7 @@ def build(project_dir):
     elif lines:
         die("src.html.tmpl has no <!--SFX--> marker for the SFX tags")
     check_scenes(out, project["duration"])
+    check_shotlist(project_dir, out)
     check_seekable(out)
     check_ai_label(out)
     out = add_ai_label_guard(out)
