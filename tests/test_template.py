@@ -267,17 +267,26 @@ def test_the_9x16_template_uses_the_motion_classes_and_no_back_ease(tmp_path):
     assert len(re.findall(r"ease: MOTION\.(?:icon|panel|headline|micro)\.ease", src)) == 8
 
 
-SITE_CLASS = {"const pop = ": "icon", 'tl.fromTo("#hero"': "panel", 'tl.fromTo("#phone"': "panel",
-              'tl.fromTo("#cap-a"': "headline", 'tl.fromTo("#cap-b"': "headline",
-              'tl.fromTo("#val-sub"': "headline", 'tl.fromTo("#tagline"': "headline",
-              'tl.fromTo("#cta"': "icon"}
+SITE_CLASS = {  # site -> (class, duration, start expression)
+    "const pop = ": ("icon", "0.32", "t - 0.1"),
+    'tl.fromTo("#hero"': ("panel", "0.55", "Math.max(0.05, D(0) - 0.6)"),
+    'tl.fromTo("#phone"': ("panel", "0.7", "D(2) - 0.28"),
+    'tl.fromTo("#cap-a"': ("headline", "0.35", "D(2) - 0.1"),
+    'tl.fromTo("#cap-b"': ("headline", "0.35", "D(4) - 0.02"),
+    'tl.fromTo("#val-sub"': ("headline", "0.3", "D(11, 0) - 0.1"),
+    'tl.fromTo("#tagline"': ("headline", "0.3", "D(13, 0) - 0.1"),
+    'tl.fromTo("#cta"': ("icon", "0.3", "D(13, 2) - 0.08"),
+}
 
 
-@pytest.mark.parametrize("site, cls", sorted(SITE_CLASS.items()))
-def test_each_converted_entrance_uses_its_own_motion_class(site, cls):
+@pytest.mark.parametrize("site, spec", sorted(SITE_CLASS.items()))
+def test_each_converted_entrance_keeps_its_class_duration_and_start(site, spec):
+    cls, dur, start = spec
     lines = [ln for ln in (TEMPLATE / "src.html.tmpl").read_text().splitlines() if site in ln]
     assert len(lines) == 1
     assert re.findall(r"ease: (MOTION\.\w+\.ease)", lines[0]) == [f"MOTION.{cls}.ease"]
+    assert re.findall(r"duration: ([\d.]+)", lines[0]) == [dur]
+    assert lines[0].rstrip().endswith(f"}}, {start});")
 
 
 def test_a_random_value_added_to_the_template_fails_the_build(tmp_path):

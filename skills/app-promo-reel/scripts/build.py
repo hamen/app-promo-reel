@@ -440,7 +440,8 @@ def check_seekable(html_out):
         attrs, body = {}, m.group(2)
         for a in re.finditer(ATTRIBUTE, m.group(1)):
             attrs.setdefault(a.group(1).lower(), next((g for g in a.groups()[1:] if g is not None), ""))
-        if "src" in attrs or attrs.get("type", "").lower() not in JS_TYPES:
+        script_type = attrs.get("type", "").split(";")[0].strip(" \t\n\f\r").lower()
+        if "src" in attrs or script_type not in JS_TYPES:
             continue
         code = blank_js(body)
         hits = sorted((h.start(), name) for name, rx in SEEKABLE_BANNED for h in re.finditer(rx, code))

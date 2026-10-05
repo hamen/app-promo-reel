@@ -456,7 +456,9 @@ def test_text_inside_an_attribute_value_does_not_hide_a_script_from_the_check(ca
 
 @pytest.mark.parametrize("attrs", [' type="module"', ' type="text/javascript"', ' type="application/javascript"',
                                    " type=module", ' TYPE="Module"', ' type=""', ' type',
-                                   ' type="module" type="application/json"'])
+                                   ' type="module" type="application/json"',
+                                   ' type="text/javascript; charset=UTF-8"', ' type="text/javascript;charset=utf-8"',
+                                   ' type=" text/javascript "', ' type="\tmodule\n"'])
 def test_a_script_that_runs_is_scanned(capsys, attrs):
     assert "Math.random" in seekable_error(page("Math.random()", attrs), capsys)
 
@@ -464,7 +466,8 @@ def test_a_script_that_runs_is_scanned(capsys, attrs):
 @pytest.mark.parametrize("attrs", [' src="x.js"', " src='x.js'", " src=x.js", ' type="application/json"',
                                    ' type="text/template"', ' data-x="1" src="x.js"',
                                    ' data-note="a > b" src="x.js"', " data-note='a > b' type='application/json'",
-                                   ' type="application/json" type="module"'])
+                                   ' type="application/json" type="module"',
+                                   ' type="application/json; charset=utf-8"', ' type=" application/json "'])
 def test_a_script_that_does_not_run_inline_is_not_scanned(attrs):
     from build import check_seekable
     check_seekable(page("Math.random()", attrs))
