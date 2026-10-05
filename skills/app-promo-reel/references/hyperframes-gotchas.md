@@ -12,6 +12,11 @@ Pin the version: `npx --yes hyperframes@0.8.78 …` (the project's package.json 
   is painted at t=0 (a tap ring showed in frame one).
 - A property in the from-vars but not in the to-vars animates BACK to its CSS value. Put it in
   both (a slide-in screen with `opacity: 1` only in the from-state stayed invisible).
+- A tween `ease` can be a plain function of progress. HyperFrames 0.8.78 accepts it: `check`
+  reports 0 errors, snapshots repeat exactly and two draft renders gave identical frame hashes.
+  The springs in `motion.js` rely on this (`references/motion.md`).
+- `build.py` fails when an inline script uses `Math.random`, `Date.now`, a timer or
+  `requestAnimationFrame`: a frame must depend only on `t`, or two renders differ.
 - Hide an element after it leaves with a short `tl.to(…, {opacity: 0, duration: 0.02})`, not
   `tl.set`; the earlier reels used this pattern for every visibility change.
 

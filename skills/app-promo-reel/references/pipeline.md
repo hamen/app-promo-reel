@@ -99,7 +99,7 @@ $PY $S/make_bed.py $P/work/music/bgm_5.wav $P --drop-bar 6
 ## 4. Build
 
 ```bash
-$PY $S/build.py $P      # src.html.tmpl -> index.html, cues.json -> cues.realized.json
+$PY $S/build.py $P      # src.html.tmpl (+ motion.js) -> index.html, cues.json -> cues.realized.json
 cd $P && npx --yes hyperframes@0.8.78 check
 npx --yes hyperframes@0.8.78 snapshot --at 1.0,2.4,4.6,... --describe false --no-end -o snapshots/r1
 ```

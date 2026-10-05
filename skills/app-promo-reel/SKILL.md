@@ -91,7 +91,8 @@ Commands for every step: `references/pipeline.md`.
 4. **Storyboard on bars, then build the scenes.** Fill `CONFIG` at the top of `src.html.tmpl`
    (all text, colours, screens) and edit the scenes. Rebuild the app's real screens as HTML
    components from the screenshots and strings — no pasted screenshots. Timing uses beat tokens
-   only. Put the SFX cues in `cues.json`. See `references/storyboard.md` and
+   only. Put the SFX cues in `cues.json`. Give each object the ease of its motion class
+   (`motion.js`). See `references/storyboard.md`, `references/motion.md` and
    `references/hyperframes-gotchas.md`.
 5. **Build, check, look, render, finish.**
    - `build.py <project>` → `npx --yes hyperframes@0.8.78 check` until 0 errors.
@@ -111,7 +112,9 @@ Commands for every step: `references/pipeline.md`.
      (a new folder per round).
    - Score 1-10, one line each: **hook** (something readable in the first 1 s, frame 0 not
      empty); **readability** (at the 270 px size of the contact sheet); **motion** (no two texts
-     on top of each other, nothing crossing another element by accident, no dead second);
+     on top of each other, nothing crossing another element by accident, no dead second; each
+     object moves as its class; at most one class overshoots hard at a time; the viewer knows
+     where to look after each move);
      **variety** (something new every 2-4 s); **composition**; **claims** (each one is in the
      DESIGN.md allowed list); **sound** (sync report, and what the storyboard asked for).
    - Write the 3 worst problems with their timestamps. Fix each one in the file that controls
