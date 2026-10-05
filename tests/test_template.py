@@ -267,6 +267,19 @@ def test_the_9x16_template_uses_the_motion_classes_and_no_back_ease(tmp_path):
     assert len(re.findall(r"ease: MOTION\.(?:icon|panel|headline|micro)\.ease", src)) == 8
 
 
+SITE_CLASS = {"const pop = ": "icon", 'tl.fromTo("#hero"': "panel", 'tl.fromTo("#phone"': "panel",
+              'tl.fromTo("#cap-a"': "headline", 'tl.fromTo("#cap-b"': "headline",
+              'tl.fromTo("#val-sub"': "headline", 'tl.fromTo("#tagline"': "headline",
+              'tl.fromTo("#cta"': "icon"}
+
+
+@pytest.mark.parametrize("site, cls", sorted(SITE_CLASS.items()))
+def test_each_converted_entrance_uses_its_own_motion_class(site, cls):
+    lines = [ln for ln in (TEMPLATE / "src.html.tmpl").read_text().splitlines() if site in ln]
+    assert len(lines) == 1
+    assert re.findall(r"ease: (MOTION\.\w+\.ease)", lines[0]) == [f"MOTION.{cls}.ease"]
+
+
 def test_a_random_value_added_to_the_template_fails_the_build(tmp_path):
     def edit(p):
         t = p / "src.html.tmpl"

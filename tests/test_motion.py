@@ -32,11 +32,19 @@ for (const os of %s) {
     same: xs.every((v, i) => v === g(i / N)),
   };
 }
-const throws = [-0.01, 0.36, NaN, undefined].map((v) => { try { spring(v); return false; } catch (e) { return true; } });
+const throws = [-0.01, 0.36, NaN, null, false, "", "0.1"].map((v) => { try { spring(v); return false; } catch (e) { return true; } });
+const dflt = [0, 0.3, 0.7, 1].map((p) => [spring()(p), spring(0.12)(p)]);
+const peak = {};
+for (const [k, v] of Object.entries(MOTION)) {
+  if (typeof v.ease !== "function") continue;
+  let m = 0;
+  for (let i = 0; i <= 2000; i++) m = Math.max(m, v.ease(i / 2000));
+  peak[k] = m;
+}
 const shape = {};
 for (const [k, v] of Object.entries(MOTION))
   shape[k] = Object.fromEntries(Object.entries(v).map(([a, b]) => [a, typeof b === "function" ? "function" : b]));
-console.log(JSON.stringify({ report, throws, shape }));
+console.log(JSON.stringify({ report, throws, shape, dflt, peak }));
 """ % json.dumps(OVERSHOOTS)
 
 
@@ -81,14 +89,28 @@ def test_a_spring_is_settled_for_the_last_tenth_and_is_deterministic(result, os)
     assert m["settle"] < 0.01 and m["same"]
 
 
-def test_an_overshoot_outside_0_to_0_35_throws(result):
-    assert result["throws"] == [True, True, True, True]
+def test_an_overshoot_outside_0_to_0_35_or_not_a_number_throws(result):
+    assert result["throws"] == [True] * 7
 
 
-@pytest.mark.parametrize("cls", ["micro", "panel", "headline", "icon"])
-def test_a_motion_class_has_a_spring_ease_and_a_duration(result, cls):
+def test_spring_with_no_argument_is_the_agreed_default_of_0_12(result):
+    assert all(a == b for a, b in result["dflt"])
+
+
+CLASSES = {  # class -> (dur, hold, first overshoot)
+    "micro": (0.18, None, 0.06),
+    "panel": (0.55, None, 0.07),
+    "headline": (0.35, 1.0, 0.13),
+    "icon": (0.32, None, 0.20),
+}
+
+
+@pytest.mark.parametrize("cls", sorted(CLASSES))
+def test_a_motion_class_has_its_agreed_duration_hold_and_overshoot(result, cls):
+    dur, hold, os = CLASSES[cls]
     c = result["shape"][cls]
-    assert c["ease"] == "function" and 0 < c["dur"] < 1
+    assert c["ease"] == "function" and c["dur"] == dur and c.get("hold") == hold
+    assert abs(result["peak"][cls] - (1 + os)) < 0.01
 
 
 def test_the_camera_class_is_two_named_eases_and_never_a_spring(result):

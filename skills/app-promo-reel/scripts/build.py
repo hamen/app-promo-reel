@@ -348,7 +348,7 @@ SEEKABLE_BANNED = (
     ("Math.random", r"(?<![\w$])Math\s*\.\s*random(?![\w$])"),
     ("Date.now", r"(?<![\w$])Date\s*\.\s*now(?![\w$])"),
     ("new Date", r"(?<![\w$])new\s+Date(?![\w$])"),
-    ("Date(", r"(?<![\w$.])Date\s*\("),
+    ("Date(", r"(?<![\w$])Date\s*\("),
     ("performance.now", r"(?<![\w$])performance\s*\.\s*now(?![\w$])"),
     ("setTimeout", r"(?<![\w$])setTimeout(?![\w$])"),
     ("setInterval", r"(?<![\w$])setInterval(?![\w$])"),
@@ -433,21 +433,22 @@ def check_seekable(html_out):
     scripts (scripts with a src and inline event-handler attributes are not read). Comments, strings and
     template-literal text are blanked first, so a name in prose does not fail the build. Runs before the
     AI-label guard is added, so the guard's own code is never read."""
+    found = []
     for m in re.finditer(r"<script\b([^>]*)>(.*?)</script\s*>", html_out, re.S | re.I):
         attrs, body = m.group(1), m.group(2)
-        if re.search(r"\bsrc\s*=", attrs, re.I):
+        if re.search(r"(?<![\w:.-])src\s*=", attrs, re.I):
             continue
-        t = re.search(r"\btype\s*=\s*[\"']?([^\"'\s>]*)", attrs, re.I)
+        t = re.search(r"(?<![\w:.-])type\s*=\s*[\"']?([^\"'\s>]*)", attrs, re.I)
         if t and t.group(1).lower() not in JS_TYPES:
             continue
         code = blank_js(body)
-        hits = [(h.start(), name) for name, rx in SEEKABLE_BANNED for h in re.finditer(rx, code)]
-        if not hits:
-            continue
-        pos, name = min(hits)
-        line = body.split("\n")[body.count("\n", 0, pos)].strip()
-        die(f"a frame must depend only on t: remove {name} in `{line[:140]}` (a hidden clock or a "
-            f"random value makes two renders differ)")
+        hits = sorted((h.start(), name) for name, rx in SEEKABLE_BANNED for h in re.finditer(rx, code))
+        for pos, name in hits:
+            line = body.split("\n")[body.count("\n", 0, pos)].strip()
+            found.append(f"  remove {name} in `{line[:140]}`")
+    if found:
+        die("a frame must depend only on t (a hidden clock or a random value makes two renders differ):\n"
+            + "\n".join(found))
 
 
 def has_visible_character(label):

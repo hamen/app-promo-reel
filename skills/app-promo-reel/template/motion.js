@@ -1,9 +1,9 @@
 // Motion language: one entry per object type. Edit values here, not in the timeline.
 // Every ease is a pure function of progress p (0..1): the same time gives the same frame.
 // A spring is trimmed so f(0)=0 and f(1)=1 and the tween always lands exactly.
-// os is the first overshoot (0.06 = 6% past the target). Allowed range: 0 to 0.35.
-const spring = (os) => {
-  if (!(os >= 0 && os <= 0.35)) throw new Error(`spring(${os}): overshoot must be 0-0.35`);
+// os is the first overshoot (0.06 = 6% past the target). Allowed range: 0 to 0.35. Default 0.12.
+const spring = (os = 0.12) => {
+  if (!(typeof os === "number" && os >= 0 && os <= 0.35)) throw new Error(`spring(${os}): overshoot must be 0-0.35`);
   let raw;
   if (os === 0) {
     const w = 9;

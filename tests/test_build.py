@@ -404,6 +404,8 @@ def seekable_error(html, capsys):
     ("new Date", "const d = new Date;"),
     ("Date(", "const d = Date();"),
     ("Date(", "const d = new Date(0);"),
+    ("Date(", "const d = window.Date();"),
+    ("Date(", "const d = globalThis.Date();"),
     ("performance.now", "const t = performance.now();"),
     ("setTimeout", "setTimeout(() => {}, 10);"),
     ("setInterval", "window.setInterval(f, 10);"),
@@ -437,6 +439,20 @@ def test_a_script_with_a_src_or_a_json_script_is_not_read():
     from build import check_seekable
     check_seekable(page("Math.random()", ' src="x.js"'))
     check_seekable(page("Math.random()", ' type="application/json"'))
+
+
+@pytest.mark.parametrize("attrs", [' data-src="x"', ' ng-src="x"', ' data-type="application/json"', ' data-type="text/plain"'])
+def test_a_data_attribute_does_not_hide_a_script_from_the_check(capsys, attrs):
+    assert "Math.random" in seekable_error(page("Math.random()", attrs), capsys)
+
+
+def test_every_hit_in_every_inline_script_gets_its_own_line(capsys):
+    html = ("<html><body><script>\nMath.random();\nconst t = Date.now();\n</script>"
+            "<script>\nrequestAnimationFrame(tick);\n</script></body></html>")
+    err = seekable_error(html, capsys)
+    assert [n for n in ("Math.random", "Date.now", "requestAnimationFrame") if f"remove {n} in" in err] == [
+        "Math.random", "Date.now", "requestAnimationFrame"]
+    assert err.count("remove ") == 3
 
 
 @pytest.mark.parametrize("js", [
