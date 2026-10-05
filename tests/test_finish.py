@@ -747,6 +747,14 @@ def test_poster_at_names_the_frame(tmp_path, proj):
     assert json.loads((proj / "renders" / "demo-a-v2-report.json").read_text())["poster"]["t"] == 0.0
 
 
+def test_poster_at_accepts_the_last_frame(tmp_path, proj):
+    raw = make_raw_mp4(tmp_path)
+    realize(proj, [(t, True) for t in CLICKS])
+    assert finish.finish(proj, raw, poster_at=3.96) == 0
+    assert json.loads((proj / "renders" / "demo-a-v1-report.json").read_text())["poster"]["t"] == 3.96
+    assert (proj / "renders" / "demo-a-v1-poster.jpg").is_file()
+
+
 @pytest.mark.parametrize("t", [-0.1, 4.0, 100])
 def test_a_poster_at_outside_the_video_exits_2_before_any_file(tmp_path, proj, t):
     raw = make_raw_mp4(tmp_path)  # 120 frames: the last is at 3.967 s

@@ -120,12 +120,17 @@ Commands for every step: `references/pipeline.md`.
      where to look after each move);
      **variety** (something new every 2-4 s); **composition**; **claims** (each one is in the
      DESIGN.md allowed list); **sound** (sync report, and what the storyboard asked for).
-   - Write the 3 worst problems with their timestamps. Fix each one in the file that controls
-     it: scenes, text and motion in `src.html.tmpl`; sound effects in `cues.json`; the music bed
-     with `make_bed.py` (or a new seed, step 3). Then build, check, render and finish again.
+   - Judge only the rendered frames, not what you intended. Write the round to
+     `reviews/critique-<N>.md` in the format of `references/critique.md`: the seven scores, then
+     the worst 0 to 3 problems, each with its time, a still from the render as evidence, and the
+     file that fixes it. Run `critique_check.py <project>` before you fix anything: it exits 1 on a
+     malformed file.
+   - Fix each problem in the file that controls it: scenes, text and motion in `src.html.tmpl`;
+     sound effects in `cues.json`; the music bed with `make_bed.py` (or a new seed, step 3). Then
+     build, check, render and finish again.
    - Stop when every score is 8 or more, or after 3 critique rounds. Never loop without the cap.
 7. **Deliver.** List each final MP4 path with a one-line summary (angle, music source and seed,
-   tempo, sync result, loudness), its seven scores and any problem still open. Repeat the music
+   tempo, sync result, loudness), its seven scores (from the last `reviews/critique-<N>.md`) and any problem still open. Repeat the music
    licence note; for the user's own track, give the contents of `bgm_user.source.txt`.
    **Nothing is uploaded or sent.**
 
@@ -134,7 +139,7 @@ Commands for every step: `references/pipeline.md`.
 For `--format 16:9` skip step 3 (no music, no beat grid, no cues) and use the hero template.
 Steps 1, 2, 5 and 7 stay. In step 4 fill `CONFIG` but write no bar storyboard. The loop contract,
 the build and the checks are in `references/hero.md`. In step 6 the **sound** score becomes
-**loop**: the `seam:` numbers in the finish report, and a look at the strip of the clip played
+**loop** (the seventh name in the critique file): the `seam:` numbers in the finish report, and a look at the strip of the clip played
 twice. Never put an `<audio>` or `<video>` tag in the page.
 The AI-generated label rule (truthfulness 7) applies to the hero too.
 
