@@ -18,6 +18,8 @@ Tokens (the `{{ }}` delimiter never appears in CSS, so @font-face/@media/@keyfra
   {{FORMAT}}                   the format: 9:16, 4:5 or 16:9
   {{FRAME_SCALE}}              the frame height divided by the 9:16 height (1 for 9:16): scales
                                pixel distances, e.g. a camera shake, to the frame
+  {{MOTION}}                   the text of <project>/motion.js (the spring eases and the MOTION
+                               table); the build fails when the file is missing
 
 SFX: cues.json -> <audio> tags in place of `<!--SFX-->`, plus cues.realized.json, the list of
 cues actually mixed (finish.py checks sync against that list only). A cue whose file is
@@ -104,7 +106,7 @@ def _ints(name, args, n_min, n_max):
     return [int(p) for p in parts]
 
 
-def substitute(src, grid, project):
+def substitute(src, grid, project, motion=None):
     duration = project["duration"]
 
     def sub(m):
@@ -151,6 +153,14 @@ def substitute(src, grid, project):
             return project["format"]
         if name == "FRAME_SCALE":
             return f"{project['height'] / FORMATS['9:16'][1]:g}"
+        if name == "MOTION":
+            if motion is None:
+                raise CalcError("the template has {{MOTION}} but the project has no motion.js: copy it "
+                                "from template/motion.js")
+            if "{{" in motion or "}}" in motion:
+                raise CalcError("motion.js must not contain a double brace (it would read as a token): "
+                                "put a space between the braces")
+            return motion
         raise CalcError(f"unknown token {{{{{name}}}}}")
 
     try:
@@ -334,6 +344,115 @@ AI_LABEL_GUARD = r"""<script data-ai-label-guard>
 BLANK_GLYPHS = "\u115f\u1160\u3164\uffa0\u2800"  # letters that draw nothing (Hangul fillers, braille blank)
 
 
+SEEKABLE_BANNED = (
+    ("Math.random", r"(?<![\w$])Math\s*\.\s*random(?![\w$])"),
+    ("Date.now", r"(?<![\w$])Date\s*\.\s*now(?![\w$])"),
+    ("new Date", r"(?<![\w$])new\s+Date(?![\w$])"),
+    ("Date(", r"(?<![\w$])Date\s*\("),
+    ("performance.now", r"(?<![\w$])performance\s*\.\s*now(?![\w$])"),
+    ("setTimeout", r"(?<![\w$])setTimeout(?![\w$])"),
+    ("setInterval", r"(?<![\w$])setInterval(?![\w$])"),
+    ("requestAnimationFrame", r"(?<![\w$])requestAnimationFrame(?![\w$])"),
+    ("crypto.getRandomValues", r"(?<![\w$])crypto\s*\.\s*getRandomValues(?![\w$])"),
+    ("crypto.randomUUID", r"(?<![\w$])crypto\s*\.\s*randomUUID(?![\w$])"),
+)
+SCRIPT_TAG = r"<script\b((?:\"[^\"]*\"|'[^']*'|[^'\">])*)>(.*?)</script\s*>"
+ATTRIBUTE = r"""([^\s"'>/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?"""
+JS_TYPES = ("", "module", "text/javascript", "application/javascript")
+
+
+def blank_js(src):
+    """Return src with every comment, string and template-literal text replaced by spaces (newlines
+    kept, so offsets and line numbers stay). The code inside `${...}` stays. One pass, so a `//` in a
+    string is not a comment and a quote in a comment does not open a string. A regex literal that holds
+    a quote is not understood."""
+    out = list(src)
+    n = len(src)
+
+    def blank(a, b):
+        for k in range(a, min(b, n)):
+            if out[k] != "\n":
+                out[k] = " "
+
+    stack = [["code", 0]]  # ["code", brace depth] or ["tpl", 0]
+    i = 0
+    while i < n:
+        kind, c = stack[-1][0], src[i]
+        if kind == "code":
+            two = src[i:i + 2]
+            if two == "//":
+                j = src.find("\n", i)
+                j = n if j < 0 else j
+                blank(i, j)
+                i = j
+            elif two == "/*":
+                j = src.find("*/", i + 2)
+                j = n if j < 0 else j + 2
+                blank(i, j)
+                i = j
+            elif c in "'\"":
+                j = i + 1
+                while j < n and src[j] != c and src[j] != "\n":
+                    j += 2 if src[j] == "\\" else 1
+                j = min(j + 1, n)
+                blank(i, j)
+                i = j
+            elif c == "`":
+                stack.append(["tpl", 0])
+                blank(i, i + 1)
+                i += 1
+            elif c == "{":
+                stack[-1][1] += 1
+                i += 1
+            elif c == "}":
+                if stack[-1][1] > 0:
+                    stack[-1][1] -= 1
+                elif len(stack) > 1:
+                    stack.pop()
+                    blank(i, i + 1)
+                i += 1
+            else:
+                i += 1
+        elif c == "\\":
+            blank(i, i + 2)
+            i += 2
+        elif c == "`":
+            stack.pop()
+            blank(i, i + 1)
+            i += 1
+        elif src[i:i + 2] == "${":
+            stack.append(["code", 0])
+            blank(i, i + 2)
+            i += 2
+        else:
+            blank(i, i + 1)
+            i += 1
+    return "".join(out)
+
+
+def check_seekable(html_out):
+    """A frame must depend only on the time: no clock, no timer, no random value in the page's inline
+    scripts (scripts with a src and inline event-handler attributes are not read). Comments, strings and
+    template-literal text are blanked first, so a name in prose does not fail the build. Runs before the
+    AI-label guard is added, so the guard's own code is never read."""
+    found = []
+    for m in re.finditer(SCRIPT_TAG, html_out, re.S | re.I):
+        attrs, body = {}, m.group(2)
+        for a in re.finditer(ATTRIBUTE, m.group(1)):
+            attrs.setdefault(a.group(1).lower(), next((g for g in a.groups()[1:] if g is not None), ""))
+        script_type = attrs.get("type", "").split(";")[0].strip(" \t\n\f\r").lower()
+        if "src" in attrs or script_type not in JS_TYPES:
+            continue
+        code = blank_js(body)
+        hits = sorted((h.start(), name) for name, rx in SEEKABLE_BANNED for h in re.finditer(rx, code))
+        for pos, name in hits:
+            line = body.split("\n")[body.count("\n", 0, pos)].strip()
+            found.append(f"  remove {name} in `{line[:140]}`")
+    if found:
+        die("a frame must depend only on t (a hidden clock or a random value makes two renders differ):\n"
+            + "\n".join(found))
+
+
 def has_visible_character(label):
     return isinstance(label, str) and any(
         unicodedata.category(c)[0] not in "ZCM" and c not in BLANK_GLYPHS for c in label)
@@ -398,7 +517,12 @@ def build(project_dir):
         src = tmpl.read_text(encoding="utf-8")
     except UnicodeDecodeError as e:
         die(f"{tmpl} is not UTF-8 text ({e}); save it as UTF-8")
-    out = substitute(src, grid, project)
+    motion_path = project_dir / "motion.js"
+    try:
+        motion = motion_path.read_text(encoding="utf-8") if motion_path.is_file() else None
+    except UnicodeDecodeError as e:
+        die(f"{motion_path} is not UTF-8 text ({e}); save it as UTF-8")
+    out = substitute(src, grid, project, motion)
     cues_path = project_dir / "cues.json"
     cues_doc = read_json(cues_path) if cues_path.is_file() else {}
     if silent:
@@ -413,6 +537,7 @@ def build(project_dir):
     elif lines:
         die("src.html.tmpl has no <!--SFX--> marker for the SFX tags")
     check_scenes(out, project["duration"])
+    check_seekable(out)
     check_ai_label(out)
     out = add_ai_label_guard(out)
     (project_dir / "index.html").write_text(out)
