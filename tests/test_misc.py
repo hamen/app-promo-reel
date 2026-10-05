@@ -388,3 +388,18 @@ def test_skill_step_2_points_at_the_reference_section():
     skill = " ".join((SCRIPTS.parent / "SKILL.md").read_text().split())
     step2 = skill[skill.index("2. **Research"):skill.index("3. **Music first")]
     assert "`## Reference`" in step2 and "sample_colors.py" in step2 and "estimated" in step2
+
+
+def test_gated_run_is_opt_in_and_names_its_triggers_and_four_stops():
+    skill = " ".join((SCRIPTS.parent / "SKILL.md").read_text().split())
+    assert "\n## Gated run (opt-in)" in (SCRIPTS.parent / "SKILL.md").read_text()
+    sec = skill[skill.index("## Gated run (opt-in)"):skill.index("## Variants")]
+    assert 'exact words "gated run" or "gated reel"' in sec and "in any letter case" in sec
+    assert "No other wording turns it on" in sec and "without stopping" in sec
+    assert "Never approve a gate yourself" in sec
+    for stop in ("1. After step 2", "2. After the storyboard", "3. After the first `finish.py`", "4. After the last critique round"):
+        assert stop in sec
+    for item in ("`## Reference`", "`shotlist.md`", "contact sheet", "poster", "final MP4"):
+        assert item in sec
+    # the default workflow above the section never mentions a gate
+    assert "gate" not in skill[:skill.index("## Gated run (opt-in)")].lower()

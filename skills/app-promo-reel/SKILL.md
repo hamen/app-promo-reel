@@ -147,6 +147,23 @@ the build and the checks are in `references/hero.md`. In step 6 the **sound** sc
 twice. Never put an `<audio>` or `<video>` tag in the page.
 The AI-generated label rule (truthfulness 7) applies to the hero too.
 
+## Gated run (opt-in)
+
+A gated run applies only when the user's request contains the exact words "gated run" or
+"gated reel", in any letter case. No other wording turns it on. Without those words, run the
+workflow above without stopping: an unattended run (a scheduled job, for example) never waits on
+a person.
+
+In a gated run, stop at each of these four points. Show the listed items, then wait for the user
+to say go. Never approve a gate yourself.
+
+1. After step 2: the asset list (real screens, logo, fonts) and the `## Reference` section.
+   A missing real asset stays a labelled placeholder with a note (truthfulness rule 8) in an
+   ungated run; in a gated run it is a stop at this gate.
+2. After the storyboard in step 4: `DESIGN.md` and `shotlist.md`.
+3. After the first `finish.py` in step 5: the contact sheet and the poster.
+4. After the last critique round in step 6: the final MP4 and the problems still open.
+
 ## Variants
 
 Variants differ by hook/angle (menu in `references/storyboard.md`), music seed or prompt, and
