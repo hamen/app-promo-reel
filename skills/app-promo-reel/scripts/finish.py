@@ -411,9 +411,10 @@ def poster_candidates(spans, duration):
         t = duration - POSTER_LAST if last else start + POSTER_SETTLE
         if t >= hi:
             t = hi - POSTER_EDGE
+        t = round(t, 3)
         if t < lo or t <= 0 or t >= duration - POSTER_EDGE:
             continue
-        times.append(round(t, 3))
+        times.append(t)
     return times
 
 
@@ -705,7 +706,7 @@ def finish(project_dir, raw_mp4, frames=None, poster_at=None):
             die(f"{realized_path}: every entry needs id, file and time (it is written by build.py: rebuild)")
     if poster_at is not None:  # a bad value exits 2 before any file is written
         vi_raw = video_info(raw_mp4)
-        if not 0 <= round(poster_at * project["fps"]) < vi_raw["frames"]:
+        if not (math.isfinite(poster_at) and 0 <= poster_at and round(poster_at * project["fps"]) < vi_raw["frames"]):
             die(f"--poster-at {poster_at:g}: the video has {vi_raw['frames']} frames at {project['fps']:g} fps, "
                 f"so the time must be from 0 to {(vi_raw['frames'] - 1) / project['fps']:.3f} s")
     renders = pdir / "renders"

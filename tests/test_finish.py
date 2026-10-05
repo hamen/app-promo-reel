@@ -636,6 +636,7 @@ def test_a_candidate_before_its_window_gives_none():
 
 def test_poster_candidates_never_include_frame_zero_or_the_last_frame():
     assert finish.poster_candidates([(0.0, 0.3)], 0.5) == []
+    assert finish.poster_candidates([(0.0, 0.0504)], 4.0) == []  # 0.0004 s rounds to 0.0: that is frame 0
     assert finish.poster_candidates([(0.0, None)], 0.5) == []
 
 
@@ -687,11 +688,15 @@ def test_a_single_scene_reel_uses_the_per_scene_rule():
     assert finish.pick_poster(flat_frames(), 30, [(0.0, 4.0)], 4.0)[0] == 105
 
 
+MARKER_FRAME = 105  # 3.5 s at 30 fps: the settled frame of the second scene
+
+
 def label_clip(tmp_path):
     """Blue 108x192, a white 40x12 'label' box at the bottom the whole time, and a busier picture
     from 2 s on, so the poster is chosen in the second scene."""
     boxes = ",".join(f"drawbox=x={10 + 14 * k}:y=20:w=8:h=60:color=white:t=fill:enable='gte(t,2)'" for k in range(6))
-    return make_raw_mp4(tmp_path, vf="drawbox=x=10:y=170:w=40:h=12:color=white:t=fill," + boxes)
+    marker = f"drawbox=x=90:y=100:w=10:h=10:color=red:t=fill:enable='eq(n,{MARKER_FRAME})'"  # one frame only
+    return make_raw_mp4(tmp_path, vf="drawbox=x=10:y=170:w=40:h=12:color=white:t=fill," + boxes + "," + marker)
 
 
 def test_finish_writes_a_full_size_poster_with_the_label_and_reports_it(tmp_path, proj):
@@ -710,6 +715,10 @@ def test_finish_writes_a_full_size_poster_with_the_label_and_reports_it(tmp_path
     assert img.format == "JPEG" and img.size == (108, 192)
     label = np.asarray(img.convert("RGB"))[172:180, 14:46]  # inside the label box
     assert label.min() > 200
+    px = np.asarray(img.convert("RGB"))
+    assert px[30:70, 12:16].min() > 200  # a box that exists only from 2 s on: not the first scene's frame
+    marker = px[102:108, 92:98]  # red in frame 105 only: the JPEG is that frame, not its neighbour
+    assert marker[..., 0].min() > 200 and marker[..., 1].max() < 80
     assert not list(r.glob("*checking*"))
 
 
@@ -755,7 +764,7 @@ def test_poster_at_accepts_the_last_frame(tmp_path, proj):
     assert (proj / "renders" / "demo-a-v1-poster.jpg").is_file()
 
 
-@pytest.mark.parametrize("t", [-0.1, 4.0, 100])
+@pytest.mark.parametrize("t", [-0.1, -0.01, 4.0, 100, float("nan"), float("inf")])
 def test_a_poster_at_outside_the_video_exits_2_before_any_file(tmp_path, proj, t):
     raw = make_raw_mp4(tmp_path)  # 120 frames: the last is at 3.967 s
     realize(proj, [(t, True) for t in CLICKS])

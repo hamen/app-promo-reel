@@ -132,3 +132,37 @@ def test_the_docs_state_the_shotlist_rule():
     for text in (" ".join(skill.split()), " ".join(story.split())):
         assert "If you cannot say why a scene exists, it does not belong in the render" in text
         assert "Never delete `shotlist.md`" in text
+
+
+def sep_index(lines):
+    return next(i for i, x in enumerate(lines) if x.startswith("| --- "))
+
+
+def test_the_line_under_the_header_must_be_a_separator(tmp_path):
+    def prose(t):
+        lines = t.splitlines()
+        lines[sep_index(lines)] = "some words, not a separator"
+        return "\n".join(lines) + "\n"
+
+    def dropped(t):
+        lines = t.splitlines()
+        del lines[sep_index(lines)]
+        return "\n".join(lines) + "\n"
+
+    def short(t):
+        lines = t.splitlines()
+        lines[sep_index(lines)] = "| --- | --- |"
+        return "\n".join(lines) + "\n"
+
+    fails(tmp_path / "prose", prose, "must be a separator row")
+    fails(tmp_path / "short", short, "must be a separator row")
+    err = fails(tmp_path / "dropped", dropped, "must be a separator row")
+    assert "has no row" not in err  # not the misleading "scene s1 has no row"
+
+
+def test_a_separator_with_alignment_colons_is_fine(tmp_path):
+    def edit(t):
+        lines = t.splitlines()
+        lines[sep_index(lines)] = "| :--- | ---: | :---: | --- |"
+        return "\n".join(lines) + "\n"
+    scaffold_and_build(tmp_path, edit=edit)

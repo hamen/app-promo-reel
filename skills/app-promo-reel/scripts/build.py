@@ -277,8 +277,11 @@ def shotlist_rows(text):
     if len(tables) != 1:
         return (f"it needs exactly one table headed `{' | '.join(SHOTLIST_HEADER)}`, "
                 f"found {len(tables)}")
+    sep = split_row(lines[tables[0] + 1]) if tables[0] + 1 < len(lines) else None
+    if sep is None or len(sep) != len(SHOTLIST_HEADER) or not all(re.fullmatch(r":?-+:?", c) for c in sep):
+        return "the line under the header must be a separator row: | --- | --- | --- | --- |"
     rows = []
-    for line in lines[tables[0] + 2:]:  # skip the header and the separator row
+    for line in lines[tables[0] + 2:]:
         cells = split_row(line)
         if cells is None:
             break
