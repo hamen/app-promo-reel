@@ -101,7 +101,8 @@ Commands for every step: `references/pipeline.md`.
    - Snapshots at every scene and every transition; look at them; fix; repeat.
    - `npx --yes hyperframes@0.8.78 render -o renders/raw.mp4 -q delivery --quiet`.
    - `finish.py <project> renders/raw.mp4` → loudness, A/V check, sync report, versioned file
-     `renders/<app>-<variant>-v<N>.mp4`, contact sheet, frame warnings (blank opening, pops).
+     `renders/<app>-<variant>-v<N>.mp4`, contact sheet, poster frame `…-v<N>-poster.jpg` (`--poster-at <s>` to choose it), frame
+     warnings (blank opening, pops).
      Exit 1 = a check failed: fix and finish again. Frame warnings never fail the run; the
      critique below decides.
 6. **Critique, at most 3 rounds.** Be a harsh motion director, not a proud author.

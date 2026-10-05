@@ -134,3 +134,9 @@ never checked: do not deliver it.
 Frame checks on the final MP4 print `warning:` lines and never fail the run: frame 0 blank (the
 feed thumbnail), nothing readable by 1 s, nothing readable at all, a one-frame flash, or a sudden
 change near no beat and no scene start. They are in the report under `"frames"`; the critique step of SKILL.md reads them.
+When every check passed, finish.py also writes `…-v<N>-poster.jpg`: one frame at the full video size
+(JPEG, quality 90) for a store listing, a link preview or a social cover. It is the frame with the most
+detail among the settled frame of each scene (1.1 s after its start, 0.5 s before the end for the last one);
+the report has `"poster"` with its time, its score and every candidate. `--poster-at <s>` names the frame
+instead (0 or more, inside the video; else exit 2 before any file is written). A poster that cannot be
+written fails the run like any error after the mux: `-failed`, no report. The skill never uploads it.

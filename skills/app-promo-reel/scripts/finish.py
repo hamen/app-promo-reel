@@ -24,6 +24,12 @@
    no beat and no scene start. They find one-frame events, not two texts on top of each other
    during a crossfade: that is for the critique loop in SKILL.md.
 
+8. Poster frame (only when every check passed): renders/<app>-<variant>-v<N>-poster.jpg, full video
+   size, JPEG quality 90, the frame with the most detail among the settled frames of the scenes
+   (pick_poster below). It is written before the report, inside the same guarded block as the mux:
+   a failure there renames the MP4 to -failed and leaves no report. --poster-at <s> names the
+   frame instead; a time outside the video exits 2 before any file is written.
+
 Only when every check passed is the file renamed to ...-v<N>.mp4 (sheet: -v<N>-sheet.jpg). A
 failed check exits 1 and names it ...-v<N>-failed.mp4; so does any other exit after the mux
 (an error, Ctrl-C). The report, -v<N>-report.json, is written last, with the final names. A
@@ -39,7 +45,7 @@ measured on a 480 px decode of the whole clip, because the 54 px frames of the f
 see a small shift of a phone. A seam that cannot be checked (a decode failure, fewer than 8
 frames) is a problem too, never a pass.
 
-Usage: finish.py <project_dir> <raw_render.mp4> [--frames 1.0,5.2,...]
+Usage: finish.py <project_dir> <raw_render.mp4> [--frames 1.0,5.2,...] [--poster-at 6.5]
 """
 import argparse
 import json
@@ -84,6 +90,10 @@ HOOK_BY = 1.0        # seconds: something readable must be on screen by then
 # gray-level change) and `moved` (the share of pixels that change by more than SEAM_PIX levels: a
 # shifted sharp edge changes few pixels a lot, which the mean hides). The seam is bad when either
 # is above max(its floor, SEAM_RATIO x the largest of the SEAM_REST steps on each side of the seam).
+POSTER_SETTLE = 1.1   # seconds after a scene start: its text and UI have landed (references/storyboard.md)
+POSTER_EDGE = 0.05    # a candidate stays this far inside the end of its window and of the video
+POSTER_LAST = 0.5     # the last scene: this long before the end of the video
+POSTER_QUALITY = 90
 SEAM_W = 480
 SEAM_PIX = 16
 SEAM_REST = 3
@@ -365,6 +375,102 @@ def scene_starts(html):
     return starts, notes
 
 
+def scene_spans(html):
+    """(start, duration or None) of every live <section> with a numeric data-start, sorted by start;
+    a second section with the same start is dropped."""
+    live = re.sub(r"<!--.*?-->", "", html, flags=re.S)
+
+    def number(tag, name):
+        m = re.search(rf"""\b{name}\s*=\s*(["'])(.*?)\1""", tag)
+        try:
+            v = float(m.group(2)) if m else None
+        except ValueError:
+            v = None
+        return v if is_number(v) else None
+
+    spans = {}
+    for tag in re.findall(r"<section\b[^>]*>", live):
+        start = number(tag, "data-start")
+        if start is not None:
+            spans.setdefault(start, number(tag, "data-duration"))
+    return sorted(spans.items())
+
+
+def poster_candidates(spans, duration):
+    """Times of the settled frame of each scene. A scene's clean window runs from the later of its
+    start and the end of the scene before it, to the earlier of the next start and its own end. The
+    candidate is POSTER_SETTLE after the scene start (POSTER_LAST before the end for the last
+    scene), moved back inside the window; a scene whose candidate falls outside its window (an empty
+    window always does) or outside the video gives none. Frame 0 is never a candidate."""
+    times = []
+    ends = [min(s + d, duration) if d else duration for s, d in spans]
+    for i, (start, _) in enumerate(spans):
+        last = i == len(spans) - 1
+        lo = max(start, ends[i - 1]) if i else start
+        hi = ends[i] if last else min(spans[i + 1][0], ends[i])
+        t = duration - POSTER_LAST if last else start + POSTER_SETTLE
+        if t >= hi:
+            t = hi - POSTER_EDGE
+        if t < lo or t <= 0 or t >= duration - POSTER_EDGE:
+            continue
+        times.append(round(t, 3))
+    return times
+
+
+def pick_poster(frames, fps, spans, duration, silent=False, forced_t=None):
+    """(frame index, report) of the poster. The winner is the candidate with the most detail
+    (frame_detail on the 54 px frames); a tie goes to the later time. With no candidate, and for a
+    silent project of one section (a hero loop), the frame in the middle of the clip. The score and the
+    JPEG both come from the frame index round(t * fps)."""
+    detail = frame_detail(frames)
+    n = len(frames)
+
+    def at(t):
+        i = min(max(int(round(t * fps)), 0), n - 1)
+        return i, {"t": round(t, 3), "score": round(float(detail[i]), 3)}
+
+    if forced_t is not None:
+        i, row = at(forced_t)
+        return i, {"t": row["t"], "score": row["score"], "candidates": [row]}
+    times = [] if silent and len(spans) <= 1 else poster_candidates(spans, duration)
+    if not times:
+        i = n // 2
+        row = {"t": round(i / fps, 3), "score": round(float(detail[i]), 3)}
+        return i, {**row, "candidates": [row]}
+    rows = [at(t) for t in times]
+    i, row = max(rows, key=lambda r: (r[1]["score"], r[1]["t"]))
+    return i, {"t": row["t"], "score": row["score"], "candidates": [r for _, r in rows]}
+
+
+def write_poster(mp4, index, dest):
+    """The decoded frame number `index` of mp4, at full size, as a JPEG at `dest`."""
+    from PIL import Image
+    tmp = Path(tempfile.mkdtemp(prefix="reel-poster-"))
+    try:
+        png = tmp / "frame.png"
+        run(["ffmpeg", "-nostdin", "-v", "error", "-y", "-i", str(mp4), "-vf", f"select=eq(n\\,{index})",
+             "-fps_mode", "passthrough", "-frames:v", "1", str(png)])
+        if not png.exists():
+            raise RuntimeError(f"frame {index} was not decoded")
+        Image.open(png).convert("RGB").save(dest, quality=POSTER_QUALITY)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def make_poster(pdir, mp4, vi, project, dest, silent, forced_t=None):
+    """Choose the poster of mp4 and write it to dest. Returns the report entry. Raises on failure."""
+    frames = decode_gray(mp4, vi["width"], vi["height"])
+    if not len(frames):
+        raise RuntimeError("no frame decoded")
+    try:
+        spans = scene_spans((pdir / "index.html").read_text())
+    except OSError:
+        spans = []
+    index, info = pick_poster(frames, project["fps"], spans, project["duration"], silent, forced_t)
+    write_poster(mp4, index, dest)
+    return {"path": str(dest), **info}
+
+
 def _step(a, b):
     """(mean change in gray levels, share of pixels that change by more than SEAM_PIX) between two frames."""
     diff = np.abs(a.astype(np.float32) - b.astype(np.float32))
@@ -580,7 +686,7 @@ def _checks(pdir, project, raw_mp4, realized, checking, sheet, frames):
                       "problems": problems}
 
 
-def finish(project_dir, raw_mp4, frames=None):
+def finish(project_dir, raw_mp4, frames=None, poster_at=None):
     pdir = Path(project_dir)
     project = load_project(pdir)
     raw_mp4 = Path(raw_mp4)
@@ -597,6 +703,11 @@ def finish(project_dir, raw_mp4, frames=None):
         if not (isinstance(cue, dict) and isinstance(cue.get("id"), str) and isinstance(cue.get("file"), str)
                 and isinstance(cue.get("time"), (int, float)) and not isinstance(cue.get("time"), bool)):
             die(f"{realized_path}: every entry needs id, file and time (it is written by build.py: rebuild)")
+    if poster_at is not None:  # a bad value exits 2 before any file is written
+        vi_raw = video_info(raw_mp4)
+        if not 0 <= round(poster_at * project["fps"]) < vi_raw["frames"]:
+            die(f"--poster-at {poster_at:g}: the video has {vi_raw['frames']} frames at {project['fps']:g} fps, "
+                f"so the time must be from 0 to {(vi_raw['frames'] - 1) / project['fps']:.3f} s")
     renders = pdir / "renders"
     renders.mkdir(exist_ok=True)
     stem = f"{project['app']}-{project['variant']}"
@@ -605,6 +716,7 @@ def finish(project_dir, raw_mp4, frames=None):
     sheet = out.with_name(out.stem + ".checking-sheet.jpg")
     failed, failed_sheet = out.with_name(out.stem + "-failed.mp4"), out.with_name(out.stem + "-failed-sheet.jpg")
     good_sheet = out.with_name(out.stem + "-sheet.jpg")
+    poster_path = out.with_name(out.stem + "-poster.jpg")
     report_path = out.with_name(out.stem + "-report.json")
     partial = report_path.with_name("." + report_path.name + ".partial")
     # reads only the cue sounds, so it runs before the mux: an error here leaves no file in renders/
@@ -614,13 +726,17 @@ def finish(project_dir, raw_mp4, frames=None):
             problems, report = _checks_silent(pdir, project, raw_mp4, checking, sheet, frames)
         else:
             problems, report = _checks(pdir, project, raw_mp4, realized, checking, sheet, frames)
+        poster = None
+        if not problems:  # before the report: a failure here must leave no report that names it
+            poster = make_poster(pdir, checking, report["video"], project, poster_path, silent, poster_at)
         final_mp4, final_sheet = (failed, failed_sheet) if problems else (out, good_sheet)
         checking.rename(final_mp4)
         if silent and not sheet.exists():  # a silent run can fail before it made a sheet
             final_sheet = None
         else:
             sheet.rename(final_sheet)
-        report = {"output": str(final_mp4), "sheet": str(final_sheet) if final_sheet else None, **report}
+        report = {"output": str(final_mp4), "sheet": str(final_sheet) if final_sheet else None, "poster": poster,
+                  **report}
         partial.write_text(json.dumps(report, indent=1) + "\n")
         os.replace(partial, report_path)
     except BaseException:
@@ -630,6 +746,7 @@ def finish(project_dir, raw_mp4, frames=None):
             if src.exists():
                 src.rename(dst)
         partial.unlink(missing_ok=True)
+        poster_path.unlink(missing_ok=True)
         raise
 
     rows, vi_out = report.get("sync"), report["video"]
@@ -661,7 +778,7 @@ def finish(project_dir, raw_mp4, frames=None):
         print("FAILED:\n  " + "\n  ".join(problems), file=sys.stderr)
         print(f"output kept as {final_mp4}", file=sys.stderr)
         return 1
-    print(f"ok: {final_mp4}\ncontact sheet: {final_sheet}")
+    print(f"ok: {final_mp4}\ncontact sheet: {final_sheet}\nposter: {poster['path']} (t={poster['t']:g} s)")
     return 0
 
 
@@ -670,6 +787,7 @@ def main():
     ap.add_argument("project_dir")
     ap.add_argument("raw_mp4")
     ap.add_argument("--frames", help="comma-separated times for the contact sheet")
+    ap.add_argument("--poster-at", type=float, help="time in seconds of the poster frame (default: chosen)")
     a = ap.parse_args()
     try:
         frames = [float(x) for x in a.frames.split(",")] if a.frames else None
@@ -677,7 +795,9 @@ def main():
         die(f"--frames takes comma-separated seconds, got {a.frames!r}")
     if frames and min(frames) < 0:
         die("--frames times must be 0 or more")
-    sys.exit(finish(a.project_dir, a.raw_mp4, frames))
+    if a.poster_at is not None and not (math.isfinite(a.poster_at) and a.poster_at >= 0):
+        die(f"--poster-at takes a time in seconds, 0 or more, got {a.poster_at!r}")
+    sys.exit(finish(a.project_dir, a.raw_mp4, frames, a.poster_at))
 
 
 if __name__ == "__main__":
