@@ -404,3 +404,30 @@ def test_gated_run_is_opt_in_and_names_its_triggers_and_four_stops():
         assert item in sec
     # the default workflow above the section never mentions a gate
     assert "gate" not in skill[:skill.index("## Gated run (opt-in)")].lower()
+
+
+def test_docs_pin_the_feed_safe_box_the_density_rule_and_the_punch_cap():
+    import build
+    import finish
+    from common import FEED_BOXES
+
+    def doc(*parts):
+        return " ".join(SCRIPTS.parent.joinpath(*parts).read_text().split())
+    story = doc("references", "storyboard.md")
+    zones = story[story.index("## Feed safe zones"):story.index("## Density")]
+    for fmt, (x0, y0, x1, y1) in FEED_BOXES.items():
+        assert f"| {fmt} |" in zones and f"x {x0}-{x1}, y {y0}-{y1} | {build.AI_LABEL_PLACES[fmt][1]} px or more |" in zones
+    assert "bottom 672, right 192" in zones and "lower 40%" in zones and "scaled 0.79" in zones
+    density = story[story.index("## Density"):story.index("## Drop placement")]
+    assert f"more than {finish.HOLD_MAX} s" in density and f"up to {finish.HOLD_END} s" in density
+    assert "still for <length> s from <time> s: nothing on screen moves (look at it)" in density
+    motion = doc("references", "motion.md")
+    assert f"at most {build.PUNCH_CAP} shakes and {build.PUNCH_CAP} flashes per reel" in motion
+    assert "| `icon` | small objects that appear: icon, pop, CTA, chips, rows | spring, 10% overshoot | 0.32 s |" in motion
+    critique = doc("references", "critique.md")
+    assert "caps readability at 6" in critique and "`still for …` warning" in critique
+    # the agent runs the command build.py prints, not a plain check
+    skill = doc("SKILL.md")
+    step5 = skill[skill.index("5. **Build, check"):skill.index("6. **Critique")]
+    assert "run the `check:` command it prints as its last line" in step5
+    assert "The last line build.py prints is `check: <command>`. Run that command" in doc("references", "pipeline.md")

@@ -98,15 +98,19 @@ Commands for every step: `references/pipeline.md`.
    only. Put the SFX cues in `cues.json`. Give each object the ease of its motion class
    (`motion.js`). Keep `shotlist.md` in step with the scenes: one row per scene with its
    purpose, entry state and exit state. If you cannot say why a scene exists, it does not belong
-   in the render. `build.py` fails when a scene has no row. Never delete `shotlist.md`. See
-   `references/storyboard.md`, `references/motion.md` and `references/hyperframes-gotchas.md`.
+   in the render. `build.py` fails when a scene has no row. Never delete `shotlist.md`. In 9:16 and
+   4:5, keep every text and tap inside the feed safe box at the format's minimum size, and keep
+   something moving: no still second (`references/storyboard.md`, "Feed safe zones" and
+   "Density"). See `references/storyboard.md`, `references/motion.md` and
+   `references/hyperframes-gotchas.md`.
 5. **Build, check, look, render, finish.**
-   - `build.py <project>` → `npx --yes hyperframes@0.8.78 check` until 0 errors.
+   - `build.py <project>` → run the `check:` command it prints as its last line, until 0 errors.
+     In 9:16 and 4:5 it reads the bottom of the feed safe box at the settled times.
    - Snapshots at every scene and every transition; look at them; fix; repeat.
    - `npx --yes hyperframes@0.8.78 render -o renders/raw.mp4 -q delivery --quiet`.
    - `finish.py <project> renders/raw.mp4` → loudness, A/V check, sync report, versioned file
      `renders/<app>-<variant>-v<N>.mp4`, contact sheet, poster frame `…-v<N>-poster.jpg` (`--poster-at <s>` to choose it), frame
-     warnings (blank opening, pops).
+     warnings (blank opening, pops, still runs).
      Exit 1 = a check failed: fix and finish again. Frame warnings never fail the run; the
      critique below decides.
 6. **Critique, at most 3 rounds.** Be a harsh motion director, not a proud author.
@@ -118,8 +122,9 @@ Commands for every step: `references/pipeline.md`.
      `npx --yes hyperframes@0.8.78 snapshot --at <times> --describe false --no-end -o snapshots/c<round>`
      (a new folder per round).
    - Score 1-10, one line each: **hook** (something readable in the first 1 s, frame 0 not
-     empty); **readability** (at the 270 px size of the contact sheet); **motion** (no two texts
-     on top of each other, nothing crossing another element by accident, no dead second; each
+     empty); **readability** (at the 270 px size of the contact sheet; a text or a tap outside the feed
+     safe box on a settled frame, or under the format's minimum size, caps it at 6); **motion** (no two texts
+     on top of each other, nothing crossing another element by accident, no dead second: read each `still for` warning; each
      object moves as its class; at most one class overshoots hard at a time; the viewer knows
      where to look after each move);
      **variety** (something new every 2-4 s); **composition**; **claims** (each one is in the

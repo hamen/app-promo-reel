@@ -40,6 +40,40 @@ Rules:
   moves it a little). A slower seed fails the build with the re-map message.
   build.py fails when a scene would start less than 2 s before the end of the video.
 
+## Feed safe zones
+
+A feed draws its own buttons, caption and progress bar over the video. On a settled frame, keep
+every text a viewer must read and every key action (a tap, a button, a counter) inside the box.
+The stage, a bleed, a background and the bezel of the phone may cross it. Text in motion may cross
+a line: nothing can be read while it moves.
+
+| Format | The box (px of the frame) | Text, as rendered |
+|---|---|---|
+| 9:16 | top 270, right 120, bottom 420, left 64: x 64-960, y 270-1500 | 32 px or more |
+| 4:5 | top 96, right 64, bottom 96, left 64: x 64-1016, y 96-1254 | 30 px or more |
+| 16:9 hero | no box (a web page, not a feed) | no minimum |
+
+- Text in a scaled element counts at its rendered size: the 4:5 phone is scaled 0.79, so its 38 px
+  text shows at 30 px.
+- The AI-generated label sits at the bottom-left corner of the box (9:16: y 1430-1492, 32 px; 4:5:
+  y 1186-1246, 30 px). Keep that corner free of text in every scene.
+- Long captions or a paid post: use the strict 9:16 box (bottom 672, right 192) when the user asks
+  for it. It is an option the user names, not the default.
+- Put the visual mass near the middle of the box (y 885 in 9:16), not at its top. Do not leave the
+  lower 40% of the box empty.
+- The check command that `build.py` prints makes the bottom of the box an error band, read at the
+  settled times (1.1 s after each scene starts and 0.5 s before its window ends). The top and the
+  right edge are not checked by a script: look at the stills.
+
+## Density
+
+Nothing on screen stays still for more than 0.8 s, except the end card, which may hold up to
+2.5 s. A still that is a choice (a freeze on a hit) lasts 0.25 s or less. A text that holds stays
+put while something else moves: a punch on the next beat, a pulse, a row that pops.
+`finish.py` warns `still for <length> s from <time> s: nothing on screen moves (look at it)` for
+each longer still run (9:16 and 4:5). It measures the whole frame, so a visible background pulse
+counts as motion: whether the foreground alone is too static is the critique's call.
+
 ## Drop placement
 
 The drop bar is chosen in the storyboard first (template: bar 6). Then:

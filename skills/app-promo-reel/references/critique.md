@@ -25,6 +25,15 @@ scores: hook=8 readability=7 motion=8 variety=8 composition=8 claims=9 sound=8
 - Other lines (a heading, a note) are ignored. A line that starts with `-` must be a defect.
 - A path may not leave the project folder by `..` or by a symlink.
 
+## Scores with a fixed rule
+
+- **readability**: a text or a tap outside the feed safe box on a settled frame, or a text under the
+  format's minimum size (`references/storyboard.md`, "Feed safe zones"), caps readability at 6.
+  Read the 270 px contact sheet first, then the stills at full size.
+- **motion**: read each `still for …` warning from finish.py, as you read the pops. The check
+  measures the whole frame, so a background pulse counts as motion: also look for a foreground
+  that does not move.
+
 ## Evidence stills
 
 A still from the real render, at time `t`, picks the frame by its number (the same way finish.py

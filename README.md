@@ -104,6 +104,9 @@ Then ask Claude Code for "promo reels for <app>". Output goes to `~/app-promo-re
 The critique loop and the frame checks (blank opening, pops) follow ideas from Raphaël Aubry's
 [claude-motion-design](https://github.com/howseen-ai/claude-motion-design) (MIT). No code is copied.
 
+The feed safe zones, the readable text minimums and the dead-hold rule follow measurements in
+[cinetic](https://github.com/Leonxlnx/cinetic) by Leonxlnx (MIT). No code is copied.
+
 ## Development
 
 ```bash
