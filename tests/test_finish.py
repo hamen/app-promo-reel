@@ -489,11 +489,13 @@ def test_frame_checks_never_fail_the_reel(tmp_path, proj, monkeypatch, capsys):
 
 def test_a_small_settle_is_not_a_pop(tmp_path):
     # a headline settling after its slam changes a few gray levels in one frame: not a pop
+    # the settle comes at 0.67 s: whether the codec's rounding makes the +8 step a change for the hold
+    # check or not, there is no hold (0.67 s, then a 1.33 s end card; or one 2.0 s end card)
     marks(tmp_path, (0.0,), (0.5,))
     base = texture(1, 60)
-    f = np.concatenate([base[:30], np.clip(base[30:] + 8, 0, 255)])
+    f = np.concatenate([base[:20], np.clip(base[20:] + 8, 0, 255)])
     r = checks(tmp_path, f)
-    assert r["events"] == [] and r["warnings"] == [STILL_1S]
+    assert r["events"] == [] and r["warnings"] == []
 
 
 def test_a_flash_next_to_a_cut_is_still_a_flash(tmp_path):
