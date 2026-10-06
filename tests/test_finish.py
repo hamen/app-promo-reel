@@ -483,6 +483,7 @@ def test_frame_checks_never_fail_the_reel(tmp_path, proj, monkeypatch, capsys):
     report = json.loads((proj / "renders" / "demo-a-v2-report.json").read_text())
     assert report["frames"]["notes"] == ["frame checks did not run: RuntimeError('decoder gone')"]
     assert report["frames"]["error"] == "RuntimeError('decoder gone')"
+    assert report["frames"]["holds"] == [] and report["frames"]["warnings"] == []
     assert (proj / "renders" / "demo-a-v2.mp4").is_file()
     assert "note: frame checks did not run" in capsys.readouterr().err
 

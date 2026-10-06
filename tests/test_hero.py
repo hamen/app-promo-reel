@@ -309,6 +309,7 @@ def test_a_corrupt_clip_is_reported_not_a_crash(tmp_path, hero, capsys):
     assert "demo-a-v1-failed.mp4" in outputs(hero)
     rep = json.loads((hero / "renders" / "demo-a-v1-report.json").read_text())
     assert len(rep["problems"]) == 1 and rep["seam"]["ok"] is False and rep["video"] is None
+    assert rep["frames"] == {"warnings": [], "holds": [], "notes": []}
 
 
 def test_a_clip_of_five_frames_is_reported_not_a_crash(tmp_path, hero, capsys):
@@ -327,6 +328,17 @@ def test_a_contact_sheet_that_cannot_be_made_does_not_fail_a_good_loop(tmp_path,
     assert finish.finish(hero, raw) == 0
     rep = json.loads((hero / "renders" / "demo-a-v1-report.json").read_text())
     assert rep["sheet"] is None and any("contact sheet not made" in n for n in rep["frames"]["notes"])
+
+
+def test_frame_checks_that_cannot_run_leave_an_empty_report_on_a_good_loop(tmp_path, hero, monkeypatch):
+    def broken(*a, **k):
+        raise RuntimeError("decoder gone")
+    monkeypatch.setattr(finish, "frame_checks", broken)
+    raw = encode(tmp_path / "raw.mp4", loop_frames(eased))
+    assert finish.finish(hero, raw) == 0
+    rep = json.loads((hero / "renders" / "demo-a-v1-report.json").read_text())
+    assert rep["frames"] == {"error": "RuntimeError('decoder gone')", "warnings": [], "holds": [],
+                             "notes": ["frame checks did not run: RuntimeError('decoder gone')"]}
 
 
 # --- seam_check -----------------------------------------------------------------------------

@@ -17,13 +17,13 @@ import soundfile as sf
 from conftest import run_script
 from test_template import build
 
-pytestmark = [
-    pytest.mark.skipif(os.environ.get("APR_BROWSER_TESTS") != "1", reason="browser tests: set APR_BROWSER_TESTS=1"),
-    pytest.mark.skipif(shutil.which("npx") is None, reason="needs npx (HyperFrames)"),
-]
+pytestmark = pytest.mark.skipif(os.environ.get("APR_BROWSER_TESTS") != "1", reason="browser tests: set APR_BROWSER_TESTS=1")
+NPX = shutil.which("npx")
 
 
 def check(tmp_path, fmt, edit=None):
+    if NPX is None:  # asked for and cannot run: a failure, never a quiet skip
+        pytest.fail("APR_BROWSER_TESTS=1 asks for the browser tests, but npx is not installed")
     p, _ = build(tmp_path, fmt=fmt, edit=edit)
     # a silent bed: the lint step fails a page whose <audio> file is missing
     sf.write(p / "assets" / "audio" / "bgm.wav", np.zeros((48000 * 30, 2), np.float32), 48000)
