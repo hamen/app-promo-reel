@@ -1,4 +1,6 @@
 import json
+import shutil
+import subprocess
 
 import pytest
 
@@ -552,6 +554,53 @@ def test_the_label_sits_in_the_feed_safe_box_at_the_format_minimum(fmt, place, s
     # the size it draws is the size it checks
     assert f"font: 700 {size}px/1.25 sans-serif" in html and f'own.fontSize !== "{size}px"' in html
     assert f"const safe = {box};" in html
+
+
+# the guard run in node with a stub DOM: its bounds checks get exact label boxes, so the result does not
+# depend on a browser or on the machine's sans-serif width
+GUARD_RUN = r"""
+const [w, h, px, l, t, r, b] = process.argv.slice(1).map(Number);
+const rect = (l, t, r, b) => ({ left: l, top: t, right: r, bottom: b, width: r - l, height: b - t });
+const pill = rect(l, t, r, b), ink = rect(l + 23, t + 11, r - 23, b - 11);
+const node = () => ({ style: { setProperty() {} }, parentElement: null, attachShadow: () => ({ append() {} }),
+  appendChild(c) { c.parentElement = this; }, getBoundingClientRect() { return this === root ? rect(0, 0, w, h) : pill; } });
+const root = node();
+globalThis.CONFIG = { aiLabel: "AI-generated" };
+globalThis.document = { querySelector: () => root, createElement: node,
+  createRange: () => ({ selectNodeContents() {}, getBoundingClientRect: () => ink }) };
+globalThis.getComputedStyle = (n, pseudo) => pseudo ? { content: "none" } : { color: "rgb(255, 255, 255)",
+  webkitTextFillColor: "rgb(255, 255, 255)", fontSize: px + "px", display: "block", clipPath: "none",
+  maskImage: "none", webkitMaskImage: "none", filter: "none", mixBlendMode: "normal", opacity: "1" };
+try { new Function(%s)(); console.log("ok"); } catch (e) { console.log(e.message); }
+"""
+BOX_FAIL = "the AI-generated label is not fully inside the feed safe box (references/storyboard.md): it must stay on screen"
+FRAME_FAIL = "the AI-generated label is not fully inside the frame: it must stay on screen"
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="needs node")
+@pytest.mark.parametrize("fmt, pill, result", [
+    ("9:16", (64, 1430, 300, 1492), "ok"),        # where build.py puts it
+    ("9:16", (64, 1430, 960, 1492), "ok"),        # on the box's right edge
+    ("9:16", (64, 1430, 961, 1492), BOX_FAIL),    # 1 px past it, far inside the frame
+    ("9:16", (64, 1439, 300, 1501), BOX_FAIL),    # past the bottom edge (y 1500)
+    ("9:16", (63, 1430, 300, 1492), BOX_FAIL),
+    ("9:16", (64, 269, 300, 331), BOX_FAIL),      # above the top edge (y 270)
+    ("4:5", (64, 1186.5, 1016, 1246), "ok"),
+    ("4:5", (64, 1186.5, 1017, 1246), BOX_FAIL),
+    ("4:5", (64, 1196, 300, 1255), BOX_FAIL),
+    ("16:9", (1600, 1000, 1876, 1040), "ok"),     # no box: the frame is the bound
+    ("16:9", (1600, 1000, 1921, 1040), FRAME_FAIL),
+])
+def test_the_guard_keeps_the_label_inside_the_feed_safe_box(fmt, pill, result):
+    from build import AI_LABEL_PLACES, add_ai_label_guard
+    from common import FORMATS
+    html = add_ai_label_guard(AI_LABEL, fmt)
+    guard = html.split("<script data-ai-label-guard>", 1)[1].split("</script>", 1)[0]
+    w, h = FORMATS[fmt]
+    r = subprocess.run(["node", "-e", GUARD_RUN % json.dumps(guard), "--", *map(str, (w, h, AI_LABEL_PLACES[fmt][1], *pill))],
+                       capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.strip() == result
 
 
 @pytest.mark.parametrize("spans, duration, times", [
