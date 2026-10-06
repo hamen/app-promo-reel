@@ -381,6 +381,10 @@ def checks(tmp_path, frames, rate="30"):
     return finish.frame_checks(tmp_path, mp4, finish.video_info(mp4))
 
 
+# the still-clip fixtures hold their first picture for 1 s, then change: a dead hold (finish.HOLD_MAX)
+STILL_1S = "still for 1.00 s from 0.00 s: nothing on screen moves (look at it)"
+
+
 def test_blank_opening_is_reported_with_the_first_readable_time(tmp_path):
     marks(tmp_path, (0.0, 1.5))  # the texture arrives with a scene: a planned cut, no pop warning
     f = texture(1, 60)
@@ -389,7 +393,8 @@ def test_blank_opening_is_reported_with_the_first_readable_time(tmp_path):
     assert r["frame0_blank"] is True and r["first_detail_time"] == pytest.approx(1.5, abs=0.002)
     assert r["warnings"] == [
         "frame 0 is blank, and feeds show frame 0 as the thumbnail: start on the hook text or UI",
-        "nothing to read until 1.50 s: the hook must show within 1 s"]
+        "nothing to read until 1.50 s: the hook must show within 1 s",
+        "still for 1.50 s from 0.00 s: nothing on screen moves (look at it)"]
 
 
 def test_an_empty_video_gives_only_the_empty_warning(tmp_path):
@@ -412,7 +417,7 @@ def test_one_odd_frame_is_one_flash(tmp_path):
     f[30] = 255
     r = checks(tmp_path, f)
     assert r["events"] == [{"type": "flash", "time": 1.0, "frames": 1}]
-    assert r["warnings"] == ["one-frame flash at 1.00 s: a glitch frame (look at it)"]
+    assert r["warnings"] == ["one-frame flash at 1.00 s: a glitch frame (look at it)", STILL_1S]
 
 
 @pytest.mark.parametrize("scenes, beats", [((0.0, 1.0), ()), ((0.0,), (1.1,))])
@@ -421,7 +426,7 @@ def test_a_cut_on_a_scene_start_or_just_before_a_beat_is_planned(tmp_path, scene
     f = np.concatenate([texture(1, 30), texture(2, 30)])  # hard switch at 1.0 s
     r = checks(tmp_path, f)
     assert [(e["type"], e["time"], e["planned"]) for e in r["events"]] == [("cut", 1.0, True)]
-    assert r["warnings"] == []
+    assert r["warnings"] == [STILL_1S]
 
 
 def test_a_cut_near_no_beat_and_no_scene_is_a_warning(tmp_path):
@@ -429,7 +434,7 @@ def test_a_cut_near_no_beat_and_no_scene_is_a_warning(tmp_path):
     f = np.concatenate([texture(1, 30), texture(2, 30)])
     r = checks(tmp_path, f)
     assert [(e["type"], e["planned"]) for e in r["events"]] == [("cut", False)]
-    assert r["warnings"] == ["sudden change at 1.00 s near no beat and no scene start (look at it)"]
+    assert r["warnings"] == ["sudden change at 1.00 s near no beat and no scene start (look at it)", STILL_1S]
 
 
 def test_spikes_a_few_frames_apart_are_one_move(tmp_path):
@@ -437,7 +442,7 @@ def test_spikes_a_few_frames_apart_are_one_move(tmp_path):
     f = np.concatenate([texture(1, 30), texture(2, 2), texture(3, 2), texture(4, 26)])  # 3 jumps in 4 frames
     r = checks(tmp_path, f)
     assert [(e["type"], e["time"], e["frames"], e["planned"]) for e in r["events"]] == [("cut", 1.0, 5, True)]
-    assert r["warnings"] == []
+    assert r["warnings"] == [STILL_1S]
 
 
 def test_other_sizes_and_rates_are_timed_right(tmp_path):
@@ -488,7 +493,7 @@ def test_a_small_settle_is_not_a_pop(tmp_path):
     base = texture(1, 60)
     f = np.concatenate([base[:30], np.clip(base[30:] + 8, 0, 255)])
     r = checks(tmp_path, f)
-    assert r["events"] == [] and r["warnings"] == []
+    assert r["events"] == [] and r["warnings"] == [STILL_1S]
 
 
 def test_a_flash_next_to_a_cut_is_still_a_flash(tmp_path):
@@ -497,7 +502,7 @@ def test_a_flash_next_to_a_cut_is_still_a_flash(tmp_path):
     f[32] = 255  # a glitch frame two frames later
     r = checks(tmp_path, f)
     assert [(e["type"], e["time"]) for e in r["events"]] == [("cut", 1.0), ("flash", pytest.approx(32 / 30, abs=0.002))]
-    assert r["warnings"] == ["one-frame flash at 1.07 s: a glitch frame (look at it)"]
+    assert r["warnings"] == ["one-frame flash at 1.07 s: a glitch frame (look at it)", STILL_1S]
 
 
 def test_a_spike_on_the_last_frame_is_a_cut(tmp_path):
@@ -556,7 +561,7 @@ def test_a_bad_data_start_skips_only_its_own_scene(tmp_path):
         "index.html: data-start '1e999' is not a number: that scene start is not compared with cuts"])
     r = checks(tmp_path, np.concatenate([texture(1, 30), texture(2, 30)]))
     assert [(e["type"], e["time"], e["planned"]) for e in r["events"]] == [("cut", 1.0, True)]
-    assert r["warnings"] == []
+    assert r["warnings"] == [STILL_1S]
     assert r["notes"] == [
         "index.html: data-start 'x' is not a number: that scene start is not compared with cuts",
         "index.html: data-start '1e999' is not a number: that scene start is not compared with cuts"]
@@ -576,7 +581,7 @@ def test_cuts_far_apart_are_separate_events(tmp_path):
     f = np.concatenate([texture(1, 30), texture(2, 6), texture(3, 24)])
     r = checks(tmp_path, f)
     assert [(e["time"], e["frames"], e["planned"]) for e in r["events"]] == [(1.0, 1, True), (1.2, 1, False)]
-    assert r["warnings"] == ["sudden change at 1.20 s near no beat and no scene start (look at it)"]
+    assert r["warnings"] == ["sudden change at 1.20 s near no beat and no scene start (look at it)", STILL_1S]
 
 
 def test_a_long_chain_of_cuts_is_not_one_planned_move(tmp_path):
@@ -807,3 +812,72 @@ def test_a_poster_at_outside_the_video_exits_2_before_any_file(tmp_path, proj, t
 def test_poster_at_on_the_command_line_must_be_a_time(tmp_path, arg):
     r = run_script("finish.py", tmp_path, tmp_path / "raw.mp4", f"--poster-at={arg}")
     assert r.returncode == 2 and "--poster-at" in r.stderr
+
+
+# --- dead holds (references/storyboard.md, "Density"), on the 54 px gray frames the check reads ----
+# (whole gray levels, as decode_gray gives them)
+
+DT = 1 / 30
+
+
+def still(n, seed=3):
+    return np.repeat(np.random.default_rng(seed).integers(40, 200, (1, 96, 54)).astype(np.float32), n, axis=0)
+
+
+def moving(n, seed=4):
+    return np.random.default_rng(seed).integers(40, 200, (n, 96, 54)).astype(np.float32)
+
+
+@pytest.mark.parametrize("frames, holds", [(30, [{"time": 0.0, "length": 1.0}]), (21, [])])
+def test_a_still_second_is_a_dead_hold_and_0_7_s_is_not(frames, holds):
+    assert finish.dead_holds(np.concatenate([still(frames), moving(60)]), DT) == holds
+
+
+def test_a_hold_is_reported_where_it_starts():
+    f = np.concatenate([moving(45), still(45), moving(30)])
+    assert finish.dead_holds(f, DT) == [{"time": 1.5, "length": 1.5}]
+
+
+def test_a_slow_creep_is_motion():
+    # each frame one gray level up: no two neighbours differ by more than HOLD_PIX, but the run's
+    # first frame and its ninth do
+    f = still(90) + np.arange(90, dtype=np.float32)[:, None, None]
+    assert max(end - first for first, end in finish.still_runs(f)) == finish.HOLD_PIX + 1
+    assert finish.dead_holds(np.concatenate([f, moving(30)]), DT) == []
+    # a dark bar that moves 1 px every 3 frames
+    bar = still(90)
+    for i in range(90):
+        bar[i, :, 10 + i // 3:16 + i // 3] = 0
+    assert max(end - first for first, end in finish.still_runs(bar)) == 3
+    assert finish.dead_holds(np.concatenate([bar, moving(30)]), DT) == []
+
+
+@pytest.mark.parametrize("seconds, holds", [(2.0, []), (3.0, [{"time": 3.0, "length": 3.0}])])
+def test_the_end_card_may_hold_up_to_2_5_s(seconds, holds):
+    assert finish.dead_holds(np.concatenate([moving(90), still(round(seconds * 30))]), DT) == holds
+
+
+@pytest.mark.parametrize("tail, holds", [(1, []), (2, []), (3, [{"time": 3.0, "length": 2.0}])])
+def test_an_end_card_that_stops_a_frame_or_two_early_is_still_the_end_card(tail, holds):
+    assert finish.dead_holds(np.concatenate([moving(90), still(60), moving(tail)]), DT) == holds
+
+
+@pytest.mark.parametrize("pixels, level, holds", [
+    (10, 50, [{"time": 0.0, "length": 2.0}]),  # 10 of 5184 pixels: within HOLD_SHARE, still
+    (11, 50, []),                              # 11: over it, motion
+    (40, 8, [{"time": 0.0, "length": 2.0}]),   # a change of exactly HOLD_PIX is no change
+    (40, 9, []),
+])
+def test_a_patch_moves_the_frame_only_over_both_thresholds(pixels, level, holds):
+    f = still(60)
+    f[1::2].reshape(30, -1)[:, :pixels] += level  # the patch blinks on every other frame
+    assert finish.dead_holds(np.concatenate([f, moving(30)]), DT) == holds
+
+
+def test_a_silent_project_gets_no_hold_warning(tmp_path):
+    marks(tmp_path)
+    mp4 = gray_clip(tmp_path, np.concatenate([texture(1, 30), texture(2, 30)]))
+    loud = finish.frame_checks(tmp_path, mp4, finish.video_info(mp4))
+    quiet = finish.frame_checks(tmp_path, mp4, finish.video_info(mp4), silent=True)
+    assert loud["holds"] == [{"time": 0.0, "length": 1.0}] and STILL_1S in loud["warnings"]
+    assert quiet["holds"] == [] and STILL_1S not in quiet["warnings"]

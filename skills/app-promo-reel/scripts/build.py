@@ -42,13 +42,15 @@ import json
 import operator
 import re
 import secrets
+import shlex
 import sys
 import unicodedata
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from common import (FORMATS, SILENT_FORMATS, Grid, attack_seconds, die, is_number, is_silent,  # noqa: E402
-                    load_project, media_duration, read_json)
+from common import (FEED_BOXES, FORMATS, SCENE_SETTLE, SCENE_SETTLE_END, SILENT_FORMATS, Grid,  # noqa: E402
+                    attack_seconds, die, is_number, is_silent, load_project, media_duration, read_json,
+                    scene_spans, scene_windows)
 
 TOKEN = re.compile(r"\{\{\s*([A-Za-z_]+)\s*(.*?)\s*\}\}", re.S)
 SFX_FIRST_TRACK = 21
@@ -366,7 +368,7 @@ AI_LABEL_GUARD = r"""<script data-ai-label-guard>
   // "all: initial" first, so no template rule reaches the label box; then the look, which comes
   // after and wins
   const look = {
-    all: "initial", display: "block", position: "absolute", right: "44px", bottom: "40px", "z-index": "2147483647",
+    all: "initial", display: "block", position: "absolute", __AI_LABEL_PLACE__, "z-index": "2147483647",
     margin: "0", padding: "10px 22px", "border-radius": "999px", background: "rgba(0, 0, 0, 0.62)",
     border: "1px solid rgba(255, 255, 255, 0.35)", "white-space": "nowrap", visibility: "visible",
     opacity: "1", transform: "none", filter: "none", "clip-path": "none", "pointer-events": "none",
@@ -378,7 +380,7 @@ AI_LABEL_GUARD = r"""<script data-ai-label-guard>
   const sheet = document.createElement("style"), words = document.createElement("span");
   sheet.textContent = ":host::before, :host::after { content: none !important; display: none !important; }" +
     " span { all: initial !important; display: inline-block !important; color: #ffffff !important;" +
-    " -webkit-text-fill-color: #ffffff !important; font: 700 24px/1.25 sans-serif !important;" +
+    " -webkit-text-fill-color: #ffffff !important; font: 700 __AI_LABEL_PX__px/1.25 sans-serif !important;" +
     " letter-spacing: 0.04em !important; white-space: nowrap !important; }";
   words.textContent = text;
   shadow.append(sheet, words);
@@ -386,7 +388,7 @@ AI_LABEL_GUARD = r"""<script data-ai-label-guard>
   const own = getComputedStyle(words);
   const alpha = (c) => { const m = c.match(/rgba?\(([^)]*)\)/); const v = m ? m[1].split(/[\s,\/]+/) : [];
     return m ? (v.length > 3 ? parseFloat(v[3]) : 1) : 0; };
-  if (alpha(own.color) < 0.5 || alpha(own.webkitTextFillColor) < 0.5 || own.fontSize !== "24px") {
+  if (alpha(own.color) < 0.5 || alpha(own.webkitTextFillColor) < 0.5 || own.fontSize !== "__AI_LABEL_PX__px") {
     fail("text is restyled out of sight");
   }
   for (const pseudo of ["::before", "::after"]) {
@@ -409,11 +411,15 @@ AI_LABEL_GUARD = r"""<script data-ai-label-guard>
   // the painted words, not only the pill: at 24px each visible character is well over 6px wide
   const range = document.createRange();
   range.selectNodeContents(words);
-  const ink = range.getBoundingClientRect(), frame = root.getBoundingClientRect();
+  const ink = range.getBoundingClientRect(), root_box = root.getBoundingClientRect();
   if (ink.width < Math.max(12, 6 * visible) || ink.height < 16) fail("text has no width on screen");
+  // a feed format keeps the label inside its safe box (the feed's own UI covers the rest)
+  const safe = __AI_LABEL_BOX__;
+  const frame = safe ? { left: root_box.left + safe[0], top: root_box.top + safe[1], right: root_box.left + safe[2],
+    bottom: root_box.top + safe[3] } : root_box;
   for (const box of [el.getBoundingClientRect(), ink]) {
     if (box.left < frame.left || box.top < frame.top || box.right > frame.right || box.bottom > frame.bottom) {
-      fail("is not fully inside the frame");
+      fail(safe ? "is not fully inside the feed safe box (references/storyboard.md)" : "is not fully inside the frame");
     }
   }
 })();
@@ -510,12 +516,9 @@ def blank_js(src):
     return "".join(out)
 
 
-def check_seekable(html_out):
-    """A frame must depend only on the time: no clock, no timer, no random value in the page's inline
-    scripts (scripts with a src and inline event-handler attributes are not read). Comments, strings and
-    template-literal text are blanked first, so a name in prose does not fail the build. Runs before the
-    AI-label guard is added, so the guard's own code is never read."""
-    found = []
+def inline_scripts(html_out):
+    """(body, blanked code) of each inline JavaScript script of the page; scripts with a src and other
+    script types are skipped. The code has comments, strings and template-literal text blanked."""
     for m in re.finditer(SCRIPT_TAG, html_out, re.S | re.I):
         attrs, body = {}, m.group(2)
         for a in re.finditer(ATTRIBUTE, m.group(1)):
@@ -523,7 +526,31 @@ def check_seekable(html_out):
         script_type = attrs.get("type", "").split(";")[0].strip(" \t\n\f\r").lower()
         if "src" in attrs or script_type not in JS_TYPES:
             continue
-        code = blank_js(body)
+        yield body, blank_js(body)
+
+
+PUNCH_CAP = 2  # shakes and flashes per reel (references/motion.md)
+
+
+def punch_warnings(html_out):
+    """A warning for each of shake() and flash() called more than PUNCH_CAP times in the page's
+    inline scripts. Calls in comments and strings do not count, and neither does a definition."""
+    warnings = []
+    for name in ("shake", "flash"):
+        calls = sum(len(re.findall(rf"(?<![\w$.])(?<!function ){name}\s*\(", code)) for _, code in inline_scripts(html_out))
+        if calls > PUNCH_CAP:
+            warnings.append(f"{calls} {name}() calls in the page (at most {PUNCH_CAP}, on the drop and the end card: "
+                            "references/motion.md)")
+    return warnings
+
+
+def check_seekable(html_out):
+    """A frame must depend only on the time: no clock, no timer, no random value in the page's inline
+    scripts (scripts with a src and inline event-handler attributes are not read). Comments, strings and
+    template-literal text are blanked first, so a name in prose does not fail the build. Runs before the
+    AI-label guard is added, so the guard's own code is never read."""
+    found = []
+    for body, code in inline_scripts(html_out):
         hits = sorted((h.start(), name) for name, rx in SEEKABLE_BANNED for h in re.finditer(rx, code))
         for pos, name in hits:
             line = body.split("\n")[body.count("\n", 0, pos)].strip()
@@ -561,12 +588,53 @@ def check_ai_label(html_out):
             "line is not removed before this check")
 
 
-def add_ai_label_guard(html_out):
+# Where the label sits and its text size, per format: inside the feed safe box at the format's
+# minimum readable size (9:16 and 4:5, references/storyboard.md), or the corner of a 16:9 web hero.
+AI_LABEL_PLACES = {
+    "9:16": ('left: "64px", bottom: "428px"', 32),
+    "4:5": ('left: "64px", bottom: "104px"', 30),
+    "16:9": ('right: "44px", bottom: "40px"', 24),
+}
+
+
+def add_ai_label_guard(html_out, fmt):
     end = html_out.rfind("</body>")
     if end < 0:
         die("the page has no </body>: build.py puts the AI-generated label check just before it")
-    guard = AI_LABEL_GUARD.replace("__AI_LABEL_ID__", "ai-label-" + secrets.token_hex(6))
+    place, px = AI_LABEL_PLACES[fmt]
+    box = FEED_BOXES.get(fmt)
+    guard = (AI_LABEL_GUARD.replace("__AI_LABEL_ID__", "ai-label-" + secrets.token_hex(6))
+             .replace("__AI_LABEL_PLACE__", place).replace("__AI_LABEL_PX__", str(px))
+             .replace("__AI_LABEL_BOX__", json.dumps(list(box)) if box else "null"))
     return html_out[:end] + guard + html_out[end:]
+
+
+HYPERFRAMES = "hyperframes@0.8.78"
+
+
+def settled_times(spans, duration):
+    """Two settled times per scene window: SCENE_SETTLE after the start (what entered with the scene
+    has landed) and SCENE_SETTLE_END before the window's end (what entered late has landed too). A
+    time outside its window or the video is dropped; equal times are merged."""
+    times = set()
+    for start, lo, hi in scene_windows(spans, duration):
+        for t in (start + SCENE_SETTLE, hi - SCENE_SETTLE_END):
+            if lo <= t < hi and 0 <= t < duration:
+                times.add(round(t, 3))
+    return sorted(times)
+
+
+def check_command(project_dir, html_out, project):
+    """The hyperframes check command for this page. A feed format adds the bottom zone of its safe box
+    as an error band, sampled only at settled times, when nothing is in motion."""
+    cmd = f"npx --yes {HYPERFRAMES} check {shlex.quote(str(project_dir))}"
+    box = FEED_BOXES.get(project["format"])
+    times = settled_times(scene_spans(html_out), project["duration"]) if box else []
+    if not times:
+        return cmd
+    height = FORMATS[project["format"]][1]
+    seek = ",".join(f"{t / project['duration']:.4f}" for t in times)
+    return cmd + f' --caption-zone "x0=0;y0={box[3] / height:.5f};x1=1;y1=1;severity=error;seek={seek}"'
 
 
 def check_silent(html_out, cues_doc, fmt):
@@ -619,15 +687,18 @@ def build(project_dir):
     check_scenes(out, project["duration"])
     check_shotlist(project_dir, out)
     check_seekable(out)
+    for w in punch_warnings(out):
+        print(f"warning: {w}", file=sys.stderr)
     check_ai_label(out)
-    out = add_ai_label_guard(out)
+    out = add_ai_label_guard(out, project["format"])
     (project_dir / "index.html").write_text(out)
     (project_dir / "cues.realized.json").write_text(json.dumps(realized, indent=1) + "\n")
     if silent:
         print(f"built {project_dir / 'index.html'}: silent {project['format']} loop, {project['duration']:g} s")
-        return
-    print(f"built {project_dir / 'index.html'}: {len(realized)} SFX cues mixed; downbeats "
-          f"{[round(b, 2) for b in grid.beats[grid.first::grid.bpb]]}")
+    else:
+        print(f"built {project_dir / 'index.html'}: {len(realized)} SFX cues mixed; downbeats "
+              f"{[round(b, 2) for b in grid.beats[grid.first::grid.bpb]]}")
+    print(f"check: {check_command(project_dir, out, project)}")
 
 
 if __name__ == "__main__":

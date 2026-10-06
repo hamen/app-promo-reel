@@ -9,8 +9,8 @@ from conftest import TEMPLATE
 
 pytestmark = pytest.mark.skipif(shutil.which("node") is None, reason="needs node")
 
-OVERSHOOTS = [0, 0.06, 0.07, 0.13, 0.20, 0.35]
-MAX_PEAKS = {0.06: 1, 0.07: 1, 0.13: 1, 0.20: 2, 0.35: 3}
+OVERSHOOTS = [0, 0.06, 0.07, 0.10, 0.13, 0.20, 0.35]
+MAX_PEAKS = {0.06: 1, 0.07: 1, 0.10: 1, 0.13: 1, 0.20: 2, 0.35: 3}
 
 PROG = """
 const fs = require("fs");
@@ -101,7 +101,7 @@ CLASSES = {  # class -> (dur, hold, first overshoot)
     "micro": (0.18, None, 0.06),
     "panel": (0.55, None, 0.07),
     "headline": (0.35, 1.0, 0.13),
-    "icon": (0.32, None, 0.20),
+    "icon": (0.32, None, 0.10),
 }
 
 

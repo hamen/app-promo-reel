@@ -23,6 +23,6 @@ const MOTION = {
   micro: { ease: spring(0.06), dur: 0.18 },
   panel: { ease: spring(0.07), dur: 0.55 },
   headline: { ease: spring(0.13), dur: 0.35, hold: 1.0 },
-  icon: { ease: spring(0.2), dur: 0.32 },
+  icon: { ease: spring(0.1), dur: 0.32 },
   camera: { drift: "sine.inOut", move: "power2.inOut" },
 };
