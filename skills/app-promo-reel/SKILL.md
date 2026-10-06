@@ -61,6 +61,10 @@ Commands for every step: `references/pipeline.md`.
    - `sample_colors.py` on the screenshots for the app's real UI colours.
    - Search the user's notes/memory for rules about this app (forbidden words, spelling).
    - Fill `DESIGN.md` from the template: angle, sources, colours, type, copy rules.
+   - If the user gives a reference video or image for the look, fill the optional `## Reference`
+     section of `DESIGN.md` (palette, type, composition, pacing, motion, texture, what not to copy).
+     Sample the palette with `sample_colors.py`; mark a value judged by eye as "estimated".
+     The reference sets the craft only: no logo, text, music, claim or product screen comes from it.
 3. **Music first, per variant.** Commands in `references/pipeline.md`.
    - Choose the source once per session:
      1. ACE-Step 1.5 (`music_gen_ace.py`, run with `$ACESTEP_DIR/.venv/bin/python`) when
@@ -92,14 +96,17 @@ Commands for every step: `references/pipeline.md`.
    (all text, colours, screens) and edit the scenes. Rebuild the app's real screens as HTML
    components from the screenshots and strings — no pasted screenshots. Timing uses beat tokens
    only. Put the SFX cues in `cues.json`. Give each object the ease of its motion class
-   (`motion.js`). See `references/storyboard.md`, `references/motion.md` and
-   `references/hyperframes-gotchas.md`.
+   (`motion.js`). Keep `shotlist.md` in step with the scenes: one row per scene with its
+   purpose, entry state and exit state. If you cannot say why a scene exists, it does not belong
+   in the render. `build.py` fails when a scene has no row. Never delete `shotlist.md`. See
+   `references/storyboard.md`, `references/motion.md` and `references/hyperframes-gotchas.md`.
 5. **Build, check, look, render, finish.**
    - `build.py <project>` → `npx --yes hyperframes@0.8.78 check` until 0 errors.
    - Snapshots at every scene and every transition; look at them; fix; repeat.
    - `npx --yes hyperframes@0.8.78 render -o renders/raw.mp4 -q delivery --quiet`.
    - `finish.py <project> renders/raw.mp4` → loudness, A/V check, sync report, versioned file
-     `renders/<app>-<variant>-v<N>.mp4`, contact sheet, frame warnings (blank opening, pops).
+     `renders/<app>-<variant>-v<N>.mp4`, contact sheet, poster frame `…-v<N>-poster.jpg` (`--poster-at <s>` to choose it), frame
+     warnings (blank opening, pops).
      Exit 1 = a check failed: fix and finish again. Frame warnings never fail the run; the
      critique below decides.
 6. **Critique, at most 3 rounds.** Be a harsh motion director, not a proud author.
@@ -117,12 +124,17 @@ Commands for every step: `references/pipeline.md`.
      where to look after each move);
      **variety** (something new every 2-4 s); **composition**; **claims** (each one is in the
      DESIGN.md allowed list); **sound** (sync report, and what the storyboard asked for).
-   - Write the 3 worst problems with their timestamps. Fix each one in the file that controls
-     it: scenes, text and motion in `src.html.tmpl`; sound effects in `cues.json`; the music bed
-     with `make_bed.py` (or a new seed, step 3). Then build, check, render and finish again.
+   - Judge only the rendered frames, not what you intended. Write the round to
+     `reviews/critique-<N>.md` in the format of `references/critique.md`: the seven scores, then
+     the worst 0 to 3 problems, each with its time, a still from the render as evidence, and the
+     file that fixes it. Run `critique_check.py <project>` before you fix anything: it exits 1 on a
+     malformed file.
+   - Fix each problem in the file that controls it: scenes, text and motion in `src.html.tmpl`;
+     sound effects in `cues.json`; the music bed with `make_bed.py` (or a new seed, step 3). Then
+     build, check, render and finish again.
    - Stop when every score is 8 or more, or after 3 critique rounds. Never loop without the cap.
 7. **Deliver.** List each final MP4 path with a one-line summary (angle, music source and seed,
-   tempo, sync result, loudness), its seven scores and any problem still open. Repeat the music
+   tempo, sync result, loudness), its seven scores (from the last `reviews/critique-<N>.md`) and any problem still open. Repeat the music
    licence note; for the user's own track, give the contents of `bgm_user.source.txt`.
    **Nothing is uploaded or sent.**
 
@@ -131,9 +143,26 @@ Commands for every step: `references/pipeline.md`.
 For `--format 16:9` skip step 3 (no music, no beat grid, no cues) and use the hero template.
 Steps 1, 2, 5 and 7 stay. In step 4 fill `CONFIG` but write no bar storyboard. The loop contract,
 the build and the checks are in `references/hero.md`. In step 6 the **sound** score becomes
-**loop**: the `seam:` numbers in the finish report, and a look at the strip of the clip played
+**loop** (the seventh name in the critique file): the `seam:` numbers in the finish report, and a look at the strip of the clip played
 twice. Never put an `<audio>` or `<video>` tag in the page.
 The AI-generated label rule (truthfulness 7) applies to the hero too.
+
+## Gated run (opt-in)
+
+A gated run applies only when the user's request contains the exact words "gated run" or
+"gated reel", in any letter case. No other wording turns it on. Without those words, run the
+workflow above without stopping: an unattended run (a scheduled job, for example) never waits on
+a person.
+
+In a gated run, stop at each of these four points. Show the listed items, then wait for the user
+to say go. Never approve a gate yourself.
+
+1. After step 2: the asset list (real screens, logo, fonts) and the `## Reference` section.
+   A missing real asset stays a labelled placeholder with a note (truthfulness rule 8) in an
+   ungated run; in a gated run it is a stop at this gate.
+2. After the storyboard in step 4: `DESIGN.md` and `shotlist.md`.
+3. After the first `finish.py` in step 5: the contact sheet and the poster.
+4. After the last critique round in step 6: the final MP4 and the problems still open.
 
 ## Variants
 

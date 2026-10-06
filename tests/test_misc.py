@@ -368,3 +368,39 @@ def test_docs_scaffold_step_names_the_format():
     skill = (SCRIPTS.parent / "SKILL.md").read_text()
     assert "--format <9:16|4:5|16:9>" in skill[skill.index("1. **Scaffold.**"):skill.index("2. **Research")]
     assert "--format 9:16" in (SCRIPTS.parent / "references" / "pipeline.md").read_text()
+
+
+@pytest.mark.parametrize("fmt", ["9:16", "4:5", "16:9"])
+def test_every_design_md_keeps_the_reference_section_before_what_not_to_do(tmp_path, fmt):
+    r = run_script("new_project.py", "--app", "x", "--variant", "a", "--out", tmp_path / "out", "--format", fmt)
+    assert r.returncode == 0, r.stderr
+    design = (tmp_path / "out" / "x-a" / "DESIGN.md").read_text()
+    heads = [l for l in design.splitlines() if l.startswith("## ")]
+    assert "## Reference" in heads and heads.index("## Reference") == heads.index("## What NOT to do") - 1
+    ref = design[design.index("## Reference"):design.index("## What NOT to do")]
+    for word in ("Palette", "Typography", "Composition", "Pacing", "Motion", "Texture", "Do not copy", "product screen", "estimated", "sample_colors.py"):
+        assert word in ref
+    music = design[design.index("## Music"):design.index("## Reference")]
+    assert ("16:9 is silent: no music." in music) == (fmt == "16:9")
+
+
+def test_skill_step_2_points_at_the_reference_section():
+    skill = " ".join((SCRIPTS.parent / "SKILL.md").read_text().split())
+    step2 = skill[skill.index("2. **Research"):skill.index("3. **Music first")]
+    assert "`## Reference`" in step2 and "sample_colors.py" in step2 and "estimated" in step2
+    assert "no logo, text, music, claim or product screen comes from it" in step2
+
+
+def test_gated_run_is_opt_in_and_names_its_triggers_and_four_stops():
+    skill = " ".join((SCRIPTS.parent / "SKILL.md").read_text().split())
+    assert "\n## Gated run (opt-in)" in (SCRIPTS.parent / "SKILL.md").read_text()
+    sec = skill[skill.index("## Gated run (opt-in)"):skill.index("## Variants")]
+    assert 'exact words "gated run" or "gated reel"' in sec and "in any letter case" in sec
+    assert "No other wording turns it on" in sec and "without stopping" in sec
+    assert "Never approve a gate yourself" in sec
+    for stop in ("1. After step 2", "2. After the storyboard", "3. After the first `finish.py`", "4. After the last critique round"):
+        assert stop in sec
+    for item in ("`## Reference`", "`shotlist.md`", "contact sheet", "poster", "final MP4"):
+        assert item in sec
+    # the default workflow above the section never mentions a gate
+    assert "gate" not in skill[:skill.index("## Gated run (opt-in)")].lower()

@@ -11,6 +11,19 @@
 | 10-11 | s5 value | a two-part value word, a true one-line claim |
 | 12-end | s6 end card | icon, name, tagline, CTA, only the stores the app is on, URL |
 
+## Shot list
+
+Each project has a `shotlist.md`: one row per scene, with the scene id (`s1`, not `s1 hook`), its
+purpose, its entry state and its exit state. The Job column above is where the purposes start.
+If you cannot say why a scene exists, it does not belong in the render. `build.py` fails when a
+live scene has no row, when a row has no scene, or when a cell is empty or `TODO`. When you add,
+remove or rename a scene, edit its row. Never delete `shotlist.md`: the check runs only while the
+file exists.
+
+| scene | purpose | entry state | exit state |
+| --- | --- | --- | --- |
+| s3 | The drop: the strongest real feature | The phone has left and the word is hidden | The word is settled after the flash |
+
 Rules:
 - Frame 0 already shows the hook text or UI: feeds use it as the thumbnail. No fade in from an
   empty background (finish.py warns "frame 0 is blank").

@@ -96,6 +96,7 @@ def scaffold(app, variant, out, lang="en", stores=None, duration=None, force=Fal
     shutil.copy2(TEMPLATE / ("hero.html.tmpl" if silent else "src.html.tmpl"), dest / "src.html.tmpl")
     for name in ("hyperframes.json",) if silent else ("hyperframes.json", "cues.json", "motion.js"):
         shutil.copy2(TEMPLATE / name, dest / name)
+    shutil.copy2(TEMPLATE / ("SHOTLIST.hero.md.tmpl" if silent else "SHOTLIST.md.tmpl"), dest / "shotlist.md")
     design = (TEMPLATE / "DESIGN.md.tmpl").read_text().replace("<format>", fmt, 1)
     if silent:
         design = re.sub(r"(?ms)^## Music\n.*?(?=^## |\Z)", "## Music\n\n16:9 is silent: no music.\n\n", design)
