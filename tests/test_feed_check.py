@@ -1,7 +1,11 @@
 """The check command build.py prints, run for real: HyperFrames 0.8.78 in a headless browser (about
 15 s a run). It proves the bottom band of the feed safe box and the AI label's safe-box guard work on
-a rendered page, not only that the command is spelled right."""
+a rendered page, not only that the command is spelled right.
+
+Opt-in: bin/ci runs with no network and no browser, so these run only with APR_BROWSER_TESTS=1
+(README, Development). The guard's bounds are tested without a browser in test_build.py."""
 import json
+import os
 import shlex
 import shutil
 import subprocess
@@ -13,7 +17,10 @@ import soundfile as sf
 from conftest import run_script
 from test_template import build
 
-pytestmark = pytest.mark.skipif(shutil.which("npx") is None, reason="needs npx (HyperFrames)")
+pytestmark = [
+    pytest.mark.skipif(os.environ.get("APR_BROWSER_TESTS") != "1", reason="browser tests: set APR_BROWSER_TESTS=1"),
+    pytest.mark.skipif(shutil.which("npx") is None, reason="needs npx (HyperFrames)"),
+]
 
 
 def check(tmp_path, fmt, edit=None):
@@ -65,14 +72,13 @@ def test_a_caption_moved_into_the_bottom_band_fails_the_check(tmp_path):
 
 
 def test_a_label_too_long_for_the_safe_box_fails_the_check(tmp_path):
-    # 55 characters: the pill ends near x 1016 (measured), past the box (960) but inside the frame
-    # (1080), so only the safe-box bound can fail it
+    # 81 characters: past x 960 with any sans-serif font (the exact edges are tested in test_build.py)
     def long_label(p):
         t = p / "src.html.tmpl"
         s = t.read_text()
         assert s.count('"aiLabel": "AI-generated"') == 1
         t.write_text(s.replace('"aiLabel": "AI-generated"',
-                               '"aiLabel": "AI-generated video, made with an AI tool, see the notes"'))
+                               '"aiLabel": "AI-generated video, made with an AI tool. Read the notes under the video for more"'))
     _, r, _ = check(tmp_path, "9:16", long_label)
     assert r.returncode != 0
     assert "AI-generated label is not fully inside the feed safe box" in r.stdout + r.stderr

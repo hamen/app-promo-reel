@@ -112,4 +112,5 @@ The feed safe zones, the readable text minimums and the dead-hold rule follow me
 ```bash
 git config core.hooksPath .githooks   # pre-push runs bin/ci
 bin/ci                                 # deps check, hygiene scan, pytest (no GPU, no network)
+APR_BROWSER_TESTS=1 bin/ci             # also runs the printed check command in a browser (npx, ~1 min)
 ```
