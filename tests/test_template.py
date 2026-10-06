@@ -1,5 +1,6 @@
 """Template smoke: scaffold -> build with a fixture grid, no browser."""
 import json
+import math
 import re
 
 import numpy as np
@@ -344,8 +345,11 @@ def test_caption_hero_tap_and_button_sit_inside_the_safe_box_and_above_the_label
     cap = (get("#caption", "left"), get("#caption", "top"), w - get("#caption", "right"),
            get("#caption", "top") + get("#caption", "height"))
     inside(cap, "caption")
-    hero_bottom = h - get("#hero", "bottom")
-    inside((get("#hero", "left"), y0, w - get("#hero", "right"), hero_bottom), "hero")
+    # the hero card rests turned: a corner drops up to half its width x sin(angle)
+    turn = float(re.search(r'fromTo\("#hero", \{[^}]*\}, \{[^}]*rotation: (-?[\d.]+)', html).group(1))
+    hero_l, hero_r = get("#hero", "left"), w - get("#hero", "right")
+    drop = (hero_r - hero_l) / 2 * abs(math.sin(math.radians(turn)))
+    inside((hero_l, y0, hero_r, h - get("#hero", "bottom") + drop), "hero")
     # the phone, mapped through the 4:5 wrapper's transform (none in 9:16)
     if fmt == "4:5":
         fit = dict(rules)[FOUR5 + " .phone-fit"]

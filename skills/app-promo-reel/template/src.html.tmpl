@@ -232,15 +232,16 @@
 
       /* ---------- S1 hook ---------- */
       /* the feed safe box (references/storyboard.md): 9:16 x 64-960, y 270-1500; the AI label sits at
-         its bottom-left corner, y 1430-1492, so nothing to read goes below y 1430 */
+         its bottom-left corner, y 1430-1492, so nothing to read goes below y 1430. The hero card rests
+         turned -3deg: a corner drops up to half its width x sin 3deg (22.5 px), so its edge is at y 1390 */
       #hook-words {
-        padding-bottom: 260px;
+        padding-bottom: 290px;
       }
       #hero {
         position: absolute;
         left: 90px;
         right: 130px;
-        bottom: 500px;
+        bottom: 530px;
       }
 
       /* ---------- S2 phone ---------- */
@@ -468,12 +469,13 @@
         top: 225px;
       }
       #root[data-format="4:5"] #hook-words {
-        padding-bottom: 300px;
+        padding-bottom: 330px;
       }
-      /* the 4:5 safe box: x 64-1016, y 96-1254; the AI label sits at y 1186.5-1246 */
+      /* the 4:5 safe box: x 64-1016, y 96-1254; the AI label sits at y 1186.5-1246 (the turned hero card's
+         lowest corner: 1150 + 23.6) */
       #root[data-format="4:5"] #hero {
         right: 90px;
-        bottom: 170px;
+        bottom: 200px;
       }
       #root[data-format="4:5"] #s6 .center-col {
         padding-bottom: 0;
