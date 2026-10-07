@@ -1,10 +1,12 @@
 """Template smoke: scaffold -> build with a fixture grid, no browser."""
 import json
+import math
 import re
 
 import numpy as np
 import pytest
 
+from common import FEED_BOXES, FORMATS
 from conftest import TEMPLATE, run_script, steady_grid
 
 
@@ -206,11 +208,40 @@ def test_hook_is_static_from_frame_zero(tmp_path):
     # no tween starts the hook words hidden or builds them one by one
     assert not re.search(r'(fromTo|from|set)\(\s*"#(hook-words|w-\d)"', s1)
     assert '"#w-0"' not in s1
-    # both downbeats keep punch, shake and flash
+    # both downbeats keep their punch; shake and flash belong to the drop and the end card only
     for beat in ("D(0, 0)", "D(1, 0)"):
         assert f'punch("#hook-words", {beat}' in s1
-        assert f'shake("#s1-cam", {beat}' in s1
-        assert f"flash({beat}" in s1
+    assert "shake(" not in s1 and "flash(" not in s1
+
+
+def test_shake_and_flash_only_on_the_drop_and_the_end_card(tmp_path):
+    _, html = build(tmp_path)
+    timeline = html[html.index("// ===== S1 hook"):]
+    scenes = {part.split()[0]: part for part in timeline.split("// ===== ")[1:]}
+    assert sorted(scenes) == ["S1", "S2", "S3", "S4", "S5", "S6"]
+    for name, part in scenes.items():
+        calls = (len(re.findall(r"\bshake\(", part)), len(re.findall(r"\bflash\(", part)))
+        assert calls == ((1, 1) if name in ("S3", "S6") else (0, 0)), name
+
+
+def test_a_third_shake_is_a_build_warning_and_the_shipped_template_has_none(tmp_path):
+    (tmp_path / "a").mkdir(), (tmp_path / "b").mkdir()
+    p, _ = build(tmp_path / "a")
+    assert "() calls in the page" not in run_script("build.py", p).stderr
+
+    def third(p):
+        t = p / "src.html.tmpl"
+        t.write_text(t.read_text().replace("// ===== S4", 'shake("#s4", D(7), 10);\n      // ===== S4', 1))
+    p, _ = build(tmp_path / "b", edit=third)
+    assert "warning: 3 shake() calls in the page (at most 2" in run_script("build.py", p).stderr
+
+
+@pytest.mark.parametrize("fmt, caption_zone", [("9:16", True), ("4:5", True), ("16:9", False)])
+def test_build_prints_the_check_command_as_its_last_line(tmp_path, fmt, caption_zone):
+    p, _ = build(tmp_path, fmt=fmt)
+    last = run_script("build.py", p).stdout.rstrip("\n").split("\n")[-1]
+    assert last.startswith(f"check: npx --yes hyperframes@0.8.78 check {p}")
+    assert ("--caption-zone" in last) == caption_zone
 
 
 @pytest.mark.parametrize("fmt, w, h, scale", [("9:16", 1080, 1920, "1"), ("4:5", 1080, 1350, "0.703125")])
@@ -243,6 +274,102 @@ def test_the_4x5_layer_keeps_the_tap_point_on_the_phone(tmp_path):
     assert re.search(r"perspective: \d+px", fit)
     # in 9:16 the wrapper has no box, so the 9:16 page renders as before it existed
     assert re.search(r"\n      \.phone-fit \{\s*display: contents;\s*\}", css)
+
+
+# --- the feed safe box (references/storyboard.md, "Feed safe zones") --------------------------
+
+FOUR5 = '#root[data-format="4:5"]'
+
+
+def css_rules(html):
+    css = re.sub(r"/\*.*?\*/", "", html.split("<style", 1)[1].split("</style>", 1)[0], flags=re.S)
+    return [(sel.strip(), body) for sel, body in re.findall(r"([^{}]+)\{([^{}]*)\}", css)]
+
+
+def px(rules, sel, name):
+    """The px value of `name` in the last rule whose selector is exactly `sel`, or None."""
+    v = None
+    for s, body in rules:
+        m = re.search(rf"(?<![\w-]){re.escape(name)}:\s*(-?[\d.]+)px", body) if s == sel else None
+        v = float(m.group(1)) if m else v
+    return v
+
+
+def label_top(fmt):
+    # the guard's pill: a px/1.25 line, 10 px padding and a 1 px border on each side (y 1430 measured
+    # on a 9:16 render)
+    from build import AI_LABEL_PLACES
+    place, size = AI_LABEL_PLACES[fmt]
+    bottom = float(re.search(r'bottom: "([\d.]+)px"', place).group(1))
+    return FORMATS[fmt][1] - bottom - (size * 1.25 + 2 * 10 + 2 * 1)
+
+
+def test_9x16_text_is_32px_or_more(tmp_path):
+    _, html = build(tmp_path)
+    sizes = [(sel, v) for sel, body in css_rules(html) if not sel.startswith(FOUR5)
+             for v in re.findall(r"font-size:\s*([^;]+);", body)]
+    assert len(sizes) > 15
+    for sel, v in sizes:
+        assert v.endswith("px") and float(v[:-2]) >= 32, (sel, v)
+
+
+def test_4x5_phone_text_renders_at_30px_or_more(tmp_path):
+    _, html = build(tmp_path, fmt="4:5")
+    rules = css_rules(html)
+    k = float(re.search(r"scale\(([\d.]+)\)", dict(rules)[FOUR5 + " .phone-fit"]).group(1))
+    # the phone's own rule, else the shared one it inherits (the hero card shares .card and .chip)
+    for own, shared in ((".scr h5", None), (".scr .card h6", ".card h6"), (".scr .card .sub", ".card .sub"),
+                        (".scr .chip", ".chip"), (".scr .btn", None)):
+        size = px(rules, own, "font-size") or px(rules, shared, "font-size")
+        assert size * k >= 30, (own, size, k)
+    for sel, body in rules:
+        for v in re.findall(r"font-size:\s*([\d.]+)px", body) if sel.startswith(FOUR5) else []:
+            assert float(v) >= 30, sel
+
+
+@pytest.mark.parametrize("fmt", ["9:16", "4:5"])
+def test_caption_hero_tap_and_button_sit_inside_the_safe_box_and_above_the_label(tmp_path, fmt):
+    _, html = build(tmp_path, fmt=fmt)
+    rules = css_rules(html)
+    w, h = FORMATS[fmt]
+    x0, y0, x1, y1 = FEED_BOXES[fmt]
+    top = label_top(fmt)
+
+    def get(sel, name):  # the 4:5 layer's value, else the 9:16 one
+        v = px(rules, f"{FOUR5} {sel}", name) if fmt == "4:5" else None
+        return v if v is not None else px(rules, sel, name)
+
+    def inside(box, what):
+        assert x0 <= box[0] and y0 <= box[1] and box[2] <= x1 and box[3] <= min(y1, top), (what, box)
+
+    cap = (get("#caption", "left"), get("#caption", "top"), w - get("#caption", "right"),
+           get("#caption", "top") + get("#caption", "height"))
+    inside(cap, "caption")
+    # the hero card rests turned: a corner drops up to half its width x sin(angle)
+    turn = float(re.search(r'fromTo\("#hero", \{[^}]*\}, \{[^}]*rotation: (-?[\d.]+)', html).group(1))
+    hero_l, hero_r = get("#hero", "left"), w - get("#hero", "right")
+    drop = (hero_r - hero_l) / 2 * abs(math.sin(math.radians(turn)))
+    inside((hero_l, y0, hero_r, h - get("#hero", "bottom") + drop), "hero")
+    # the phone, mapped through the 4:5 wrapper's transform (none in 9:16)
+    if fmt == "4:5":
+        fit = dict(rules)[FOUR5 + " .phone-fit"]
+        dy, k = map(float, re.search(r"translateY\((-?[\d.]+)px\) scale\(([\d.]+)\)", fit).groups())
+        ox, oy = map(float, re.search(r"transform-origin: ([\d.]+)px ([\d.]+)px", fit).group(1, 2))
+    else:
+        dy, k, ox, oy = 0, 1, 0, 0
+    fx, fy = (lambda x: ox + (x - ox) * k), (lambda y: oy + (y - oy) * k + dy)
+    ph_l, ph_t, ph_pad = px(rules, "#phone", "left"), px(rules, "#phone", "top"), px(rules, "#phone", "padding")
+    ph_r, ph_b = ph_l + px(rules, "#phone", "width"), ph_t + px(rules, "#phone", "height")
+    btn_b = ph_b - ph_pad - px(rules, ".scr .btn", "bottom")
+    btn = (fx(ph_l + ph_pad + px(rules, ".scr .btn", "left")), fy(btn_b - px(rules, ".scr .btn", "height")),
+           fx(ph_r - ph_pad - px(rules, ".scr .btn", "right")), fy(btn_b))
+    inside(btn, "button")
+    assert y0 <= fy(ph_t) and cap[3] <= fy(ph_t), "the phone starts under the caption"
+    # the tap dot, all of it
+    r = px(rules, ".tapdot", "width") / 2
+    tx = px(rules, "#root", "--tap-x")
+    ty = (px(rules, FOUR5, "--tap-y") if fmt == "4:5" else None) or px(rules, "#root", "--tap-y")
+    inside((tx - r, ty - r, tx + r, ty + r), "tap dot")
 
 
 # --- the motion language in the shipped templates ---------------------------------------------

@@ -22,7 +22,9 @@
    a blank opening (frame 0 is the feed thumbnail; the hook must show within 1 s) and "pops",
    frame-to-frame changes far above their neighbours: a one-frame flash, or a cut that is near
    no beat and no scene start. They find one-frame events, not two texts on top of each other
-   during a crossfade: that is for the critique loop in SKILL.md.
+   during a crossfade: that is for the critique loop in SKILL.md. A reel with sound also gets a
+   warning for each "hold": nothing on screen moves for more than 0.8 s (the end card may hold
+   2.5 s). The whole frame is measured, so a visible background pulse counts as movement.
 
 8. Poster frame (only when every check passed): renders/<app>-<variant>-v<N>-poster.jpg, full video
    size, JPEG quality 90, the frame with the most detail among the settled frames of the scenes
@@ -62,7 +64,8 @@ import numpy as np
 import scipy.signal as ss
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from common import attack_index, decode_audio, die, is_number, is_silent, load_project, read_json  # noqa: E402
+from common import (attack_index, decode_audio, die, is_number, is_silent, load_project, read_json,  # noqa: E402
+                    SCENE_SETTLE, SCENE_SETTLE_END, scene_spans, scene_windows)
 
 SR = 48000
 TARGET_I, TARGET_TP, TARGET_LRA = -14.0, -2.0, 11.0
@@ -85,14 +88,19 @@ POP_MOVE_MAX = 0.3   # seconds: a fast move is never longer (the longest in the 
 FLASH_BACK = 3.0     # a flash: the frame after the odd one is this many times closer to the one before
 POP_LEAD = 0.15      # a fast move may start up to this long before the beat it lands on
 HOOK_BY = 1.0        # seconds: something readable must be on screen by then
+HOLD_PIX = 8         # a pixel has changed when it differs from the run's first frame by more than this
+HOLD_SHARE = 0.002   # ... and a frame has changed when more than this share of its pixels has
+HOLD_MAX = 0.8       # seconds: a longer still run is a dead hold (references/storyboard.md, "Density")
+HOLD_END = 2.5       # seconds: the end card may hold this long
+HOLD_END_SLACK = 2   # frames: a run that ends this close to the last frame is the end card
 # the seam check of a silent loop, on frames decoded SEAM_W px wide: the 54 px frames of the frame
 # checks turn a 5 px shift of a phone into 0.14 px. A step is judged by two measures: `mad` (mean
 # gray-level change) and `moved` (the share of pixels that change by more than SEAM_PIX levels: a
 # shifted sharp edge changes few pixels a lot, which the mean hides). The seam is bad when either
 # is above max(its floor, SEAM_RATIO x the largest of the SEAM_REST steps on each side of the seam).
-POSTER_SETTLE = 1.1   # seconds after a scene start: its text and UI have landed (references/storyboard.md)
+POSTER_SETTLE = SCENE_SETTLE   # seconds after a scene start: its text and UI have landed (references/storyboard.md)
 POSTER_EDGE = 0.05    # a candidate stays this far inside the end of its window and of the video
-POSTER_LAST = 0.5     # the last scene: this long before the end of the video
+POSTER_LAST = SCENE_SETTLE_END     # the last scene: this long before the end of the video
 POSTER_QUALITY = 90
 SEAM_W = 480
 SEAM_PIX = 16
@@ -375,40 +383,15 @@ def scene_starts(html):
     return starts, notes
 
 
-def scene_spans(html):
-    """(start, duration or None) of every live <section> with a numeric data-start, sorted by start;
-    a second section with the same start is dropped."""
-    live = re.sub(r"<!--.*?-->", "", html, flags=re.S)
-
-    def number(tag, name):
-        m = re.search(rf"""\b{name}\s*=\s*(["'])(.*?)\1""", tag)
-        try:
-            v = float(m.group(2)) if m else None
-        except ValueError:
-            v = None
-        return v if is_number(v) else None
-
-    spans = {}
-    for tag in re.findall(r"<section\b[^>]*>", live):
-        start = number(tag, "data-start")
-        if start is not None:
-            spans.setdefault(start, number(tag, "data-duration"))
-    return sorted(spans.items())
-
-
 def poster_candidates(spans, duration):
-    """Times of the settled frame of each scene. A scene's clean window runs from the later of its
-    start and the end of the scene before it, to the earlier of the next start and its own end. The
-    candidate is POSTER_SETTLE after the scene start (POSTER_LAST before the end for the last
-    scene), moved back inside the window; a scene whose candidate falls outside its window (an empty
+    """Times of the settled frame of each scene. The candidate is POSTER_SETTLE after the scene
+    start (POSTER_LAST before the end for the last scene), moved back inside the scene's clean
+    window (common.scene_windows); a scene whose candidate falls outside its window (an empty
     window always does) or outside the video gives none. Frame 0 is never a candidate."""
     times = []
-    ends = [min(s + d, duration) if d is not None else duration for s, d in spans]
-    for i, (start, _) in enumerate(spans):
-        last = i == len(spans) - 1
-        lo = max(start, ends[i - 1]) if i else start
-        hi = ends[i] if last else min(spans[i + 1][0], ends[i])
-        t = duration - POSTER_LAST if last else start + POSTER_SETTLE
+    windows = scene_windows(spans, duration)
+    for i, (start, lo, hi) in enumerate(windows):
+        t = duration - POSTER_LAST if i == len(windows) - 1 else start + POSTER_SETTLE
         if t >= hi:
             t = hi - POSTER_EDGE
         t = round(t, 3)
@@ -537,6 +520,33 @@ def has_audio_stream(path):
                      "-of", "csv=p=0", str(path)]).stdout.strip())
 
 
+def still_runs(frames):
+    """(first, end) frame indices of every run of frames that stay within HOLD_SHARE changed pixels
+    of the run's first frame (end is exclusive). Comparing with the first frame, not the frame
+    before, makes a slow creep count as change once it adds up."""
+    runs, i, n = [], 0, len(frames)
+    while i < n:
+        j = i + 1
+        while j < n and float((np.abs(frames[j] - frames[i]) > HOLD_PIX).mean()) <= HOLD_SHARE:
+            j += 1
+        runs.append((i, j))
+        i = j
+    return runs
+
+
+def dead_holds(frames, dt):
+    """[{"time", "length"}] of each still run longer than HOLD_MAX, except an end card: a run that
+    ends within HOLD_END_SLACK frames of the last frame and is at most HOLD_END long."""
+    holds, n = [], len(frames)
+    for first, end in still_runs(frames):
+        length = (end - first) * dt
+        if end - 1 >= n - 1 - HOLD_END_SLACK and length <= HOLD_END:
+            continue
+        if length > HOLD_MAX:
+            holds.append({"time": round(first * dt, 3), "length": round(length, 3)})
+    return holds
+
+
 def frame_checks(pdir, mp4, vi, silent=False):
     """Blank opening and pops on the final MP4. Returns the report dict; its "warnings" are
     printed and never change the exit code. Reads files with plain read_text/json.loads, never
@@ -585,8 +595,11 @@ def frame_checks(pdir, mp4, vi, silent=False):
         e["planned"] = any(e["time"] - 2 * dt - 1e-6 <= m <= e["end"] + POP_LEAD for m in marks)
         if not e["planned"]:
             warnings.append(f"sudden change at {e['time']:.2f} s near no beat and no scene start (look at it)")
+    holds = [] if silent else dead_holds(frames, dt)
+    for h in holds:
+        warnings.append(f"still for {h['length']:.2f} s from {h['time']:.2f} s: nothing on screen moves (look at it)")
     return {"frame0_blank": bool(detail[0] < BLANK_DETAIL), "first_detail_time": first,
-            "events": events, "warnings": warnings, "notes": notes}
+            "events": events, "holds": holds, "warnings": warnings, "notes": notes}
 
 
 def picture_problems(project, vi_raw, vi_out):
@@ -631,7 +644,7 @@ def _checks_silent(pdir, project, raw_mp4, checking, sheet, frames):
             shutil.copyfile(raw_mp4, checking)  # keep the raw clip as the -failed file, to look at
     if vi_out is None:
         return problems, {"silent": True, "video": None, "seam": {"ok": False, "error": "clip not readable"},
-                          "frames": {"warnings": [], "notes": []}, "problems": problems}
+                          "frames": {"warnings": [], "holds": [], "notes": []}, "problems": problems}
     try:
         contact_sheet(checking, contact_sheet_times(project, vi_out, frames), sheet)
     except (Exception, SystemExit) as e:  # a sheet that cannot be made is a note: the seam still decides
@@ -641,7 +654,7 @@ def _checks_silent(pdir, project, raw_mp4, checking, sheet, frames):
     try:
         frame_report = frame_checks(pdir, checking, vi_out, silent=True)
     except Exception as e:  # a heuristic check that cannot run is a note, never a failed reel
-        frame_report = {"error": repr(e), "warnings": [], "notes": [f"frame checks did not run: {e!r}"]}
+        frame_report = {"error": repr(e), "warnings": [], "holds": [], "notes": [f"frame checks did not run: {e!r}"]}
     if sheet_note:
         frame_report["notes"].append(sheet_note)
     loop_problems, seam = silent_loop_problems(checking, project, vi_out)
@@ -679,7 +692,7 @@ def _checks(pdir, project, raw_mp4, realized, checking, sheet, frames):
     try:
         frame_report = frame_checks(pdir, checking, vi_out)
     except Exception as e:  # a heuristic check that cannot run is a note, never a failed reel
-        frame_report = {"error": repr(e), "warnings": [], "notes": [f"frame checks did not run: {e!r}"]}
+        frame_report = {"error": repr(e), "warnings": [], "holds": [], "notes": [f"frame checks did not run: {e!r}"]}
 
     final = measure(checking)
     problems += loudness_problems(final)

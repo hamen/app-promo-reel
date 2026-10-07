@@ -7,6 +7,7 @@ Beat addressing (one signature everywhere, see references/pipeline.md):
 """
 import json
 import math
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -15,6 +16,13 @@ from pathlib import Path
 FORMATS = {"9:16": (1080, 1920), "4:5": (1080, 1350), "16:9": (1920, 1080)}
 # formats with no music, no beat grid, no cues and no audio: a web hero that loops
 SILENT_FORMATS = ("16:9",)
+# The feed safe box per format (x0, y0, x1, y1 in px of the frame): the big vertical feeds draw their
+# own UI outside it (references/storyboard.md, "Feed safe zones"). The 16:9 hero is a web page: none.
+FEED_BOXES = {"9:16": (64, 270, 960, 1500), "4:5": (64, 96, 1016, 1254)}
+# Seconds after a scene start when what entered with it has landed, and before the end of its window
+# when what entered late has landed too (references/storyboard.md).
+SCENE_SETTLE = 1.1
+SCENE_SETTLE_END = 0.5
 HERO_DURATION = 8.0
 SILENT_MIN_DURATION = 4.0
 PROJECT_DEFAULTS = {
@@ -187,3 +195,37 @@ def attack_index(snd, rel=0.05):
 def attack_seconds(path, sr=48000):
     """Seconds of near-silence before a sound file's attack."""
     return attack_index(decode_audio(path, sr)) / sr
+
+
+def scene_spans(html):
+    """(start, duration or None) of every live <section> with a numeric data-start, sorted by start;
+    a second section with the same start is dropped."""
+    live = re.sub(r"<!--.*?-->", "", html, flags=re.S)
+
+    def number(tag, name):
+        m = re.search(rf"""\b{name}\s*=\s*(["'])(.*?)\1""", tag)
+        try:
+            v = float(m.group(2)) if m else None
+        except ValueError:
+            v = None
+        return v if is_number(v) else None
+
+    spans = {}
+    for tag in re.findall(r"<section\b[^>]*>", live):
+        start = number(tag, "data-start")
+        if start is not None:
+            spans.setdefault(start, number(tag, "data-duration"))
+    return sorted(spans.items())
+
+
+def scene_windows(spans, duration):
+    """(start, lo, hi) of each scene in `spans` (scene_spans). Its clean window runs from the later
+    of its start and the end of the scene before it, to the earlier of the next start and its own
+    end; a window can be empty (lo >= hi)."""
+    ends = [min(s + d, duration) if d is not None else duration for s, d in spans]
+    windows = []
+    for i, (start, _) in enumerate(spans):
+        lo = max(start, ends[i - 1]) if i else start
+        hi = ends[i] if i == len(spans) - 1 else min(spans[i + 1][0], ends[i])
+        windows.append((start, lo, hi))
+    return windows

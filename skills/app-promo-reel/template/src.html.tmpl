@@ -86,7 +86,7 @@
       #root {
         /* the tap point on the phone's button, in frame coordinates (the 4:5 layer maps it) */
         --tap-x: 540px;
-        --tap-y: 1640px;
+        --tap-y: 1374px;
         position: relative;
         width: 100%;
         height: 100%;
@@ -194,7 +194,7 @@
         line-height: 1.1;
       }
       .card .sub {
-        font-size: 28px;
+        font-size: 32px;
         opacity: 0.7;
         margin-top: 4px;
       }
@@ -203,7 +203,7 @@
         margin-top: 12px;
         padding: 8px 18px;
         border-radius: 999px;
-        font-size: 26px;
+        font-size: 32px;
         font-weight: 700;
         background: var(--chip-bg);
         color: var(--chip-ink);
@@ -231,20 +231,26 @@
       }
 
       /* ---------- S1 hook ---------- */
+      /* the feed safe box (references/storyboard.md): 9:16 x 64-960, y 270-1500; the AI label sits at
+         its bottom-left corner, y 1430-1492, so nothing to read goes below y 1430. The hero card rests
+         turned -3deg: a corner drops up to half its width x sin 3deg (22.5 px), so its edge is at y 1390 */
+      #hook-words {
+        padding-bottom: 290px;
+      }
       #hero {
         position: absolute;
         left: 90px;
-        right: 90px;
-        bottom: 250px;
+        right: 130px;
+        bottom: 530px;
       }
 
       /* ---------- S2 phone ---------- */
       #caption {
         position: absolute;
-        top: 120px;
-        left: 60px;
-        right: 60px;
-        height: 200px;
+        top: 280px;
+        left: 64px;
+        right: 120px;
+        height: 160px;
       }
       .cap {
         position: absolute;
@@ -267,9 +273,9 @@
       #phone {
         position: absolute;
         left: 150px;
-        top: 360px;
+        top: 440px;
         width: 780px;
-        height: 1500px;
+        height: 1160px;
         border-radius: 96px;
         background: #0c0c0e;
         padding: 22px;
@@ -286,23 +292,33 @@
       .scr {
         position: absolute;
         inset: 0;
-        padding: 110px 36px 40px;
+        padding: 70px 36px 40px;
         color: var(--ink);
       }
       .scr h5 {
         font-size: 50px;
         font-weight: 900;
-        margin-bottom: 34px;
-      }
-      .scr .card {
         margin-bottom: 24px;
+      }
+      /* phone UI text: 38 px or more, so the 4:5 phone (scale 0.79) still shows it at 30 px */
+      .scr .card {
+        margin-bottom: 14px;
+        padding: 18px 30px;
+      }
+      .scr .card .sub {
+        font-size: 38px;
+      }
+      .scr .chip {
+        margin-top: 8px;
+        padding: 6px 16px;
+        font-size: 38px;
       }
       .scr .btn {
         position: absolute;
         left: 36px;
         right: 36px;
-        bottom: 70px;
-        height: 110px;
+        bottom: 156px;
+        height: 96px;
         border-radius: 999px;
         display: flex;
         align-items: center;
@@ -372,6 +388,9 @@
       }
 
       /* ---------- S6 end card ---------- */
+      #s6 .center-col {
+        padding-bottom: 150px;
+      }
       #icon {
         width: 300px;
         height: 300px;
@@ -444,28 +463,36 @@
 
       /* ---------- 4:5 feed (1080x1350): only the numbers that depend on the frame height ---------- */
       #root[data-format="4:5"] {
-        --tap-y: 1095px; /* 250 + (1640 - 360) x 0.66: the 9:16 tap point through the phone's transform */
+        --tap-y: 984px; /* 246 + (1374 - 440) x 0.79: the 9:16 tap point through the phone's transform */
       }
       #root[data-format="4:5"] #bg-glow {
         top: 225px;
       }
       #root[data-format="4:5"] #hook-words {
-        padding-bottom: 300px;
+        padding-bottom: 330px;
       }
+      /* the 4:5 safe box: x 64-1016, y 96-1254; the AI label sits at y 1186.5-1246 (the turned hero card's
+         lowest corner: 1150 + 23.6) */
       #root[data-format="4:5"] #hero {
-        bottom: 90px;
+        right: 90px;
+        bottom: 200px;
+      }
+      #root[data-format="4:5"] #s6 .center-col {
+        padding-bottom: 0;
       }
       #root[data-format="4:5"] #caption {
-        top: 40px;
+        top: 96px;
+        right: 64px;
+        height: 140px;
       }
-      /* the phone at 0.66, its top edge at y 250 and its bottom at y 1240, above the AI label. The
+      /* the phone at 0.79, its top edge at y 246 and its bottom at y 1162, above the AI label. The
          transform breaks the perspective of .scene, so the wrapper carries it: the 9:16 projection */
       #root[data-format="4:5"] .phone-fit {
         display: block;
         position: absolute;
         inset: 0;
-        transform: translateY(-110px) scale(0.66);
-        transform-origin: 540px 360px;
+        transform: translateY(-194px) scale(0.79);
+        transform-origin: 540px 440px;
         perspective: 1800px;
         perspective-origin: 540px 960px;
       }
@@ -688,13 +715,12 @@
       // ===== S1 hook: the FULL hook (#hook-words) is static and opaque from frame 0 (average watch time can be ~1 s; the first frame is also the cover). No word build, no fade-in; only the hero chip below slides in. =====
       tl.fromTo("#hero", { y: 700, rotation: 8, opacity: 0 }, { y: 0, rotation: -3, opacity: 1, duration: 0.55, ease: MOTION.panel.ease }, Math.max(0.05, D(0) - 0.6));
       punch("#hook-words", D(0, 0), 1.05);
-      shake("#s1-cam", D(0, 0), 18);
-      flash(D(0, 0), 0.3, 0.25);
       punch("#hook-words", D(1, 0), 1.04);
-      shake("#s1-cam", D(1, 0), 24);
-      flash(D(1, 0), 0.3, 0.25);
       punch("#hero-chip", D(0, 3), 1.3);
       punch("#hero-chip", D(1, 3), 1.4);
+      // beat 2 of each hook bar: no still second while the hook is read (storyboard.md, "Density")
+      punch("#hook-words", D(0, 2), 1.03);
+      punch("#hook-words", D(1, 2), 1.03);
       tl.to("#hero", { y: 900, duration: 0.3, ease: "power3.in" }, D(2) - 0.3);
       tl.to("#hook-words", { y: -1200, filter: "blur(18px)", duration: 0.3, ease: "power3.in" }, D(2) - 0.3);
 
@@ -705,6 +731,7 @@
       [0, 1, 2].forEach((i) => pop(`#a-row-${i}`, D(2, i + 1)));
       punch("#a-row-1", D(3, 0), 1.05);
       punch("#a-row-2", D(3, 2), 1.05);
+      punch("#cap-a", D(3, 1), 1.04);
       tap("#tap-a", "#ring-a", D(3, 3));
       tl.fromTo("#a-btn", { scale: 1 }, { keyframes: { scale: [1, 0.94, 1.04, 1] }, duration: 0.3, ease: "none", immediateRender: false }, D(3, 3) - 0.03);
       // bar 4: slide A -> B (a slide, not a crossfade: no double exposure); hide A after it leaves
@@ -715,6 +742,8 @@
       tl.fromTo("#cap-b", { y: -220, opacity: 0 }, { y: 0, opacity: 1, duration: 0.35, ease: MOTION.headline.ease }, D(4) - 0.02);
       [0, 1, 2].forEach((i) => pop(`#b-row-${i}`, D(4, i + 1)));
       punch("#b-row-0", D(5, 0), 1.05);
+      punch("#b-row-1", D(5, 1), 1.05);
+      punch("#b-row-2", D(5, 2), 1.05);
       tap("#tap-b", "#ring-b", D(5, 3));
       tl.fromTo("#b-btn", { scale: 1 }, { keyframes: { scale: [1, 0.94, 1.04, 1] }, duration: 0.3, ease: "none", immediateRender: false }, D(5, 3) - 0.03);
       tl.to("#s2-cam", { y: -1900, duration: 0.3, ease: "power3.in" }, D(6) - 0.3);
@@ -726,6 +755,7 @@
       shake("#s3-cam", D(6, 0), 30);
       flash(D(6, 0), 0.55, 0.4);
       pop("#fl-0", D(6, 2), -3);
+      punch("#feat-title", D(6, 3), 1.04);
       pop("#fl-1", D(7, 0), 3);
       pop("#fl-2", D(7, 2), -2);
       punch("#feat-title", D(7, 0), 1.05);
@@ -737,15 +767,12 @@
         tl.fromTo(`#ben-${i}`, { x: i % 2 ? 900 : -900, opacity: 0 }, { x: 0, opacity: 1, duration: 0.3, ease: "expo.out" }, t - 0.1);
       });
       slam("#ben-line", D(9, 2), 2);
-      shake("#s4-cam", D(9, 2), 14);
       tl.to("#s4-cam", { x: -1100, duration: 0.3, ease: "power3.in" }, D(10) - 0.3);
 
       // ===== S5 value word =====
       slam("#val-a", D(10, 0), 3.2);
-      shake("#s5-cam", D(10, 0), 28);
-      flash(D(10, 0), 0.25, 0.25);
       slam("#val-b", D(10, 2), 3.6);
-      shake("#s5-cam", D(10, 2), 34);
+      punch("#val-a", D(10, 3), 1.04);
       tl.fromTo("#val-sub", { y: 60, opacity: 0 }, { y: 0, opacity: 1, duration: 0.3, ease: MOTION.headline.ease }, D(11, 0) - 0.1);
       punch("#val-block", D(11, 2), 1.04);
       tl.to("#s5-cam", { rotationY: 90, opacity: 0, duration: 0.28, ease: "power3.in" }, D(12) - 0.28);
@@ -756,6 +783,7 @@
       shake("#s6-cam", D(12), 30);
       flash(D(12), 0.5, 0.4);
       tl.fromTo("#wordmark", { clipPath: "inset(0 100% 0 0)", x: -40 }, { clipPath: "inset(0 0% 0 0)", x: 0, duration: 0.4, ease: "power3.out" }, D(12, 2) - 0.1);
+      punch("#wordmark", D(13, 1), 1.05);
       tl.fromTo("#tagline", { y: 60, opacity: 0 }, { y: 0, opacity: 1, duration: 0.3, ease: MOTION.headline.ease }, D(13, 0) - 0.1);
       tl.fromTo("#cta", { opacity: 0, scale: 0.7 }, { opacity: 1, scale: 1, duration: 0.3, ease: MOTION.icon.ease }, D(13, 2) - 0.08);
       STORE_SEL.forEach((s, i) =>

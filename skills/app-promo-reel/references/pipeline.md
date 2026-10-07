@@ -32,7 +32,7 @@ place for duration, fps, format, beats per bar and stores.
 feed post). The format sets the frame size: width and height in project.json must match it, and
 `16:9` (1920x1080; a silent web-hero loop, see `hero.md`) is a different product, not a wider
 copy of the others. finish.py fails a render of another size. The template is the same for both: a `4:5` layer at the
-end of its CSS moves only what depends on the frame height (the phone at 0.66, the hook card, the
+end of its CSS moves only what depends on the frame height (the phone at 0.79, the hook card, the
 captions). Pixel distances in motion (the camera shake) scale with `{{FRAME_SCALE}}`. A new
 format for an existing variant is a new project: its copy of the template was built for its size.
 
@@ -100,13 +100,22 @@ $PY $S/make_bed.py $P/work/music/bgm_5.wav $P --drop-bar 6
 
 ```bash
 $PY $S/build.py $P      # src.html.tmpl (+ motion.js) -> index.html, cues.json -> cues.realized.json
-cd $P && npx --yes hyperframes@0.8.78 check
+<the command after "check:">   # the last line build.py prints
+cd $P
 npx --yes hyperframes@0.8.78 snapshot --at 1.0,2.4,4.6,... --describe false --no-end -o snapshots/r1
 ```
 - Always edit `src.html.tmpl`, never index.html (it is overwritten).
+- The last line build.py prints is `check: <command>`. Run that command until it gives 0 errors, not a
+  plain `hyperframes check`. For 9:16 and 4:5 it adds the bottom of the feed safe box as an error band
+  (`--caption-zone`), read only at the settled times (`references/storyboard.md`, "Feed safe zones"). A
+  `caption_zone_collision` error is a text in that band on a settled frame: move it up. For 16:9 it is
+  the plain check.
+- build.py prints a warning when the page calls `shake(` or `flash(` more than 2 times
+  (`references/motion.md`). The build still succeeds.
 - build.py adds the AI-generated label itself (text from `CONFIG.aiLabel`) with the last script
   of index.html: never add a label element or CSS for it to the template. A `page_error` about
-  the AI-generated label in `hyperframes check` means it is empty or something hides it.
+  the AI-generated label in `hyperframes check` means it is empty, something hides it, or (9:16 and
+  4:5) it is not fully inside the feed safe box: shorten `CONFIG.aiLabel`.
 - Leftover or unknown `{{…}}` → exit 2.
 - A cue whose SFX file is missing is skipped with a warning; the build still succeeds.
 - Snapshots: pick every scene middle and every transition ±0.1 s. Write each round to a new
@@ -132,8 +141,9 @@ and contact sheet named `…-v<N>-failed.mp4` and the report lists the problems;
 Ctrl-C during the checks also leaves `-failed` (no report). A `.checking` file left behind was
 never checked: do not deliver it.
 Frame checks on the final MP4 print `warning:` lines and never fail the run: frame 0 blank (the
-feed thumbnail), nothing readable by 1 s, nothing readable at all, a one-frame flash, or a sudden
-change near no beat and no scene start. They are in the report under `"frames"`; the critique step of SKILL.md reads them.
+feed thumbnail), nothing readable by 1 s, nothing readable at all, a one-frame flash, a sudden
+change near no beat and no scene start, or a still run over 0.8 s (not for 16:9; the end card may
+hold 2.5 s; `"holds"` in the report). They are in the report under `"frames"`; the critique step of SKILL.md reads them.
 When every check passed, finish.py also writes `…-v<N>-poster.jpg`: one frame at the full video size
 (JPEG, quality 90) for a store listing, a link preview or a social cover. It is the frame with the most
 detail among the settled frame of each scene (1.1 s after its start, 0.5 s before the end for the last one);

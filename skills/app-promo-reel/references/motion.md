@@ -10,12 +10,13 @@ the values there, not in the timeline.
 | `micro` | small in-place responses (a button squash, a toggle) | spring, 6% overshoot | 0.18 s |
 | `panel` | big surfaces: the phone, the hero chip, a card | spring, 7% overshoot | 0.55 s |
 | `headline` | captions and taglines | spring, 13% overshoot | 0.35 s, then hold 1.0 s |
-| `icon` | small objects that appear: icon, pop, CTA, chips, rows | spring, 20% overshoot | 0.32 s |
+| `icon` | small objects that appear: icon, pop, CTA, chips, rows | spring, 10% overshoot | 0.32 s |
 | `camera` | drift and push-in of a whole scene | `sine.inOut` (drift), `power2.inOut` (move) | set by the scene |
 
 Why these values: a big object that bounces a lot looks cheap, so `panel` is nearly flat. A
-small object can bounce more, so `icon` is the loudest. A headline needs a clear landing, then
-a hold so it can be read. The camera never uses a spring: a spring on the camera reads as a
+small object can bounce a little more (`icon`). A headline needs a clear landing, then
+a hold so it can be read: the words stay put while something else moves
+(`references/storyboard.md`, "Density"). The camera never uses a spring: a spring on the camera reads as a
 shake.
 
 ## Rules
@@ -24,6 +25,9 @@ shake.
   fixes the feel, the scene fixes the timing.
 - An object that **enters** uses its entrance class (`icon` for a pop, `panel` for a screen).
   An object that **responds in place** uses `micro`.
+- `shake` and `flash` are the loudest effects: at most 2 shakes and 2 flashes per reel, best on the
+  drop and the end card (the template has one of each in s3 and in s6). Give the other beats a
+  `punch`. `build.py` prints a warning when the page calls either more than 2 times.
 - At most one class overshoots hard at a time. When a `headline` and an `icon` land on the
   same beat, give the beat to one and delay or soften the other.
 - Do not use `back.out(...)` in a scene. If an element truly needs it, put a

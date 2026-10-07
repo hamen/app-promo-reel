@@ -1,4 +1,6 @@
 import json
+import shutil
+import subprocess
 
 import pytest
 
@@ -535,3 +537,113 @@ def test_the_motion_token_without_motion_js_exits_2_with_one_line(tmp_path):
     assert r.returncode == 2 and "no motion.js" in r.stderr and "Traceback" not in r.stderr
     assert len(r.stderr.strip().splitlines()) == 1
     assert not (p / "index.html").exists()
+
+
+# --- the feed formats: the AI label's place, the bottom-zone gate, the punch cap ------------------
+
+@pytest.mark.parametrize("fmt, place, size, box", [
+    ("9:16", 'left: "64px", bottom: "428px"', 32, "[64, 270, 960, 1500]"),
+    ("4:5", 'left: "64px", bottom: "104px"', 30, "[64, 96, 1016, 1254]"),
+    ("16:9", 'right: "44px", bottom: "40px"', 24, "null"),
+])
+def test_the_label_sits_in_the_feed_safe_box_at_the_format_minimum(fmt, place, size, box):
+    from build import add_ai_label_guard
+    html = add_ai_label_guard(AI_LABEL, fmt)
+    assert "__AI_LABEL" not in html
+    assert f'position: "absolute", {place}, "z-index"' in html
+    # the size it draws is the size it checks
+    assert f"font: 700 {size}px/1.25 sans-serif" in html and f'own.fontSize !== "{size}px"' in html
+    assert f"const safe = {box};" in html
+
+
+# the guard run in node with a stub DOM: its bounds checks get exact label boxes, so the result does not
+# depend on a browser or on the machine's sans-serif width
+GUARD_RUN = r"""
+const [w, h, px, l, t, r, b] = process.argv.slice(1).map(Number);
+const rect = (l, t, r, b) => ({ left: l, top: t, right: r, bottom: b, width: r - l, height: b - t });
+const pill = rect(l, t, r, b), ink = rect(l + 23, t + 11, r - 23, b - 11);
+const node = () => ({ style: { setProperty() {} }, parentElement: null, attachShadow: () => ({ append() {} }),
+  appendChild(c) { c.parentElement = this; }, getBoundingClientRect() { return this === root ? rect(0, 0, w, h) : pill; } });
+const root = node();
+globalThis.CONFIG = { aiLabel: "AI-generated" };
+globalThis.document = { querySelector: () => root, createElement: node,
+  createRange: () => ({ selectNodeContents() {}, getBoundingClientRect: () => ink }) };
+globalThis.getComputedStyle = (n, pseudo) => pseudo ? { content: "none" } : { color: "rgb(255, 255, 255)",
+  webkitTextFillColor: "rgb(255, 255, 255)", fontSize: px + "px", display: "block", clipPath: "none",
+  maskImage: "none", webkitMaskImage: "none", filter: "none", mixBlendMode: "normal", opacity: "1" };
+try { new Function(%s)(); console.log("ok"); } catch (e) { console.log(e.message); }
+"""
+BOX_FAIL = "the AI-generated label is not fully inside the feed safe box (references/storyboard.md): it must stay on screen"
+FRAME_FAIL = "the AI-generated label is not fully inside the frame: it must stay on screen"
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="needs node")
+@pytest.mark.parametrize("fmt, pill, result", [
+    ("9:16", (64, 1430, 300, 1492), "ok"),        # where build.py puts it
+    ("9:16", (64, 1430, 960, 1492), "ok"),        # on the box's right edge
+    ("9:16", (64, 1430, 961, 1492), BOX_FAIL),    # 1 px past it, far inside the frame
+    ("9:16", (64, 1439, 300, 1501), BOX_FAIL),    # past the bottom edge (y 1500)
+    ("9:16", (63, 1430, 300, 1492), BOX_FAIL),
+    ("9:16", (64, 269, 300, 331), BOX_FAIL),      # above the top edge (y 270)
+    ("4:5", (64, 1186.5, 1016, 1246), "ok"),
+    ("4:5", (64, 1186.5, 1017, 1246), BOX_FAIL),
+    ("4:5", (64, 1196, 300, 1255), BOX_FAIL),
+    ("16:9", (1600, 1000, 1876, 1040), "ok"),     # no box: the frame is the bound
+    ("16:9", (1600, 1000, 1921, 1040), FRAME_FAIL),
+])
+def test_the_guard_keeps_the_label_inside_the_feed_safe_box(fmt, pill, result):
+    from build import AI_LABEL_PLACES, add_ai_label_guard
+    from common import FORMATS
+    html = add_ai_label_guard(AI_LABEL, fmt)
+    guard = html.split("<script data-ai-label-guard>", 1)[1].split("</script>", 1)[0]
+    w, h = FORMATS[fmt]
+    r = subprocess.run(["node", "-e", GUARD_RUN % json.dumps(guard), "--", *map(str, (w, h, AI_LABEL_PLACES[fmt][1], *pill))],
+                       capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.strip() == result
+
+
+@pytest.mark.parametrize("spans, duration, times", [
+    ([(0.0, 5.0), (5.0, 5.0)], 10.0, [1.1, 4.5, 6.1, 9.5]),  # 1.1 s in, and 0.5 s before each window ends
+    ([(0.0, 7.0), (5.0, 5.0)], 10.0, [1.1, 4.5, 9.5]),       # an overlap: scene 2's window starts at 7
+    ([(0.0, None)], 10.0, [1.1, 9.5]),                       # no duration: it runs to the end
+    ([(0.0, 1.6)], 1.6, [1.1]),                              # the same time twice is one time
+    ([(0.0, 1.0)], 1.0, [0.5]),                              # 1.1 s is past the window
+    ([(0.0, 0.3)], 0.3, []),
+])
+def test_settled_times_are_two_per_scene_window(spans, duration, times):
+    from build import settled_times
+    assert settled_times(spans, duration) == times
+
+
+TWO_SCENES = '<section data-start="0" data-duration="15"></section><section data-start="15" data-duration="15"></section>'
+
+
+@pytest.mark.parametrize("fmt, y0", [("9:16", "0.78125"), ("4:5", "0.92889")])
+def test_a_feed_format_checks_the_bottom_of_its_safe_box_at_settled_times(fmt, y0):
+    from build import check_command
+    # 1.1, 14.5, 16.1 and 29.5 s of 30 s
+    assert check_command("/p/my reel", TWO_SCENES, {"format": fmt, "duration": 30.0}) == (
+        "npx --yes hyperframes@0.8.78 check '/p/my reel' --caption-zone "
+        f'"x0=0;y0={y0};x1=1;y1=1;severity=error;seek=0.0367,0.4833,0.5367,0.9833"')
+
+
+@pytest.mark.parametrize("fmt, html", [("16:9", TWO_SCENES), ("9:16", f"<!-- {TWO_SCENES} -->")])
+def test_no_feed_box_or_no_live_scene_gives_the_plain_check(fmt, html):
+    from build import check_command
+    assert check_command("/p/r", html, {"format": fmt, "duration": 30.0}) == "npx --yes hyperframes@0.8.78 check /p/r"
+
+
+@pytest.mark.parametrize("js, warned", [
+    ('shake("#a", 1, 18); flash(1, 0.3, 0.25); shake("#b", 9, 18); flash(9, 0.3, 0.25);', []),
+    ('shake("#a", 1); shake("#a", 2); shake ("#a", 3);', ["shake"]),
+    ("flash(1); flash(2); flash(3); shake(1); shake(2); shake(3);", ["shake", "flash"]),
+    # a definition, a comment, a string, a method and a longer name are not calls
+    ('function shake(t) {} function flash(t) {} shake(1); shake(2); flash(1); flash(2); // shake(3) flash(3)\n'
+     'const s = "shake(4) flash(4)"; /* shake(5) */ cam.shake(6); cam.flash(6); myflash(7); shake_it(8);', []),
+])
+def test_more_than_two_shakes_or_flashes_is_a_warning(js, warned):
+    from build import punch_warnings
+    got = punch_warnings(f"<script>{js}</script>")
+    assert [w.split()[1] for w in got] == [f"{n}()" for n in warned]
+    assert all(w.startswith("3 ") and "(at most 2, on the drop and the end card: references/motion.md)" in w for w in got)
