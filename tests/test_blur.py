@@ -155,6 +155,19 @@ def test_a_start_from_rest_is_not_a_cut():
     assert not any(blur.is_cut(start, i) for i in start)
 
 
+def test_a_move_that_starts_or_stops_at_rest_is_not_a_cut():
+    # the first and the last step of the move are 2 x the median of their neighbours
+    move = steps_of(0, 0, 4, 4, 4, 0, 0)
+    assert not any(blur.is_cut(move, i) for i in move)
+
+
+def test_a_cut_over_a_moving_background_is_a_cut():
+    # the steps around the missed cut at 17.2 s of the stock reel: 3.0 x the median of its neighbours
+    over = steps_of(1.48, 1.43, 3.62, 1.00, 0.96)
+    assert blur.is_cut(over, 12)
+    assert [i for i in over if blur.is_cut(over, i)] == [12]
+
+
 def test_a_fast_fade_is_not_a_cut():
     fade = steps_of(17, 19, 25, 21, 18)
     assert not any(blur.is_cut(fade, i) for i in fade)

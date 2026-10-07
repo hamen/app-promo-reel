@@ -54,11 +54,13 @@ the project-fps video (commands in `references/pipeline.md`, step 5). It costs a
 a 30 s reel instead of about 25 s.
 - Each output frame averages the input frames within a third of a frame of its time: 5 of 8 at
   30 fps (about 225° of shutter), 3 of 4 at 60 fps. The window is centred on the frame time.
-- No blur across a cut. A step between two input frames far above its neighbours is a cut, and the
-  frame keeps only the side of its own time. That catches hard cuts, slams on a frame time, and the
-  in and out steps of a one-frame flash (that frame gets less blur). An instant change in the gap
-  between two windows (more than a third of a frame from both frame times) is in no window and needs
-  no cut. A change inside a window that is too small for the cut rule blends on that one frame.
+- No blur across a cut. A step between two input frames 2.5 times the steps around it (or more) is
+  a cut, and the frame keeps only the side of its own time. That catches hard cuts, slams on a frame
+  time, and the in and out steps of a one-frame flash (that frame gets less blur). An instant change
+  in the gap between two windows (more than a third of a frame from both frame times) is in no
+  window and needs no cut. A change inside a window that is too small for the cut rule blends on
+  that one frame. A cut under a fast move can be too small too: the frame shows a ghost of the old
+  scene, and blur.py names that frame on its `fastest:` line.
 - Copies: the samples of a frame sit one input frame apart. A move faster than about 10 × K px per
   output frame (K input frames per output frame: 80 px at 30 fps, 40 px at 60 fps) shows separate
   copies instead of a smear. The stock s2 exit whip moves about 210 px per frame and shows 5 copies.
