@@ -38,7 +38,8 @@ on screen for the whole video.
 See [`skills/app-promo-reel/SKILL.md`](skills/app-promo-reel/SKILL.md). In short: scaffold one
 project per variant, in its format (9:16, 4:5 or 16:9) → research the app (site, stores, app strings)
 → write a design spec with the allowed claims → generate (or
-import) and rank music → beat grid → storyboard on bars → build, check, snapshot, render → finish and verify.
+import) and rank music → beat grid → storyboard on bars → build, check, snapshot, render (optionally at
+240 fps, blurred by `blur.py`) → finish and verify.
 The skill has hard truthfulness rules: no invented ratings, numbers, people or features, and an
 "AI-generated" label on screen for the whole video.
 
@@ -104,7 +105,8 @@ Then ask Claude Code for "promo reels for <app>". Output goes to `~/app-promo-re
 The critique loop and the frame checks (blank opening, pops) follow ideas from Raphaël Aubry's
 [claude-motion-design](https://github.com/howseen-ai/claude-motion-design) (MIT). No code is copied.
 
-The feed safe zones, the readable text minimums and the dead-hold rule follow measurements in
+The feed safe zones, the readable text minimums, the dead-hold rule and the motion-blur rules (a
+shutter centred on the frame, no blur across a cut, one rounding of a float average) follow
 [cinetic](https://github.com/Leonxlnx/cinetic) by Leonxlnx (MIT). No code is copied.
 
 ## Development

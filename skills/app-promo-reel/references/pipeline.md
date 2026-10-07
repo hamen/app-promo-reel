@@ -130,6 +130,18 @@ picture, the frame count, the seam and that the file has no audio. See `hero.md`
 cd $P && npx --yes hyperframes@0.8.78 render -o renders/raw.mp4 -q delivery --quiet
 $PY $S/finish.py $P renders/raw.mp4
 ```
+Optional motion blur (9:16 and 4:5, for fast moves; about 2.5 minutes for 30 s instead of about
+25 s): render at 240 fps and let `scripts/blur.py` write `renders/raw.mp4`, then finish as usual.
+```bash
+cd $P && npx --yes hyperframes@0.8.78 render -o renders/sub240.mp4 -q delivery --fps 240 --quiet
+$PY $S/blur.py $P renders/sub240.mp4
+$PY $S/finish.py $P renders/raw.mp4
+```
+The input rate must be a whole multiple (4 or more) of the project fps: `--fps 240` for 30 fps,
+the largest multiple up to 240 for another fps (200 for 25 fps). blur.py prints `cuts:` (the frames
+whose window a cut made shorter) and `fastest:` (the frames to check for copies, `references/motion.md`,
+"Motion blur"). It sets the colour tags of the render on its raw frames as well as on the output:
+with tags on the output only, ffmpeg 7 converts the colour matrix and a still frame changes level.
 finish.py: two-pass loudnorm to -14 LUFS / -2 dBTP (linear; the final AAC file must measure
 within 1 LU of -14 and at most -1 dBTP), A/V lag check on the PCM before
 AAC (< 5 ms), video stream copied and compared, sync report (each cue's own sound located by a

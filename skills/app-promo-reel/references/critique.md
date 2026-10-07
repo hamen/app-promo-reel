@@ -49,6 +49,11 @@ Use the project fps in place of 30. The contact sheet (`…-sheet.jpg`) and the 
 (`…-poster.jpg`) in `renders/` are also valid evidence. A snapshot from `hyperframes snapshot` is
 too, but it shows the preview, not the render: prefer the MP4.
 
+On a blurred reel (`scripts/blur.py`), take a still at each `fastest:` time it printed. The line
+names the frames with the most local change, one per move, not proven copies. Separate copies of
+one object in a still are a **motion** defect: slow the move (`references/motion.md`, "Motion blur"),
+or render without blur.
+
 ## What the check proves
 
 `critique_check.py` checks form: the scores exist and are whole numbers, each defect has a time with
