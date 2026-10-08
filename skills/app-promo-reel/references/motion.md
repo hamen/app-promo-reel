@@ -37,6 +37,21 @@ shake.
   damped ease with no overshoot.
 - The 16:9 hero loop uses no spring. It must start and end at rest (`references/hero.md`).
 
+## Ranges
+- An entrance takes 0.3-0.6 s. An exit takes 0.2-0.3 s.
+- A stagger that is not on the beat grid puts 60-120 ms between items (20-40 ms between letters).
+
+The template's entrance classes (`headline` 0.35 s, `icon` 0.32 s, `panel` 0.55 s) and its scene exits
+(0.2-0.3 s) are inside. Two moves are outside on purpose: the `slam` helper (0.2 s: `#feat-title`,
+`#ben-line`, `#val-a`, `#val-b`) and `#phone` (0.7 s). `micro` (0.18 s) is a response in place, not an
+entrance, and the template timeline does not use it.
+
+The template does not keep to calm ranges of distance, scale and rotation (a short travel, a scale
+from just under 1, a small turn). Its loud moves are deliberate: the captions drop 220 px, the
+benefits whip in from 900 px, the pops grow from scale 0, the slams shrink from scale 2-3.6, and the
+end icon turns 20°. The rules above limit them: at most 2 shakes and 2 flashes per reel, and one hard
+overshoot at a time.
+
 ## Seekable frames
 A frame must depend only on the time `t`: `frame = render(t)`. Then a seek, a re-render and a
 snapshot all show the same picture. `build.py` fails (exit 2) when an inline script of the page

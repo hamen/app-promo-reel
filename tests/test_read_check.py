@@ -323,3 +323,25 @@ def test_the_template_marks_exactly_the_texts_to_read_each_inside_a_scene():
         at = src.index(f'id="{name}"')
         assert src.rfind("<section", 0, at) > src.rfind("</section>", 0, at), name
 
+
+# the docs keep the one rule of the code, and show its real output
+
+def test_the_docs_keep_the_rule_and_the_format_of_the_code():
+    def doc(*parts):
+        return " ".join(TEMPLATE.parent.joinpath(*parts).read_text().split())
+    story = doc("references", "storyboard.md")
+    reading = story[story.index("## Reading time"):story.index("## Drop placement")]
+    assert f"max({rc.MIN_READ} s, {rc.PER_WORD} s per word)" in reading
+    assert "≥ 0.8 s" not in story  # the old copy of the rule is gone: one rule
+    done = {"done": True, "captions": [["#cap-b", 2]]}
+    line = {"i": 0, "caption": "#cap-b", "text": "Step two", "words": 2, "runs": [[279, 297]]}
+    example = rc.report([line, done], 30)[0]
+    assert example == 'warning: reading time: #cap-b "Step two" (2 words) is readable for 0.6 s from 9.3 s; it needs 0.8 s'
+    assert example in reading and example in doc("references", "pipeline.md")
+    skill = doc("SKILL.md")
+    assert "`read_check.py <project>`" in skill[skill.index("5. **Build, check"):skill.index("6. **Critique")]
+    assert "`reading time:` warning" in skill[skill.index("6. **Critique"):]
+    assert "$PY $S/read_check.py $P" in doc("references", "pipeline.md")
+    assert "`reading time:` warning" in doc("references", "critique.md")
+    ranges = doc("references", "motion.md").split("## Ranges")[1].split("## ")[0]
+    assert "0.3-0.6 s" in ranges and "0.2-0.3 s" in ranges and "60-120 ms" in ranges and "20-40 ms" in ranges

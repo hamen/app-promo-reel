@@ -30,6 +30,9 @@ scores: hook=8 readability=7 motion=8 variety=8 composition=8 claims=9 sound=8
 - **readability**: a text or a tap outside the feed safe box on a settled frame, or a text under the
   format's minimum size (`references/storyboard.md`, "Feed safe zones"), caps readability at 6.
   Read the 270 px contact sheet first, then the stills at full size.
+  Each `reading time:` warning from read_check.py that is not fixed is a readability defect: its time
+  is the time in the warning, with a still from the render as evidence
+  (`references/storyboard.md`, "Reading time").
 - **motion**: read each `still for …` warning from finish.py, as you read the pops. The check
   measures the whole frame, so a background pulse counts as motion: also look for a foreground
   that does not move.

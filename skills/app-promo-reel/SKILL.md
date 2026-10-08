@@ -96,7 +96,8 @@ Commands for every step: `references/pipeline.md`.
    (all text, colours, screens) and edit the scenes. Rebuild the app's real screens as HTML
    components from the screenshots and strings — no pasted screenshots. Timing uses beat tokens
    only. Put the SFX cues in `cues.json`. Give each object the ease of its motion class
-   (`motion.js`). Keep `shotlist.md` in step with the scenes: one row per scene with its
+   (`motion.js`). Mark every text the viewer must read with the `data-read` attribute (the
+   template marks its 17 captions; `references/storyboard.md`, "Reading time"). Keep `shotlist.md` in step with the scenes: one row per scene with its
    purpose, entry state and exit state. If you cannot say why a scene exists, it does not belong
    in the render. `build.py` fails when a scene has no row. Never delete `shotlist.md`. In 9:16 and
    4:5, keep every text and tap inside the feed safe box at the format's minimum size, and keep
@@ -106,6 +107,9 @@ Commands for every step: `references/pipeline.md`.
 5. **Build, check, look, render, finish.**
    - `build.py <project>` → run the `check:` command it prints as its last line, until 0 errors.
      In 9:16 and 4:5 it reads the bottom of the feed safe box at the settled times.
+   - `read_check.py <project>` (9:16 and 4:5): one `warning: reading time:` line for each
+     `data-read` text that is readable for less time than it needs, then a summary. It never fails
+     the run; exit 2 = it could not measure, with the reason.
    - Snapshots at every scene and every transition; look at them; fix; repeat.
    - `npx --yes hyperframes@0.8.78 render -o renders/raw.mp4 -q delivery --quiet`.
      Optional motion blur for fast moves (9:16 and 4:5; about 2.5 minutes for 30 s instead of
@@ -130,7 +134,8 @@ Commands for every step: `references/pipeline.md`.
      cannot show copies.
    - Score 1-10, one line each: **hook** (something readable in the first 1 s, frame 0 not
      empty); **readability** (at the 270 px size of the contact sheet; a text or a tap outside the feed
-     safe box on a settled frame, or under the format's minimum size, caps it at 6); **motion** (no two texts
+     safe box on a settled frame, or under the format's minimum size, caps it at 6; read each
+     `reading time:` warning from read_check.py); **motion** (no two texts
      on top of each other, nothing crossing another element by accident, no dead second: read each `still for` warning; each
      object moves as its class; at most one class overshoots hard at a time; the viewer knows
      where to look after each move);
@@ -153,7 +158,8 @@ Commands for every step: `references/pipeline.md`.
 ## 16:9 hero loop (silent)
 
 For `--format 16:9` skip step 3 (no music, no beat grid, no cues) and use the hero template.
-Steps 1, 2, 5 and 7 stay. In step 4 fill `CONFIG` but write no bar storyboard. The loop contract,
+Steps 1, 2, 5 and 7 stay. In step 4 fill `CONFIG` but write no bar storyboard. In step 5
+`read_check.py` prints `read_check: 16:9 is a silent loop, not checked` and times nothing. The loop contract,
 the build and the checks are in `references/hero.md`. In step 6 the **sound** score becomes
 **loop** (the seventh name in the critique file): the `seam:` numbers in the finish report, and a look at the strip of the clip played
 twice. Never put an `<audio>` or `<video>` tag in the page.
