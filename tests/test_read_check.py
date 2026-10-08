@@ -14,7 +14,7 @@ import pytest
 
 import build
 import read_check as rc
-from conftest import FIXTURES, run_script, write_project
+from conftest import FIXTURES, TEMPLATE, run_script, write_project
 
 FAKE_NPX = r'''#!{python}
 """Fake npx: records the call and what the folder holds, then prints the scenario file with the
@@ -307,4 +307,19 @@ def test_a_16_9_loop_is_not_checked(fake):
     r = fake.run()
     assert (r.returncode, r.stdout) == (0, "read_check: 16:9 is a silent loop, not checked\n")
     assert fake.calls() == []
+
+
+# 7. the template
+
+READ = ["hook-words", "cap-a", "cap-b", "feat-title", "fl-0", "fl-1", "fl-2", "ben-0", "ben-1", "ben-2", "ben-line",
+        "val-a", "val-b", "val-sub", "wordmark", "tagline", "cta"]
+
+
+def test_the_template_marks_exactly_the_texts_to_read_each_inside_a_scene():
+    src = (TEMPLATE / "src.html.tmpl").read_text()
+    marked = re.findall(r'<[a-z0-9]+\b[^>]*\bdata-read\b[^>]*>', src)
+    assert [re.search(r'\bid="([^"]+)"', tag).group(1) for tag in marked] == READ
+    for name in READ:
+        at = src.index(f'id="{name}"')
+        assert src.rfind("<section", 0, at) > src.rfind("</section>", 0, at), name
 

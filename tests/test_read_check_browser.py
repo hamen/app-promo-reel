@@ -1,17 +1,22 @@
 """read_check.py run for real: its pass in HyperFrames 0.8.78's headless browser (about 10 s a run). It
-proves what the pass calls readable, on a page with one caption per case.
+proves what the pass calls readable, on a page with one caption per case, and that the stock template
+reports every caption with its word count.
 
 Opt-in: bin/ci runs with no network and no browser, so these run only with APR_BROWSER_TESTS=1
 (README, Development). The rule and the parsing are tested without a browser in test_read_check.py."""
+import json
 import os
 import re
 import shutil
 
+import numpy as np
 import pytest
+import soundfile as sf
 
 import read_check as rc
 from common import load_project
 from conftest import TEMPLATE, run_script, write_project
+from test_template import build
 
 pytestmark = pytest.mark.skipif(os.environ.get("APR_BROWSER_TESTS") != "1", reason="browser tests: set APR_BROWSER_TESTS=1")
 FPS = 30
@@ -107,3 +112,21 @@ def test_what_counts_as_readable(cases):
                                                      "#hidden", "#cut", "#wide", "#staged", "#glued", "#away", "#share",
                                                      "#later"]
 
+
+WORDS = {"#hook-words": 5, "#cap-a": 6, "#cap-b": 2, "#feat-title": 3, "#fl-0": 3, "#fl-1": 3, "#fl-2": 3, "#ben-0": 2,
+         "#ben-1": 2, "#ben-2": 2, "#ben-line": 3, "#val-a": 1, "#val-b": 1, "#val-sub": 4, "#wordmark": 2,
+         "#tagline": 5, "#cta": 1}
+
+
+@pytest.mark.parametrize("fmt", ["9:16", "4:5"])
+def test_the_stock_template_reports_every_caption(tmp_path, fmt):
+    need_npx()
+    p, _ = build(tmp_path, fmt=fmt)
+    # a silent bed: the lint step fails a page whose <audio> file is missing
+    sf.write(p / "assets" / "audio" / "bgm.wav", np.zeros((48000 * 30, 2), np.float32), 48000)
+    caps, done = measured(p)
+    assert dict(done["captions"]) == WORDS
+    assert {name: c["words"] for name, c in caps.items()} == WORDS
+    assert all(c["runs"] for c in caps.values()), json.dumps(caps)[:2000]
+    r = run_script("read_check.py", p)
+    assert r.returncode == 0 and r.stdout.splitlines()[-1].startswith("read_check: 17 captions, "), (r.stdout, r.stderr)
