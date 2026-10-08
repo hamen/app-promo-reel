@@ -1,0 +1,620 @@
+{
+ "ok": true,
+ "strict": false,
+ "lint": {
+  "ok": true,
+  "errorCount": 0,
+  "warningCount": 7,
+  "infoCount": 0,
+  "findings": [
+   {
+    "code": "composition_file_too_large",
+    "severity": "warning",
+    "message": "This HTML composition file has 571 lines. Smaller sub-compositions are easier to read, iterate on, and diff.",
+    "selector": "[data-composition-id]",
+    "dataAttributes": {},
+    "sourceFile": "__FOLDER__/index.html",
+    "bbox": {
+     "x": 0,
+     "y": 0,
+     "width": 0,
+     "height": 0
+    },
+    "time": 0,
+    "fixHint": "Split coherent scenes or layers into separate .html files under compositions/, then mount them from the parent with data-composition-src so each file stays small enough to inspect, revise, and validate independently."
+   },
+   {
+    "code": "nested_structure_needs_subcomposition",
+    "severity": "warning",
+    "message": "<section id=\"s1\"> is a timeline element that contains nested <div id=\"s1-cam\">. The timeline shows one row per top-level element, and the root composition is built only from sub-compositions.",
+    "selector": "#s1",
+    "dataAttributes": {},
+    "sourceFile": "__FOLDER__/index.html",
+    "bbox": {
+     "x": 0,
+     "y": 0,
+     "width": 0,
+     "height": 0
+    },
+    "time": 0,
+    "fixHint": "Move <section id=\"s1\"> and its contents into a sub-composition file and mount it with data-composition-src."
+   }
+  ],
+  "filesScanned": 1
+ },
+ "runtime": {
+  "ok": true,
+  "errorCount": 0,
+  "warningCount": 18,
+  "infoCount": 0,
+  "findings": [
+   {
+    "code": "console_warning",
+    "severity": "warning",
+    "message": "__TOKEN__ {\"i\":0,\"caption\":\"#hook-words\",\"text\":\"YOUR HOOK IN FOUR WORDS?\",\"words\":5,\"runs\":[[0,153]]}",
+    "selector": "[data-composition-id]",
+    "dataAttributes": {
+     "data-composition-id": "main",
+     "data-start": "0",
+     "data-width": "1080",
+     "data-height": "1920",
+     "data-format": "9:16",
+     "data-duration": "30"
+    },
+    "sourceFile": "index.html",
+    "bbox": {
+     "x": 0,
+     "y": 0,
+     "width": 1080,
+     "height": 1920
+    },
+    "time": 0,
+    "url": "http://127.0.0.1:36727/",
+    "line": 1871
+   },
+   {
+    "code": "console_warning",
+    "severity": "warning",
+    "message": "__TOKEN__ {\"i\":1,\"caption\":\"#cap-a\",\"text\":\"Step one, in the app's words\",\"words\":6,\"runs\":[[156,273]]}",
+    "selector": "[data-composition-id]",
+    "dataAttributes": {
+     "data-composition-id": "main",
+     "data-start": "0",
+     "data-width": "1080",
+     "data-height": "1920",
+     "data-format": "9:16",
+     "data-duration": "30"
+    },
+    "sourceFile": "index.html",
+    "bbox": {
+     "x": 0,
+     "y": 0,
+     "width": 1080,
+     "height": 1920
+    },
+    "time": 0,
+    "url": "http://127.0.0.1:36727/",
+    "line": 1871
+   },
+   {
+    "code": "console_warning",
+    "severity": "warning",
+    "message": "__TOKEN__ {\"i\":2,\"caption\":\"#cap-b\",\"text\":\"Step two\",\"words\":2,\"runs\":[[278,393]]}",
+    "selector": "[data-composition-id]",
+    "dataAttributes": {
+     "data-composition-id": "main",
+     "data-start": "0",
+     "data-width": "1080",
+     "data-height": "1920",
+     "data-format": "9:16",
+     "data-duration": "30"
+    },
+    "sourceFile": "index.html",
+    "bbox": {
+     "x": 0,
+     "y": 0,
+     "width": 1080,
+     "height": 1920
+    },
+    "time": 0,
+    "url": "http://127.0.0.1:36727/",
+    "line": 1871
+   },
+   {
+    "code": "console_warning",
+    "severity": "warning",
+    "message": "__TOKEN__ {\"i\":3,\"caption\":\"#feat-title\",\"text\":\"THE BIG FEATURE\",\"words\":3,\"runs\":[[396,513]]}",
+    "selector": "[data-composition-id]",
+    "dataAttributes": {
+     "data-composition-id": "main",
+     "data-start": "0",
+     "data-width": "1080",
+     "data-height": "1920",
+     "data-format": "9:16",
+     "data-duration": "30"
+    },
+    "sourceFile": "index.html",
+    "bbox": {
+     "x": 0,
+     "y": 0,
+     "width": 1080,
+     "height": 1920
+    },
+    "time": 0,
+    "url": "http://127.0.0.1:36727/",
+    "line": 1871
+   },
+   {
+    "code": "console_warning",
+    "severity": "warning",
+    "message": "__TOKEN__ {\"i\":4,\"caption\":\"#fl-0\",\"text\":\"A real fact\",\"words\":3,\"runs\":[[426,513]]}",
+    "selector": "[data-composition-id]",
+    "dataAttributes": {
+     "data-composition-id": "main",
+     "data-start": "0",
+     "data-width": "1080",
+     "data-height": "1920",
+     "data-format": "9:16",
+     "data-duration": "30"
+    },
+    "sourceFile": "index.html",
+    "bbox": {
+     "x": 0,
+     "y": 0,
+     "width": 1080,
+     "height": 1920
+    },
+    "time": 0,
+    "url": "http://127.0.0.1:36727/",
+    "line": 1871
+   },
+   {
+    "code": "console_warning",
+    "severity": "warning",
+    "message": "__TOKEN__ {\"i\":5,\"caption\":\"#fl-1\",\"text\":\"Another real fact\",\"words\":3,\"runs\":[[456,513]]}",
+    "selector": "[data-composition-id]",
+    "dataAttributes": {
+     "data-composition-id": "main",
+     "data-start": "0",
+     "data-width": "1080",
+     "data-height": "1920",
+     "data-format": "9:16",
+     "data-duration": "30"
+    },
+    "sourceFile": "index.html",
+    "bbox": {
+     "x": 0,
+     "y": 0,
+     "width": 1080,
+     "height": 1920
+    },
+    "time": 0,
+    "url": "http://127.0.0.1:36727/",
+    "line": 1871
+   },
+   {
+    "code": "console_warning",
+    "severity": "warning",
+    "message": "__TOKEN__ {\"i\":6,\"caption\":\"#fl-2\",\"text\":\"A third one\",\"words\":3,\"runs\":[[486,513]]}",
+    "selector": "[data-composition-id]",
+    "dataAttributes": {
+     "data-composition-id": "main",
+     "data-start": "0",
+     "data-width": "1080",
+     "data-height": "1920",
+     "data-format": "9:16",
+     "data-duration": "30"
+    },
+    "sourceFile": "index.html",
+    "bbox": {
+     "x": 0,
+     "y": 0,
+     "width": 1080,
+     "height": 1920
+    },
+    "time": 0,
+    "url": "http://127.0.0.1:36727/",
+    "line": 1871
+   },
+   {
+    "code": "console_warning",
+    "severity": "warning",
+    "message": "__TOKEN__ {\"i\":7,\"caption\":\"#ben-0\",\"text\":\"Benefit one\",\"words\":2,\"runs\":[[516,634]]}",
+    "selector": "[data-composition-id]",
+    "dataAttributes": {
+     "data-composition-id": "main",
+     "data-start": "0",
+     "data-width": "1080",
+     "data-height": "1920",
+     "data-format": "9:16",
+     "data-duration": "30"
+    },
+    "sourceFile": "index.html",
+    "bbox": {
+     "x": 0,
+     "y": 0,
+     "width": 1080,
+     "height": 1920
+    },
+    "time": 0,
+    "url": "http://127.0.0.1:36727/",
+    "line": 1871
+   },
+   {
+    "code": "console_warning",
+    "severity": "warning",
+    "message": "__TOKEN__ {\"i\":8,\"caption\":\"#ben-1\",\"text\":\"Benefit two\",\"words\":2,\"runs\":[[546,634]]}",
+    "selector": "[data-composition-id]",
+    "dataAttributes": {
+     "data-composition-id": "main",
+     "data-start": "0",
+     "data-width": "1080",
+     "data-height": "1920",
+     "data-format": "9:16",
+     "data-duration": "30"
+    },
+    "sourceFile": "index.html",
+    "bbox": {
+     "x": 0,
+     "y": 0,
+     "width": 1080,
+     "height": 1920
+    },
+    "time": 0,
+    "url": "http://127.0.0.1:36727/",
+    "line": 1871
+   },
+   {
+    "code": "console_warning",
+    "severity": "warning",
+    "message": "__TOKEN__ {\"i\":9,\"caption\":\"#ben-2\",\"text\":\"Benefit three\",\"words\":2,\"runs\":[[576,634]]}",
+    "selector": "[data-composition-id]",
+    "dataAttributes": {
+     "data-composition-id": "main",
+     "data-start": "0",
+     "data-width": "1080",
+     "data-height": "1920",
+     "data-format": "9:16",
+     "data-duration": "30"
+    },
+    "sourceFile": "index.html",
+    "bbox": {
+     "x": 0,
+     "y": 0,
+     "width": 1080,
+     "height": 1920
+    },
+    "time": 0,
+    "url": "http://127.0.0.1:36727/",
+    "line": 1871
+   },
+   {
+    "code": "console_warning",
+    "severity": "warning",
+    "message": "__TOKEN__ {\"i\":10,\"caption\":\"#ben-line\",\"text\":\"One short line.\",\"words\":3,\"runs\":[[606,634]]}",
+    "selector": "[data-composition-id]",
+    "dataAttributes": {
+     "data-composition-id": "main",
+     "data-start": "0",
+     "data-width": "1080",
+     "data-height": "1920",
+     "data-format": "9:16",
+     "data-duration": "30"
+    },
+    "sourceFile": "index.html",
+    "bbox": {
+     "x": 0,
+     "y": 0,
+     "width": 1080,
+     "height": 1920
+    },
+    "time": 0,
+    "url": "http://127.0.0.1:36727/",
+    "line": 1871
+   },
+   {
+    "code": "console_warning",
+    "severity": "warning",
+    "message": "__TOKEN__ {\"i\":11,\"caption\":\"#val-a\",\"text\":\"ONE\",\"words\":1,\"runs\":[[636,753]]}",
+    "selector": "[data-composition-id]",
+    "dataAttributes": {
+     "data-composition-id": "main",
+     "data-start": "0",
+     "data-width": "1080",
+     "data-height": "1920",
+     "data-format": "9:16",
+     "data-duration": "30"
+    },
+    "sourceFile": "index.html",
+    "bbox": {
+     "x": 0,
+     "y": 0,
+     "width": 1080,
+     "height": 1920
+    },
+    "time": 0,
+    "url": "http://127.0.0.1:36727/",
+    "line": 1871
+   },
+   {
+    "code": "console_warning",
+    "severity": "warning",
+    "message": "__TOKEN__ {\"i\":12,\"caption\":\"#val-b\",\"text\":\"WORD.\",\"words\":1,\"runs\":[[666,753]]}",
+    "selector": "[data-composition-id]",
+    "dataAttributes": {
+     "data-composition-id": "main",
+     "data-start": "0",
+     "data-width": "1080",
+     "data-height": "1920",
+     "data-format": "9:16",
+     "data-duration": "30"
+    },
+    "sourceFile": "index.html",
+    "bbox": {
+     "x": 0,
+     "y": 0,
+     "width": 1080,
+     "height": 1920
+    },
+    "time": 0,
+    "url": "http://127.0.0.1:36727/",
+    "line": 1871
+   },
+   {
+    "code": "console_warning",
+    "severity": "warning",
+    "message": "__TOKEN__ {\"i\":13,\"caption\":\"#val-sub\",\"text\":\"A true closing claim\",\"words\":4,\"runs\":[[695,753]]}",
+    "selector": "[data-composition-id]",
+    "dataAttributes": {
+     "data-composition-id": "main",
+     "data-start": "0",
+     "data-width": "1080",
+     "data-height": "1920",
+     "data-format": "9:16",
+     "data-duration": "30"
+    },
+    "sourceFile": "index.html",
+    "bbox": {
+     "x": 0,
+     "y": 0,
+     "width": 1080,
+     "height": 1920
+    },
+    "time": 0,
+    "url": "http://127.0.0.1:36727/",
+    "line": 1871
+   },
+   {
+    "code": "console_warning",
+    "severity": "warning",
+    "message": "__TOKEN__ {\"i\":14,\"caption\":\"#wordmark\",\"text\":\"App Name\",\"words\":2,\"runs\":[[793,900]]}",
+    "selector": "[data-composition-id]",
+    "dataAttributes": {
+     "data-composition-id": "main",
+     "data-start": "0",
+     "data-width": "1080",
+     "data-height": "1920",
+     "data-format": "9:16",
+     "data-duration": "30"
+    },
+    "sourceFile": "index.html",
+    "bbox": {
+     "x": 0,
+     "y": 0,
+     "width": 1080,
+     "height": 1920
+    },
+    "time": 0,
+    "url": "http://127.0.0.1:36727/",
+    "line": 1871
+   },
+   {
+    "code": "console_warning",
+    "severity": "warning",
+    "message": "__TOKEN__ {\"i\":15,\"caption\":\"#tagline\",\"text\":\"Tagline from the store listing.\",\"words\":5,\"runs\":[[815,900]]}",
+    "selector": "[data-composition-id]",
+    "dataAttributes": {
+     "data-composition-id": "main",
+     "data-start": "0",
+     "data-width": "1080",
+     "data-height": "1920",
+     "data-format": "9:16",
+     "data-duration": "30"
+    },
+    "sourceFile": "index.html",
+    "bbox": {
+     "x": 0,
+     "y": 0,
+     "width": 1080,
+     "height": 1920
+    },
+    "time": 0,
+    "url": "http://127.0.0.1:36727/",
+    "line": 1871
+   },
+   {
+    "code": "console_warning",
+    "severity": "warning",
+    "message": "__TOKEN__ {\"i\":16,\"caption\":\"#cta\",\"text\":\"Download\",\"words\":1,\"runs\":[[846,900]]}",
+    "selector": "[data-composition-id]",
+    "dataAttributes": {
+     "data-composition-id": "main",
+     "data-start": "0",
+     "data-width": "1080",
+     "data-height": "1920",
+     "data-format": "9:16",
+     "data-duration": "30"
+    },
+    "sourceFile": "index.html",
+    "bbox": {
+     "x": 0,
+     "y": 0,
+     "width": 1080,
+     "height": 1920
+    },
+    "time": 0,
+    "url": "http://127.0.0.1:36727/",
+    "line": 1871
+   },
+   {
+    "code": "console_warning",
+    "severity": "warning",
+    "message": "__TOKEN__ {\"done\":true,\"captions\":[[\"#hook-words\",5],[\"#cap-a\",6],[\"#cap-b\",2],[\"#feat-title\",3],[\"#fl-0\",3],[\"#fl-1\",3],[\"#fl-2\",3],[\"#ben-0\",2],[\"#ben-1\",2],[\"#ben-2\",2],[\"#ben-line\",3],[\"#val-a\",1],[\"#val-b\",1],[\"#val-sub\",4],[\"#wordmark\",2],[\"#tagline\",5],[\"#cta\",1]]}",
+    "selector": "[data-composition-id]",
+    "dataAttributes": {
+     "data-composition-id": "main",
+     "data-start": "0",
+     "data-width": "1080",
+     "data-height": "1920",
+     "data-format": "9:16",
+     "data-duration": "30"
+    },
+    "sourceFile": "index.html",
+    "bbox": {
+     "x": 0,
+     "y": 0,
+     "width": 1080,
+     "height": 1920
+    },
+    "time": 0,
+    "url": "http://127.0.0.1:36727/",
+    "line": 1871
+   }
+  ]
+ },
+ "layout": {
+  "ok": true,
+  "errorCount": 0,
+  "warningCount": 0,
+  "infoCount": 8,
+  "findings": [
+   {
+    "code": "content_overlap",
+    "severity": "info",
+    "time": 0.875,
+    "selector": "#w-3",
+    "message": "Two text blocks overlap and may render unreadable.",
+    "rect": {
+     "left": 229.56,
+     "top": 956,
+     "right": 850.42,
+     "bottom": 1160,
+     "width": 620.86,
+     "height": 204
+    },
+    "containerSelector": "#hero > div:nth-of-type(1) > div:nth-of-type(2) > h6:nth-of-type(1)",
+    "text": "WORDS?",
+    "fixHint": "Give each block its own zone, or mark intentional layering with data-layout-allow-overlap.",
+    "dataAttributes": {
+     "data-cfg": "hook.3"
+    },
+    "sourceFile": "index.html",
+    "bbox": {
+     "x": 229.56,
+     "y": 956,
+     "width": 620.86,
+     "height": 204
+    },
+    "firstSeen": 0.875,
+    "lastSeen": 0.875,
+    "occurrences": 1,
+    "heldMs": 0
+   },
+   {
+    "code": "canvas_overflow",
+    "severity": "info",
+    "time": 5,
+    "selector": "#a-btn",
+    "message": "Text extends outside the composition canvas.",
+    "rect": {
+     "left": 437.66,
+     "top": 2271.28,
+     "right": 688.97,
+     "bottom": 2331.78,
+     "width": 251.31,
+     "height": 60.5
+    },
+    "containerSelector": "#root",
+    "text": "Primary action",
+    "fixHint": "Move the text inward, reduce its size, or mark intentional off-canvas animation with data-layout-allow-overflow.",
+    "containerRect": {
+     "left": 0,
+     "top": 0,
+     "right": 1080,
+     "bottom": 1920,
+     "width": 1080,
+     "height": 1920
+    },
+    "overflow": {
+     "bottom": 411.78
+    },
+    "dataAttributes": {
+     "data-cfg": "screens.0.button"
+    },
+    "sourceFile": "index.html",
+    "bbox": {
+     "x": 437.66,
+     "y": 2271.28,
+     "width": 251.31,
+     "height": 60.5
+    },
+    "firstSeen": 5,
+    "lastSeen": 5,
+    "occurrences": 1,
+    "heldMs": 0
+   }
+  ],
+  "duration": 30,
+  "samples": [
+   1.667,
+   5,
+   8.333,
+   11.667,
+   15,
+   18.333,
+   21.667,
+   25,
+   28.333
+  ],
+  "transitionSamples": [],
+  "transitionSamplesDropped": 0,
+  "tolerance": 2,
+  "totalIssueCount": 8,
+  "truncated": false
+ },
+ "motion": {
+  "ok": true,
+  "errorCount": 0,
+  "warningCount": 0,
+  "infoCount": 0,
+  "findings": [],
+  "enabled": false,
+  "samples": 0
+ },
+ "contrast": {
+  "ok": true,
+  "errorCount": 0,
+  "warningCount": 0,
+  "infoCount": 0,
+  "findings": [],
+  "enabled": false,
+  "samples": [],
+  "checked": 0,
+  "passed": 0
+ },
+ "hdr": {
+  "autoPromotion": null,
+  "inspection": "available"
+ },
+ "snapshots": {
+  "enabled": false,
+  "files": [],
+  "times": [],
+  "findingFiles": []
+ },
+ "_meta": {
+  "version": "0.8.78",
+  "latestVersion": "0.8.140",
+  "updateAvailable": true
+ }
+}

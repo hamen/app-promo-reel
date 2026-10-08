@@ -1,0 +1,109 @@
+"""read_check.py run for real: its pass in HyperFrames 0.8.78's headless browser (about 10 s a run). It
+proves what the pass calls readable, on a page with one caption per case.
+
+Opt-in: bin/ci runs with no network and no browser, so these run only with APR_BROWSER_TESTS=1
+(README, Development). The rule and the parsing are tested without a browser in test_read_check.py."""
+import os
+import re
+import shutil
+
+import pytest
+
+import read_check as rc
+from common import load_project
+from conftest import TEMPLATE, run_script, write_project
+
+pytestmark = pytest.mark.skipif(os.environ.get("APR_BROWSER_TESTS") != "1", reason="browser tests: set APR_BROWSER_TESTS=1")
+FPS = 30
+GSAP = re.search(r'<script src="([^"]*gsap[^"]*)"></script>', (TEMPLATE / "src.html.tmpl").read_text()).group(1)
+
+# A scene of 6 s and one from 4 s to 6 s. Each caption is one case; the timeline sets states between frame times (0.49 is
+# before frame 15, 0.5 s), so a frame never lands on a change.
+CASES = f"""<!doctype html>
+<html lang="en"><head><meta charset="UTF-8"><script src="{GSAP}"></script>
+<style>
+  body {{ margin: 0; }}
+  #root {{ position: relative; width: 1080px; height: 1920px; overflow: hidden; background: #123; }}
+  .scene {{ position: absolute; inset: 0; }}
+  .t {{ position: absolute; left: 100px; font: 64px sans-serif; color: #fff; white-space: nowrap; }}
+</style></head>
+<body><div id="root" data-composition-id="main" data-start="0" data-duration="6" data-width="1080" data-height="1920">
+<section id="s1" class="clip scene" data-start="0" data-duration="6" data-track-index="1">
+  <div class="t" id="long" data-read style="top: 100px; opacity: 0">Held for three seconds</div>
+  <div class="t" id="short" data-read style="top: 250px; opacity: 0">Half second</div>
+  <div class="t" id="faded" data-read style="top: 400px; opacity: 0.5">Faded words</div>
+  <div class="t" id="blurred" data-read style="top: 550px; filter: blur(10px)">Blurred words</div>
+  <div class="t" id="clipped" data-read style="top: 700px; clip-path: inset(0 100% 0 0)">Clipped words</div>
+  <div class="t" id="reveal" data-read style="top: 850px">Revealed words</div>
+  <div class="t" id="hidden" data-read style="top: 1000px; visibility: hidden">Hidden words</div>
+  <div style="position: absolute; top: 1150px; left: 100px; width: 300px; height: 90px; overflow: hidden">
+    <div class="t" id="cut" data-read style="left: 400px">Cut words</div></div>
+  <div id="wide" data-read style="position: absolute; top: 1300px; left: 0; width: 1080px; text-align: center;
+    font: 64px sans-serif; color: #fff">Punched line</div>
+  <div class="t" id="staged" data-read style="top: 1450px"><span>One</span> <span id="w2" style="opacity: 0">two</span></div>
+  <div class="t" id="glued" data-read style="top: 1600px"><span>Glued</span><span>words</span></div>
+  <div class="t" id="away" data-read style="top: 1750px; left: 1200px">Away words</div>
+  <div class="t" id="share" data-read style="top: 1820px; left: 40px; width: 1000px; clip-path: inset(0 70% 0 0)">Share words</div>
+</section>
+<section id="s2" class="clip scene" data-start="4" data-duration="2" data-track-index="2">
+  <div class="t" id="later" data-read style="top: 1750px">Later words</div>
+</section></div>
+<script>
+  const tl = gsap.timeline({{ paused: true }});
+  tl.set("#long", {{ opacity: 1 }}, 0.49).set("#long", {{ opacity: 0 }}, 3.49);
+  tl.set("#short", {{ opacity: 1 }}, 0.49).set("#short", {{ opacity: 0 }}, 0.99);
+  tl.fromTo("#reveal", {{ clipPath: "inset(0 100% 0 0)" }}, {{ clipPath: "inset(0 0% 0 0)", duration: 0.4, ease: "none" }}, 0.99);
+  tl.fromTo("#wide", {{ scale: 1.05 }}, {{ scale: 1, duration: 0.45, ease: "power3.out", immediateRender: false }}, 1.99);
+  tl.set("#w2", {{ opacity: 1 }}, 1.99);
+  window.__timelines = {{ main: tl }};
+</script>
+</body></html>
+"""
+
+
+def need_npx():
+    if shutil.which("npx") is None:  # asked for and cannot run: a failure, never a quiet skip
+        pytest.fail("APR_BROWSER_TESTS=1 asks for the browser tests, but npx is not installed")
+
+
+def measured(p):
+    need_npx()
+    lines = rc.measure(p, load_project(p))
+    return {x["caption"]: x for x in lines if "i" in x}, next(x for x in lines if "done" in x)
+
+
+@pytest.fixture
+def cases(tmp_path):
+    p = write_project(tmp_path, duration=6)
+    (p / "index.html").write_text(CASES)
+    return p
+
+
+def test_a_short_hold_is_warned_and_a_long_one_is_not(cases):
+    need_npx()
+    r = run_script("read_check.py", cases)
+    assert r.returncode == 0, r.stderr
+    warned = [x for x in r.stdout.splitlines() if x.startswith("warning:")]
+    assert not any("#long" in x for x in warned)
+    (short,) = [x for x in warned if "#short" in x]
+    m = re.search(r"readable for ([\d.]+) s from ([\d.]+) s; it needs 0.8 s", short)
+    assert m and abs(float(m.group(1)) - 0.5) <= 2 / FPS and abs(float(m.group(2)) - 0.5) <= 2 / FPS, short
+
+
+def test_what_counts_as_readable(cases):
+    caps, done = measured(cases)
+    run = {name: rc.longest_run(c["runs"]) for name, c in caps.items()}
+    assert run["#long"] == (90, 15)
+    assert run["#short"] == (15, 15)
+    for name in ("#faded", "#blurred", "#clipped", "#hidden", "#cut", "#away", "#share"):  # #share: 70% of 1000 px
+        assert run[name] == (0, None), name
+    assert run["#reveal"][1] in range(40, 44), run["#reveal"]  # the reveal ends at 1.39 s, frame 42
+    assert run["#reveal"][0] == 180 - run["#reveal"][1]
+    assert run["#wide"] == (180, 0)  # its box is 5% wider than the frame at 2 s; its words are not
+    assert run["#staged"] == (120, 60)  # readable only when its second word is in
+    assert run["#later"] == (60, 120)  # only inside its scene's time
+    assert caps["#glued"]["words"] == 2 and caps["#staged"]["words"] == 2
+    assert [name for name, _ in done["captions"]] == ["#long", "#short", "#faded", "#blurred", "#clipped", "#reveal",
+                                                     "#hidden", "#cut", "#wide", "#staged", "#glued", "#away", "#share",
+                                                     "#later"]
+
