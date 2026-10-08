@@ -113,7 +113,7 @@ npx --yes hyperframes@0.8.78 snapshot --at 1.0,2.4,4.6,... --describe false --no
   the plain check.
 - `read_check.py` (after the check command, about 10 s) prints one line for each `data-read` text that
   is readable for less time than it needs, for example
-  `warning: reading time: #cap-b "Step two" (2 words) is readable for 0.6 s from 9.3 s; it needs 0.8 s`,
+  `warning: reading time: #cap-b "Step two" (2 words) is readable for 0.60 s from 9.30 s; it needs 0.80 s`,
   then `read_check: <N> captions, <M> short`. It exits 0 with or without warnings, and 2 when it cannot
   measure (no index.html, npx missing, the check timed out, the pass did not report). It runs
   `hyperframes check` on a copy of index.html in a temporary folder and never changes the project. For

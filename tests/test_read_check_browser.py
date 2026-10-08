@@ -22,7 +22,7 @@ pytestmark = pytest.mark.skipif(os.environ.get("APR_BROWSER_TESTS") != "1", reas
 FPS = 30
 GSAP = re.search(r'<script src="([^"]*gsap[^"]*)"></script>', (TEMPLATE / "src.html.tmpl").read_text()).group(1)
 
-# A scene of 6 s and one from 4 s to 6 s. Each caption is one case; the timeline sets states between frame times (0.49 is
+# A scene of 6 s, one from 4 s to 6 s, and one of 6 s that fades out as a whole at 3 s. Each caption is one case; the timeline sets states between frame times (0.49 is
 # before frame 15, 0.5 s), so a frame never lands on a change.
 CASES = f"""<!doctype html>
 <html lang="en"><head><meta charset="UTF-8"><script src="{GSAP}"></script>
@@ -52,6 +52,9 @@ CASES = f"""<!doctype html>
 </section>
 <section id="s2" class="clip scene" data-start="4" data-duration="2" data-track-index="2">
   <div class="t" id="later" data-read style="top: 1750px">Later words</div>
+</section>
+<section id="s3" class="clip scene" data-start="0" data-duration="6" data-track-index="3">
+  <div class="t" id="fading" data-read style="top: 1680px; left: 600px">Fading scene</div>
 </section></div>
 <script>
   const tl = gsap.timeline({{ paused: true }});
@@ -60,6 +63,7 @@ CASES = f"""<!doctype html>
   tl.fromTo("#reveal", {{ clipPath: "inset(0 100% 0 0)" }}, {{ clipPath: "inset(0 0% 0 0)", duration: 0.4, ease: "none" }}, 0.99);
   tl.fromTo("#wide", {{ scale: 1.05 }}, {{ scale: 1, duration: 0.45, ease: "power3.out", immediateRender: false }}, 1.99);
   tl.set("#w2", {{ opacity: 1 }}, 1.99);
+  tl.to("#s3", {{ opacity: 0, duration: 0.02 }}, 2.99);
   window.__timelines = {{ main: tl }};
 </script>
 </body></html>
@@ -91,7 +95,7 @@ def test_a_short_hold_is_warned_and_a_long_one_is_not(cases):
     warned = [x for x in r.stdout.splitlines() if x.startswith("warning:")]
     assert not any("#long" in x for x in warned)
     (short,) = [x for x in warned if "#short" in x]
-    m = re.search(r"readable for ([\d.]+) s from ([\d.]+) s; it needs 0.8 s", short)
+    m = re.search(r"readable for ([\d.]+) s from ([\d.]+) s; it needs 0.80 s", short)
     assert m and abs(float(m.group(1)) - 0.5) <= 2 / FPS and abs(float(m.group(2)) - 0.5) <= 2 / FPS, short
 
 
@@ -107,10 +111,11 @@ def test_what_counts_as_readable(cases):
     assert run["#wide"] == (180, 0)  # its box is 5% wider than the frame at 2 s; its words are not
     assert run["#staged"] == (120, 60)  # readable only when its second word is in
     assert run["#later"] == (60, 120)  # only inside its scene's time
+    assert run["#fading"] == (90, 0)  # until its scene fades out
     assert caps["#glued"]["words"] == 2 and caps["#staged"]["words"] == 2
     assert [name for name, _ in done["captions"]] == ["#long", "#short", "#faded", "#blurred", "#clipped", "#reveal",
                                                      "#hidden", "#cut", "#wide", "#staged", "#glued", "#away", "#share",
-                                                     "#later"]
+                                                     "#later", "#fading"]
 
 
 WORDS = {"#hook-words": 5, "#cap-a": 6, "#cap-b": 2, "#feat-title": 3, "#fl-0": 3, "#fl-1": 3, "#fl-2": 3, "#ben-0": 2,

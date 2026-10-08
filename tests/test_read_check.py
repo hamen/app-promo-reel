@@ -122,6 +122,16 @@ def test_a_run_of_exactly_the_need_is_enough_and_one_frame_less_is_short(fps, wo
     assert out(n - 1)[0].startswith("warning: reading time: #a ")
 
 
+@pytest.mark.parametrize("fps", [24, 25, 30, 48, 50, 60])
+@pytest.mark.parametrize("words", [1, 2, 3, 4, 5, 6])
+def test_a_run_one_frame_short_never_shows_as_long_as_its_need(fps, words):
+    n = rc.need_frames(words, fps) - 1
+    listed = {"done": True, "captions": [["#a", words]]}
+    out = rc.report([{"i": 0, "caption": "#a", "text": "x", "words": words, "runs": [[0, n]]}, listed], fps)[0]
+    shown, needed = re.search(r"readable for ([\d.]+) s from [\d.]+ s; it needs ([\d.]+) s", out).groups()
+    assert float(shown) < float(needed), out
+
+
 # 2. runs
 
 def test_the_longest_run_wins_and_a_tie_goes_to_the_earlier_one():
@@ -273,10 +283,10 @@ def test_short_captions_are_warned_in_time_order_with_their_numbers(fake):
     r = fake.run()
     assert r.returncode == 0
     assert r.stdout.splitlines() == [
-        'warning: reading time: #cap-b "Step two" (2 words) is readable for 0.4 s from 9.3 s; it needs 0.8 s',
-        'warning: reading time: #val-sub "A true closing claim" (4 words) is readable for 0.8 s from 23.2 s; '
-        "it needs 1.2 s",
-        'warning: reading time: #fl-2 "A third one" (3 words) is readable for 0.0 s (never); it needs 0.9 s',
+        'warning: reading time: #cap-b "Step two" (2 words) is readable for 0.40 s from 9.27 s; it needs 0.80 s',
+        'warning: reading time: #val-sub "A true closing claim" (4 words) is readable for 0.83 s from 23.17 s; '
+        "it needs 1.20 s",
+        'warning: reading time: #fl-2 "A third one" (3 words) is readable for 0.00 s (never); it needs 0.90 s',
         "read_check: 17 captions, 3 short",
     ]
 
@@ -336,7 +346,8 @@ def test_the_docs_keep_the_rule_and_the_format_of_the_code():
     done = {"done": True, "captions": [["#cap-b", 2]]}
     line = {"i": 0, "caption": "#cap-b", "text": "Step two", "words": 2, "runs": [[279, 297]]}
     example = rc.report([line, done], 30)[0]
-    assert example == 'warning: reading time: #cap-b "Step two" (2 words) is readable for 0.6 s from 9.3 s; it needs 0.8 s'
+    assert example == ('warning: reading time: #cap-b "Step two" (2 words) is readable for 0.60 s from 9.30 s; '
+                       "it needs 0.80 s")
     assert example in reading and example in doc("references", "pipeline.md")
     skill = doc("SKILL.md")
     assert "`read_check.py <project>`" in skill[skill.index("5. **Build, check"):skill.index("6. **Critique")]

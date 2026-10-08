@@ -11,9 +11,9 @@ decides (references/storyboard.md, "Reading time"). It exits 2 when it cannot me
 2. Rule: a caption needs max(MIN_READ, PER_WORD x words) seconds. Its time is its longest readable run,
    in frames. It is short when that run has fewer frames than the need.
 3. Readable, at a frame: inside its scene's time; it and every element inside it that holds a word of
-   its own are shown (no display: none, visibility visible, opacity 0.9 or more along the way up to the
-   scene, no blur over 2 px), not cut by a clip-path or an overflow box, and the box of its text is
-   inside its scene's box.
+   its own are shown (no display: none, visibility visible, opacity 0.9 or more along the way up, the
+   scene included, no blur over 2 px), not cut by a clip-path or an overflow box, and the box of its
+   text is inside its scene's box.
 4. How: the measuring pass seeks the timeline frame by frame, and a page that seeks its timeline at
    load renders differently (measured: 765 of 900 frames changed). So the pass never goes into the
    project's index.html. read_check copies index.html, adds the pass, puts the copy in a temporary
@@ -105,11 +105,13 @@ PASS = r"""<script data-read-check>
       return { left: box.left + parseFloat(cs.borderLeftWidth) * sx, right: box.right - parseFloat(cs.borderRightWidth) * sx,
                top: box.top + parseFloat(cs.borderTopWidth) * sy, bottom: box.bottom - parseFloat(cs.borderBottomWidth) * sy };
     };
-    const holderShown = (holder, scene) => {
+    // every element from the holder up, the scene included (a scene can fade out as a whole); never the
+    // root: at load the scenes stack down the page, below the root's box
+    const holderShown = (holder) => {
       if (getComputedStyle(holder).visibility !== "visible") return false;
       const own = textBox(holder);
       let opacity = 1;
-      for (let n = holder; n && n !== scene && n !== root; n = n.parentElement) {
+      for (let n = holder; n && n !== root; n = n.parentElement) {
         const cs = getComputedStyle(n);
         if (cs.display === "none") return false;
         opacity *= parseFloat(cs.opacity);
@@ -127,7 +129,7 @@ PASS = r"""<script data-read-check>
     };
     const readable = (c, t) => {
       if (t < c.start || t >= c.end) return false;
-      if (!c.holders.every((h) => holderShown(h, c.scene))) return false;
+      if (!c.holders.every(holderShown)) return false;
       const own = textBox(c.el);
       if (!own.width || !own.height) return false;
       return inside(own, (c.scene || root).getBoundingClientRect());
@@ -257,10 +259,11 @@ def report(lines, fps):
         c = by_index[i]
         frames, first = longest_run(c["runs"])
         if frames < need_frames(words, fps):
-            when = f" from {first / fps:.1f} s" if first is not None else " (never)"
+            shown = math.floor(frames * 100 / fps) / 100  # rounded down: never shown as long as its need
+            when = f" from {first / fps:.2f} s" if first is not None else " (never)"
             short.append(((first if first is not None else math.inf), i,
                           f'warning: reading time: {name} "{c["text"]}" ({words} word{"s" if words != 1 else ""}) '
-                          f"is readable for {frames / fps:.1f} s{when}; it needs {need(words):.1f} s"))
+                          f"is readable for {shown:.2f} s{when}; it needs {need(words):.2f} s"))
     out += [line for *_, line in sorted(short)]
     timed = sum(1 for _, words in listed if words)
     out.append(f"read_check: {timed} caption{'s' if timed != 1 else ''}, {len(short)} short")

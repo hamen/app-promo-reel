@@ -87,14 +87,14 @@ phone's rows, the hero card, the store badges, the URL, the AI-generated label.
 readable at a frame when:
 - the frame is inside its scene's time;
 - the text and each element inside it that holds a word of its own are shown: no `display: none`,
-  `visibility` visible, opacity 0.9 or more along the way up to the scene, no blur over 2 px, not cut
-  by a `clip-path` or by a box whose `overflow` is not `visible` (an `inset()` clip is measured; any
-  other clip shape counts as cut);
+  `visibility` visible, opacity 0.9 or more along the way up (the scene included), no blur over 2 px,
+  not cut by a `clip-path` or by a box whose `overflow` is not `visible` (an `inset()` clip is
+  measured; any other clip shape counts as cut);
 - the box of its text is inside its scene's box.
 
 Words are counted with the browser's word breaker in the page's language, so a language with no spaces
 counts words too. A short text gets one line, for example:
-`warning: reading time: #cap-b "Step two" (2 words) is readable for 0.6 s from 9.3 s; it needs 0.8 s`.
+`warning: reading time: #cap-b "Step two" (2 words) is readable for 0.60 s from 9.30 s; it needs 0.80 s`.
 The warning never fails the run: the critique decides (`references/critique.md`).
 
 The usual cause is a late entrance in the scene. The fixes: enter earlier, use fewer words, or give the
