@@ -108,6 +108,10 @@ Commands for every step: `references/pipeline.md`.
      In 9:16 and 4:5 it reads the bottom of the feed safe box at the settled times.
    - Snapshots at every scene and every transition; look at them; fix; repeat.
    - `npx --yes hyperframes@0.8.78 render -o renders/raw.mp4 -q delivery --quiet`.
+     Optional motion blur for fast moves (9:16 and 4:5; about 2.5 minutes for 30 s instead of
+     about 25 s): render with `--fps 240` to `renders/sub240.mp4`, then
+     `scripts/blur.py <project> renders/sub240.mp4` writes `renders/raw.mp4`
+     (`references/pipeline.md`, step 5; `references/motion.md`, "Motion blur").
    - `finish.py <project> renders/raw.mp4` → loudness, A/V check, sync report, versioned file
      `renders/<app>-<variant>-v<N>.mp4`, contact sheet, poster frame `…-v<N>-poster.jpg` (`--poster-at <s>` to choose it), frame
      warnings (blank opening, pops, still runs).
@@ -121,6 +125,9 @@ Commands for every step: `references/pipeline.md`.
      every time to [0, duration-0.05]:
      `npx --yes hyperframes@0.8.78 snapshot --at <times> --describe false --no-end -o snapshots/c<round>`
      (a new folder per round).
+   - On a blurred reel, also extract stills of the `fastest:` times of blur.py from the final MP4
+     (`references/critique.md`, "Evidence stills"): a snapshot shows the page, not the blur, so it
+     cannot show copies.
    - Score 1-10, one line each: **hook** (something readable in the first 1 s, frame 0 not
      empty); **readability** (at the 270 px size of the contact sheet; a text or a tap outside the feed
      safe box on a settled frame, or under the format's minimum size, caps it at 6); **motion** (no two texts

@@ -47,3 +47,29 @@ read. Scripts with a `src` and inline event-handler attributes are not read.
 
 If you need variation, write it as a constant (a seeded list in the file), or derive it from
 `t` with `Math.sin`. Check a built page again with `build.py <project>`.
+
+## Motion blur
+Optional, for 9:16 and 4:5 reels with fast moves: render at 240 fps and let `scripts/blur.py` make
+the project-fps video (commands in `references/pipeline.md`, step 5). It costs about 2.5 minutes for
+a 30 s reel instead of about 25 s.
+- Each output frame averages the input frames within a third of a frame of its time: 5 of 8 at
+  30 fps (about 225° of shutter), 3 of 4 at 60 fps. The window is centred on the frame time.
+- No blur across a cut. A step between two input frames 2.5 times the steps around it (or more) is
+  a cut, and the frame keeps only the side of its own time. That catches hard cuts, slams on a frame
+  time, and the in and out steps of a one-frame flash (that frame gets less blur). An instant change
+  in the gap between two windows (more than a third of a frame from both frame times) is in no
+  window and needs no cut. A change inside a window that is too small for the cut rule blends on
+  that one frame. A cut under a fast move can be too small too: the frame shows a ghost of the old
+  scene, and blur.py names that frame on its `fastest:` line.
+- Copies: the samples of a frame sit one input frame apart. A move faster than about 10 × K px per
+  output frame (K input frames per output frame: 80 px at 30 fps, 40 px at 60 fps) shows separate
+  copies instead of a smear. The stock s2 exit whip moves about 210 px per frame and shows 5 copies.
+  The `fastest:` line of blur.py names the frames to look at: the frames with the most local change,
+  one per move. A fade or a flash ranks high too.
+- Counters and typed text: a change at a frame time falls inside that frame's window, and the frame
+  blends the old and the new glyphs (a digit change is too small for the cut rule). With blur, put
+  each change of a counter or typed text at a half-frame time, `(n + 0.5) / fps`: no window holds
+  those input frames. Beat times are not frame times: move each change to the nearest half-frame
+  time.
+- Motion blur is not CSS `filter: blur()` and does not replace one: the entrance blurs of the
+  template stay.

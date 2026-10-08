@@ -431,3 +431,24 @@ def test_docs_pin_the_feed_safe_box_the_density_rule_and_the_punch_cap():
     step5 = skill[skill.index("5. **Build, check"):skill.index("6. **Critique")]
     assert "run the `check:` command it prints as its last line" in step5
     assert "The last line build.py prints is `check: <command>`. Run that command" in doc("references", "pipeline.md")
+
+
+def test_docs_pin_the_optional_motion_blur_step():
+    import blur
+
+    def doc(*parts):
+        return " ".join(SCRIPTS.parent.joinpath(*parts).read_text().split())
+    skill = doc("SKILL.md")
+    step5 = skill[skill.index("5. **Build, check"):skill.index("6. **Critique")]
+    step6 = skill[skill.index("6. **Critique"):]
+    pipeline = doc("references", "pipeline.md")
+    assert "render with `--fps 240` to `renders/sub240.mp4`" in step5
+    assert "`scripts/blur.py <project> renders/sub240.mp4` writes `renders/raw.mp4`" in step5
+    assert "render -o renders/sub240.mp4 -q delivery --fps 240 --quiet" in pipeline
+    assert "$PY $S/blur.py $P renders/sub240.mp4 $PY $S/finish.py $P renders/raw.mp4" in pipeline
+    assert "`fastest:`" in step6 and "from the final MP4" in step6
+    motion = doc("references", "motion.md")
+    blurred = motion[motion.index("## Motion blur"):]
+    assert f"{2 * blur.reach(8) + 1} of 8 at 30 fps" in blurred and f"{2 * blur.reach(4) + 1} of 4 at 60 fps" in blurred
+    assert "half-frame time, `(n + 0.5) / fps`" in blurred and "10 × K px per output frame" in blurred
+    assert "`fastest:`" in doc("references", "critique.md")

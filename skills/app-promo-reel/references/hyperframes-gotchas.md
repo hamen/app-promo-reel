@@ -46,6 +46,8 @@ Pin the version: `npx --yes hyperframes@0.8.78 …` (the project's package.json 
   round (the shell may refuse a recursive delete of old snapshots).
 - Verify on frames from the **final MP4** (finish.py contact sheet), not only on snapshots.
 - `render -o renders/raw.mp4 -q delivery --quiet`. Then finish.py.
+- Motion blur: `render -o renders/sub240.mp4 -q delivery --fps 240 --quiet`, then `scripts/blur.py`
+  writes `renders/raw.mp4` (`references/pipeline.md`, step 5).
 
 ## Off-page text and the contrast check
 `hyperframes check` measures the text of a clipped, off-page element (a screen parked at
