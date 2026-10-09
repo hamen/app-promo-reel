@@ -584,7 +584,7 @@ globalThis.document = { querySelector: () => root, createElement: (tag) => node(
 globalThis.getComputedStyle = (n, pseudo) => pseudo ? { content: "none" } : { color: "rgb(255, 255, 255)",
   webkitTextFillColor: "rgb(255, 255, 255)", fontSize: px + "px", display: "block", clipPath: "none",
   maskImage: "none", webkitMaskImage: "none", filter: "none", mixBlendMode: "normal", opacity: "1",
-  transform: "none", translate: "none", rotate: "none", scale: "none", ...n.cs };
+  transform: "none", translate: "none", rotate: "none", scale: "none", zoom: "1", ...n.cs };
 // a fake GSAP: getChildren(nested, tweens, timelines) reads its three flags as GSAP does
 const tween = (...targets) => ({ targets: () => targets });
 const timeline = (...kids) => ({ kids, getChildren(nested, tweens, timelines) {
@@ -659,6 +659,10 @@ ANIMATED = [
     # the separate transform properties: a scale keeps the label inside the frame, smaller
     ("root.cs = { scale: '0.5' };", "sits in a transformed element: it must stay on screen"),
     ("body.cs = { rotate: '180deg' };", "sits in a transformed element: it must stay on screen"),
+    ("root.cs = { translate: '4000px' };", "sits in a transformed element: it must stay on screen"),  # boxes not moved
+    # zoom shrinks the label without a transform: in 16:9, anchored right, it stays inside the frame
+    ("root.cs = { zoom: '0.8' };", "sits in a zoomed element: it must stay on screen"),
+    ("document.fonts.ready.then(() => { label().cs = { zoom: '0.5' }; });", "is zoomed: it must stay on screen"),
     ("root.shift = 4000;", FRAME_FAIL[len("the AI-generated label "):]),                        # moved with its label
     ("root.anims = [{}];", "sits in the composition root, which is animated " + CSS_FAIL),
     ("document.fonts.ready.then(() => { label().anims = [{}]; });", "is animated " + CSS_FAIL),
@@ -689,6 +693,8 @@ GUARD_MUTATIONS = {
     "no CSS animation read": [("    for (const n of watched) if (n.getAnimations().length) "
                                "fail(`${who(n)} by a CSS animation or transition`);\n", "")],
     "transform only": [("[cs.transform, cs.translate, cs.rotate, cs.scale]", "[cs.transform]")],
+    "no translate read": [("[cs.transform, cs.translate, cs.rotate, cs.scale]", "[cs.transform, cs.rotate, cs.scale]")],
+    "no zoom read": [('      if (!["1", "normal"].includes(cs.zoom)) fail(n === el ? "is zoomed" : "sits in a zoomed element");\n', "")],
     "no transform read": [("[cs.transform, cs.translate, cs.rotate, cs.scale]", "[]")],
     "no viewport read": [("      if (box.left < 0 || box.top < 0 || box.right > innerWidth || box.bottom > innerHeight) "
                           'fail("is not fully inside the frame");\n', "")],

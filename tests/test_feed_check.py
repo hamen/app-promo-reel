@@ -99,6 +99,7 @@ ROOT_TWEEN = "sits in the composition root, which is animated by a GSAP tween"
      "sits in html, which is animated by a GSAP tween"),
     ('gsap.set("#root", { x: 4000 });', "", "sits in a transformed element"),          # a finished set moves it
     ("", "[data-composition-id] { scale: 0.5; }", "sits in a transformed element"),     # it shrinks the label
+    ("", "[data-composition-id] { zoom: 0.8; }", "sits in a zoomed element"),           # so does zoom
     ("", "@keyframes reel-out { to { opacity: 0 } } [data-composition-id] { animation: reel-out 0.5s 20s forwards; }",
      "sits in the composition root, which is animated by a CSS animation or transition"),
     ('tl.to("#s1", { opacity: 0.5, duration: 0.5 }, 2);', "", None),                    # a scene: allowed

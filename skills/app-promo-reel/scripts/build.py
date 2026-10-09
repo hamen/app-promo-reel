@@ -401,8 +401,8 @@ AI_LABEL_GUARD = r"""<script data-ai-label-guard>
     // the label's own inline visibility: visible wins over any hidden ancestor (the runtime hides
     // [data-start] elements until its first seek), and its own look is reset above; its ancestors
     // (the composition root, body, html) can still hide, shrink or move it by display, opacity,
-    // clip-path, mask, filter, blend mode or a transform (`transform` and the separate `translate`,
-    // `rotate` and `scale`), so none of those is allowed on them
+    // clip-path, mask, filter, blend mode, a transform (`transform` and the separate `translate`,
+    // `rotate` and `scale`) or `zoom`, so none of those is allowed on them (nor `zoom` on the label)
     let opacity = 1;
     for (let n = el; n; n = n.parentElement) {
       const cs = getComputedStyle(n);
@@ -413,6 +413,7 @@ AI_LABEL_GUARD = r"""<script data-ai-label-guard>
       if (n !== el && [cs.transform, cs.translate, cs.rotate, cs.scale].some((v) => v !== "none")) {
         fail("sits in a transformed element");
       }
+      if (!["1", "normal"].includes(cs.zoom)) fail(n === el ? "is zoomed" : "sits in a zoomed element");
       opacity *= parseFloat(cs.opacity);
     }
     if (opacity < 0.5) fail("is faded out (opacity of the label and its ancestors)");
