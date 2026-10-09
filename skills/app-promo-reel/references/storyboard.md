@@ -87,9 +87,9 @@ phone's rows, the hero card, the store badges, the URL, the AI-generated label.
 readable at a frame when:
 - the frame is inside its scene's time;
 - the text and each element inside it that holds a word of its own are shown: no `display: none`,
-  `visibility` visible, opacity 0.9 or more along the way up (the scene included), no blur over 2 px,
-  not cut by a `clip-path` or by a box whose `overflow` is not `visible` (an `inset()` clip is
-  measured; any other clip shape counts as cut);
+  `visibility` visible, opacity 0.9 or more along the way up (the scene and the root included), no
+  blur over 2 px, not cut by a `clip-path` or by a box whose `overflow` is not `visible` (an `inset()`
+  clip is measured; any other clip shape counts as cut);
 - the box of its text is inside its scene's box.
 
 Words are counted with the browser's word breaker in the page's language, so a language with no spaces

@@ -118,6 +118,16 @@ def test_what_counts_as_readable(cases):
                                                      "#later", "#fading"]
 
 
+def test_a_fade_of_the_whole_reel_ends_every_caption(tmp_path):
+    p = write_project(tmp_path, duration=6)
+    (p / "index.html").write_text(CASES.replace("  window.__timelines", '  tl.to("#root", { opacity: 0, duration: 0.02 }, 2.99);\n'
+                                                "  window.__timelines", 1))
+    caps, _ = measured(p)
+    run = {name: rc.longest_run(c["runs"]) for name, c in caps.items()}
+    assert run["#wide"] == (90, 0) and run["#long"] == (75, 15)
+    assert run["#later"] == (0, None)  # its scene starts at 4 s, after the fade
+
+
 WORDS = {"#hook-words": 5, "#cap-a": 6, "#cap-b": 2, "#feat-title": 3, "#fl-0": 3, "#fl-1": 3, "#fl-2": 3, "#ben-0": 2,
          "#ben-1": 2, "#ben-2": 2, "#ben-line": 3, "#val-a": 1, "#val-b": 1, "#val-sub": 4, "#wordmark": 2,
          "#tagline": 5, "#cta": 1}
