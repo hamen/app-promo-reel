@@ -351,8 +351,10 @@ def check_shotlist(project_dir, html_out):
 # script creates it from CONFIG.aiLabel, with an id drawn at build time (no Math.random in the page:
 # HyperFrames needs deterministic scripts) that no template rule or tween can know, and
 # every visual property inline !important (which no stylesheet rule overrides), as the last child
-# of the composition root. It then checks the label's box and every ancestor, and throws
-# (hyperframes check: page_error; render: nothing) when the label would not be seen.
+# of the composition root. It then checks the label's box and every ancestor, at load and again after
+# document.fonts.ready, and throws when the label would not be seen or when a tween or a CSS animation
+# animates the label or an ancestor of it. `hyperframes check` reports the throw as a page_error and
+# fails; `hyperframes render` only logs it and still writes the video, so the check is the gate.
 AI_LABEL_GUARD = r"""<script data-ai-label-guard>
 (() => {
   const fail = (why) => { throw new Error(`the AI-generated label ${why}: it must stay on screen`); };
@@ -385,43 +387,73 @@ AI_LABEL_GUARD = r"""<script data-ai-label-guard>
   words.textContent = text;
   shadow.append(sheet, words);
   root.appendChild(el);
-  const own = getComputedStyle(words);
-  const alpha = (c) => { const m = c.match(/rgba?\(([^)]*)\)/); const v = m ? m[1].split(/[\s,\/]+/) : [];
-    return m ? (v.length > 3 ? parseFloat(v[3]) : 1) : 0; };
-  if (alpha(own.color) < 0.5 || alpha(own.webkitTextFillColor) < 0.5 || own.fontSize !== "__AI_LABEL_PX__px") {
-    fail("text is restyled out of sight");
-  }
-  for (const pseudo of ["::before", "::after"]) {
-    if (!["none", "normal"].includes(getComputedStyle(el, pseudo).content)) fail(`is covered by its ${pseudo}`);
-  }
-  // the label's own inline visibility: visible wins over any hidden ancestor (the runtime hides
-  // [data-start] elements until its first seek), and its own look is reset above; its ancestors
-  // (the composition root, body, html) can still hide it by display, opacity, clip-path, mask,
-  // filter or blend mode, so none of those is allowed on them
-  let opacity = 1;
-  for (let n = el; n; n = n.parentElement) {
-    const cs = getComputedStyle(n);
-    if (cs.display === "none") fail("sits in an element with display: none");
-    if (cs.clipPath !== "none") fail("is clipped");
-    if (n !== el && (cs.maskImage !== "none" || cs.webkitMaskImage !== "none")) fail("is masked");
-    if (n !== el && (cs.filter !== "none" || cs.mixBlendMode !== "normal")) fail("sits in a filtered or blended element");
-    opacity *= parseFloat(cs.opacity);
-  }
-  if (opacity < 0.5) fail("is faded out (opacity of the label and its ancestors)");
-  // the painted words, not only the pill: at 24px each visible character is well over 6px wide
-  const range = document.createRange();
-  range.selectNodeContents(words);
-  const ink = range.getBoundingClientRect(), root_box = root.getBoundingClientRect();
-  if (ink.width < Math.max(12, 6 * visible) || ink.height < 16) fail("text has no width on screen");
-  // a feed format keeps the label inside its safe box (the feed's own UI covers the rest)
-  const safe = __AI_LABEL_BOX__;
-  const frame = safe ? { left: root_box.left + safe[0], top: root_box.top + safe[1], right: root_box.left + safe[2],
-    bottom: root_box.top + safe[3] } : root_box;
-  for (const box of [el.getBoundingClientRect(), ink]) {
-    if (box.left < frame.left || box.top < frame.top || box.right > frame.right || box.bottom > frame.bottom) {
-      fail(safe ? "is not fully inside the feed safe box (references/storyboard.md)" : "is not fully inside the frame");
+  // every check below only reads the page; it runs at load and again after document.fonts.ready
+  const inspect = () => {
+    const own = getComputedStyle(words);
+    const alpha = (c) => { const m = c.match(/rgba?\(([^)]*)\)/); const v = m ? m[1].split(/[\s,\/]+/) : [];
+      return m ? (v.length > 3 ? parseFloat(v[3]) : 1) : 0; };
+    if (alpha(own.color) < 0.5 || alpha(own.webkitTextFillColor) < 0.5 || own.fontSize !== "__AI_LABEL_PX__px") {
+      fail("text is restyled out of sight");
     }
-  }
+    for (const pseudo of ["::before", "::after"]) {
+      if (!["none", "normal"].includes(getComputedStyle(el, pseudo).content)) fail(`is covered by its ${pseudo}`);
+    }
+    // the label's own inline visibility: visible wins over any hidden ancestor (the runtime hides
+    // [data-start] elements until its first seek), and its own look is reset above; its ancestors
+    // (the composition root, body, html) can still hide it by display, opacity, clip-path, mask,
+    // filter or blend mode, so none of those is allowed on them
+    let opacity = 1;
+    for (let n = el; n; n = n.parentElement) {
+      const cs = getComputedStyle(n);
+      if (cs.display === "none") fail("sits in an element with display: none");
+      if (cs.clipPath !== "none") fail("is clipped");
+      if (n !== el && (cs.maskImage !== "none" || cs.webkitMaskImage !== "none")) fail("is masked");
+      if (n !== el && (cs.filter !== "none" || cs.mixBlendMode !== "normal")) fail("sits in a filtered or blended element");
+      if (n !== el && cs.transform !== "none") fail("sits in a transformed element");
+      opacity *= parseFloat(cs.opacity);
+    }
+    if (opacity < 0.5) fail("is faded out (opacity of the label and its ancestors)");
+    // the painted words, not only the pill: at 24px each visible character is well over 6px wide
+    const range = document.createRange();
+    range.selectNodeContents(words);
+    const ink = range.getBoundingClientRect(), root_box = root.getBoundingClientRect();
+    if (ink.width < Math.max(12, 6 * visible) || ink.height < 16) fail("text has no width on screen");
+    // a feed format keeps the label inside its safe box (the feed's own UI covers the rest)
+    const safe = __AI_LABEL_BOX__;
+    const frame = safe ? { left: root_box.left + safe[0], top: root_box.top + safe[1], right: root_box.left + safe[2],
+      bottom: root_box.top + safe[3] } : root_box;
+    for (const box of [el.getBoundingClientRect(), ink]) {
+      if (box.left < frame.left || box.top < frame.top || box.right > frame.right || box.bottom > frame.bottom) {
+        fail(safe ? "is not fully inside the feed safe box (references/storyboard.md)" : "is not fully inside the frame");
+      }
+      // the boxes above are relative to the root: a root moved off the page takes the label with it
+      if (box.left < 0 || box.top < 0 || box.right > innerWidth || box.bottom > innerHeight) fail("is not fully inside the frame");
+    }
+    // the checks above read the page at one moment; a tween or a CSS animation can still hide the
+    // label later in the video (a fade of the whole reel), so none may animate the label or an
+    // ancestor of it, whatever the property
+    const watched = [el];
+    for (let n = el.parentElement; n; n = n.parentElement) watched.push(n);
+    const who = (n) => n === el ? "is animated" :
+      `sits in ${n === root ? "the composition root" : n.tagName.toLowerCase()}, which is animated`;
+    // the main timeline is read twice (a child of the global timeline and a value of
+    // window.__timelines); the first hit throws, so that is harmless
+    const lines = [];
+    if (window.gsap && window.gsap.globalTimeline) lines.push(window.gsap.globalTimeline);
+    if (window.__timelines && typeof window.__timelines === "object") lines.push(...Object.values(window.__timelines));
+    for (const line of lines) {
+      if (!line || typeof line.getChildren !== "function") continue;
+      for (const tween of line.getChildren(true, true, false)) {  // nested, tweens, no timelines
+        const hit = (typeof tween.targets === "function" ? tween.targets() : []).find((t) => watched.includes(t));
+        if (hit) fail(`${who(hit)} by a GSAP tween: animate a child of the composition root instead`);
+      }
+    }
+    for (const n of watched) if (n.getAnimations().length) fail(`${who(n)} by a CSS animation or transition`);
+  };
+  inspect();
+  // a page may build its timeline, or set styles, inside document.fonts.ready (HyperFrames' async
+  // setup): check again after it; this callback runs after the page's own, registered earlier
+  document.fonts.ready.then(inspect);
 })();
 </script>
 """

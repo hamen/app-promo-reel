@@ -557,24 +557,59 @@ def test_the_label_sits_in_the_feed_safe_box_at_the_format_minimum(fmt, place, s
 
 
 # the guard run in node with a stub DOM: its bounds checks get exact label boxes, so the result does not
-# depend on a browser or on the machine's sans-serif width
+# depend on a browser or on the machine's sans-serif width. The root sits in body and html; a case's
+# setup (the first %s) runs before the guard: it can give a node computed-style values (`cs`) or CSS
+# animations (`anims`), move the root (`root.shift`), register the page's own document.fonts.ready
+# callbacks, and build a fake GSAP. The fonts.ready callbacks run, in order, after the guard.
 GUARD_RUN = r"""
 const [w, h, px, l, t, r, b] = process.argv.slice(1).map(Number);
 const rect = (l, t, r, b) => ({ left: l, top: t, right: r, bottom: b, width: r - l, height: b - t });
+const moved = (x) => rect(x.left + (root.shift || 0), x.top, x.right + (root.shift || 0), x.bottom);
 const pill = rect(l, t, r, b), ink = rect(l + 23, t + 11, r - 23, b - 11);
-const node = () => ({ style: { setProperty() {} }, parentElement: null, attachShadow: () => ({ append() {} }),
-  appendChild(c) { c.parentElement = this; }, getBoundingClientRect() { return this === root ? rect(0, 0, w, h) : pill; } });
-const root = node();
+const node = (tag) => ({ tagName: tag, kids: [], anims: [], cs: {}, style: { setProperty() {} }, parentElement: null,
+  attachShadow: () => ({ append() {} }), appendChild(c) { c.parentElement = this; this.kids.push(c); },
+  getAnimations() { return this.anims; }, getBoundingClientRect() { return moved(this === root ? rect(0, 0, w, h) : pill); } });
+const html = node("HTML"), body = node("BODY"), root = node("DIV");
+html.appendChild(body);
+body.appendChild(root);
+const label = () => root.kids[root.kids.length - 1];  // the guard appends it last
+const later = [];
+globalThis.window = globalThis;
+globalThis.innerWidth = w;
+globalThis.innerHeight = h;
 globalThis.CONFIG = { aiLabel: "AI-generated" };
-globalThis.document = { querySelector: () => root, createElement: node,
-  createRange: () => ({ selectNodeContents() {}, getBoundingClientRect: () => ink }) };
+globalThis.document = { querySelector: () => root, createElement: (tag) => node(tag.toUpperCase()),
+  createRange: () => ({ selectNodeContents() {}, getBoundingClientRect: () => moved(ink) }),
+  fonts: { ready: { then(f) { later.push(f); } } } };
 globalThis.getComputedStyle = (n, pseudo) => pseudo ? { content: "none" } : { color: "rgb(255, 255, 255)",
   webkitTextFillColor: "rgb(255, 255, 255)", fontSize: px + "px", display: "block", clipPath: "none",
-  maskImage: "none", webkitMaskImage: "none", filter: "none", mixBlendMode: "normal", opacity: "1" };
-try { new Function(%s)(); console.log("ok"); } catch (e) { console.log(e.message); }
+  maskImage: "none", webkitMaskImage: "none", filter: "none", mixBlendMode: "normal", opacity: "1",
+  transform: "none", ...n.cs };
+// a fake GSAP: getChildren(nested, tweens, timelines) reads its three flags as GSAP does
+const tween = (...targets) => ({ targets: () => targets });
+const timeline = (...kids) => ({ kids, getChildren(nested, tweens, timelines) {
+  return this.kids.flatMap((c) => {
+    const line = typeof c.getChildren === "function";
+    return [...((line ? timelines : tweens) ? [c] : []), ...(line && nested ? c.getChildren(nested, tweens, timelines) : [])];
+  });
+} });
+%s
+try { new Function(%s)(); for (const f of later) f(); console.log("ok"); } catch (e) { console.log(e.message); }
 """
 BOX_FAIL = "the AI-generated label is not fully inside the feed safe box (references/storyboard.md): it must stay on screen"
 FRAME_FAIL = "the AI-generated label is not fully inside the frame: it must stay on screen"
+
+
+def run_guard(fmt, pill, setup=""):
+    from build import AI_LABEL_PLACES, add_ai_label_guard
+    from common import FORMATS
+    html = add_ai_label_guard(AI_LABEL, fmt)
+    guard = html.split("<script data-ai-label-guard>", 1)[1].split("</script>", 1)[0]
+    w, h = FORMATS[fmt]
+    r = subprocess.run(["node", "-e", GUARD_RUN % (setup, json.dumps(guard)), "--",
+                        *map(str, (w, h, AI_LABEL_PLACES[fmt][1], *pill))], capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+    return r.stdout.strip()
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="needs node")
@@ -592,15 +627,41 @@ FRAME_FAIL = "the AI-generated label is not fully inside the frame: it must stay
     ("16:9", (1600, 1000, 1921, 1040), FRAME_FAIL),
 ])
 def test_the_guard_keeps_the_label_inside_the_feed_safe_box(fmt, pill, result):
-    from build import AI_LABEL_PLACES, add_ai_label_guard
-    from common import FORMATS
-    html = add_ai_label_guard(AI_LABEL, fmt)
-    guard = html.split("<script data-ai-label-guard>", 1)[1].split("</script>", 1)[0]
-    w, h = FORMATS[fmt]
-    r = subprocess.run(["node", "-e", GUARD_RUN % json.dumps(guard), "--", *map(str, (w, h, AI_LABEL_PLACES[fmt][1], *pill))],
-                       capture_output=True, text=True)
-    assert r.returncode == 0, r.stderr
-    assert r.stdout.strip() == result
+    assert run_guard(fmt, pill) == result
+
+
+TWEEN_FAIL = "by a GSAP tween: animate a child of the composition root instead: it must stay on screen"
+CSS_FAIL = "by a CSS animation or transition: it must stay on screen"
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="needs node")
+@pytest.mark.parametrize("setup, result", [
+    ("", "ok"),                                                       # no GSAP on the page
+    ("const s1 = node('SECTION'); root.appendChild(s1);"
+     " globalThis.gsap = { globalTimeline: timeline(timeline(tween(s1), tween({}))) };", "ok"),  # a scene, a plain object
+    ("globalThis.gsap = { globalTimeline: timeline(tween(root)) };", "sits in the composition root, which is animated " + TWEEN_FAIL),
+    ("globalThis.gsap = { globalTimeline: timeline(tween(body)) };", "sits in body, which is animated " + TWEEN_FAIL),
+    ("globalThis.gsap = { globalTimeline: timeline(tween(html)) };", "sits in html, which is animated " + TWEEN_FAIL),
+    # a timeline built in the page's own fonts.ready callback, after the label exists: "#root > *" holds it
+    ("const main = timeline(); globalThis.gsap = { globalTimeline: timeline(main) };"
+     " document.fonts.ready.then(() => main.kids.push(tween(label())));", "is animated " + TWEEN_FAIL),
+    ("globalThis.gsap = { globalTimeline: timeline(timeline(timeline(tween(root)))) };",
+     "sits in the composition root, which is animated " + TWEEN_FAIL),                         # nested
+    ("globalThis.gsap = { globalTimeline: timeline() }; window.__timelines = { main: timeline(tween(root)) };",
+     "sits in the composition root, which is animated " + TWEEN_FAIL),                         # only in __timelines
+    ("const main = timeline(); globalThis.gsap = { globalTimeline: timeline(main) };"
+     " document.fonts.ready.then(() => main.kids.push(tween(root)));",
+     "sits in the composition root, which is animated " + TWEEN_FAIL),                         # added in fonts.ready
+    ("document.fonts.ready.then(() => { root.cs = { opacity: '0.3' }; });",
+     "is faded out (opacity of the label and its ancestors): it must stay on screen"),        # set in fonts.ready
+    ("root.cs = { transform: 'matrix(1, 0, 0, 1, 4000, 0)' };", "sits in a transformed element: it must stay on screen"),
+    ("root.shift = 4000;", FRAME_FAIL[len("the AI-generated label "):]),                        # moved with its label
+    ("root.anims = [{}];", "sits in the composition root, which is animated " + CSS_FAIL),
+    ("document.fonts.ready.then(() => { label().anims = [{}]; });", "is animated " + CSS_FAIL),
+])
+def test_the_guard_fails_on_anything_that_animates_the_label_or_its_ancestors(setup, result):
+    out = run_guard("9:16", (64, 1430, 300, 1492), setup)  # where build.py puts the label
+    assert out == (result if result == "ok" else "the AI-generated label " + result)
 
 
 @pytest.mark.parametrize("spans, duration, times", [
