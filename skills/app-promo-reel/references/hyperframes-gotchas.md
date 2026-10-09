@@ -26,6 +26,18 @@ Pin the version: `npx --yes hyperframes@0.8.78 …` (the project's package.json 
   (`innerText` is empty for hidden text).
 - `read_check.py` adds its measuring pass to a copy of index.html in a temporary folder, after
   build.py's AI-label script, and runs `check` there.
+- Never tween the composition root, `body` or `html` (a fade of the whole reel, a zoom of the root):
+  the AI label sits in the root, and build.py's guard fails the check. For a fade to black, fade in a
+  full-frame black layer inside the root; the label stays above every layer.
+- The guard checks the page at load and again after `document.fonts.ready`. It does not see a
+  callback (`tl.call`, `onUpdate`) or another script that writes styles during playback, or a
+  timeline built later than the first-level `fonts.ready` callbacks (a promise chain or an `await`
+  inside the page's `fonts.ready` callback, a fetch, a timer): never hide or move the label's
+  ancestors that way. It sees a CSS transition only while it runs; any running CSS animation or
+  transition on the label, the root, `body` or `html` fails the check, even one that would not hide
+  the label.
+- `hyperframes render` does not stop on a `page_error`: it logs `[Browser:PAGEERROR]` and writes the
+  MP4 (measured). The check is the gate.
 
 ## Look
 - Between two phone screens use a **slide, not a crossfade**: a crossfade shows both screens
