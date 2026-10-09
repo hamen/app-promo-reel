@@ -225,6 +225,29 @@ def test_a_check_that_exits_1_with_json_is_still_read(fake):
     assert (r.returncode, r.stdout) == (0, "read_check: 17 captions, 0 short\n")
 
 
+GUARD_ERROR = ("the AI-generated label sits in the composition root, which is animated by a GSAP tween: "
+               "animate a child of the composition root instead: it must stay on screen")
+
+
+def test_a_page_the_label_guard_fails_exits_2_with_its_message(fake):
+    # the copy holds build.py's guard: a clip or a fade of the whole reel fails it, and read_check may run
+    # without the build's check command, so it does not time that page
+    doc = fixture()
+    runtime(doc).append({"code": "page_error", "severity": "error", "message": GUARD_ERROR})
+    fake.write(doc)
+    r = fake.run()
+    assert r.returncode == 2 and GUARD_ERROR in r.stderr and "run the build's check command" in r.stderr, r.stderr
+    assert r.stdout == ""
+
+
+def test_another_page_error_is_left_to_the_builds_check(fake):
+    doc = fixture()
+    runtime(doc).append({"code": "page_error", "severity": "error", "message": "TypeError: x is undefined"})
+    fake.write(doc)
+    r = fake.run()
+    assert (r.returncode, r.stdout) == (0, "read_check: 17 captions, 0 short\n")
+
+
 def drop(doc, pred):
     doc["runtime"]["findings"] = [f for f in runtime(doc) if not pred(f["message"])]
     return doc
