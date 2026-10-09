@@ -6,7 +6,9 @@ test_read_check_browser.py (opt-in)."""
 import json
 import os
 import re
+import shutil
 import stat
+import subprocess
 import sys
 from pathlib import Path
 
@@ -14,7 +16,7 @@ import pytest
 
 import build
 import read_check as rc
-from conftest import FIXTURES, TEMPLATE, run_script, write_project
+from conftest import FIXTURES, SCRIPTS, TEMPLATE, run_script, write_project
 
 FAKE_NPX = r'''#!{python}
 """Fake npx: records the call and what the folder holds, then prints the scenario file with the
@@ -238,6 +240,21 @@ def test_a_page_the_label_guard_fails_exits_2_with_its_message(fake):
     r = fake.run()
     assert r.returncode == 2 and GUARD_ERROR in r.stderr and "run the build's check command" in r.stderr, r.stderr
     assert r.stdout == ""
+
+
+def test_the_refusal_is_needed(fake, tmp_path):
+    # control mutation: a copy of the scripts whose read_check has no refusal times the page the guard fails
+    scripts = tmp_path / "scripts"
+    shutil.copytree(SCRIPTS, scripts, ignore=shutil.ignore_patterns("__pycache__"))
+    f = scripts / "read_check.py"
+    old = """            die(f"{message}: fix it, then run the build's check command")\n"""
+    assert f.read_text().count(old) == 1
+    f.write_text(f.read_text().replace(old, "            pass\n"))
+    doc = fixture()
+    runtime(doc).append({"code": "page_error", "severity": "error", "message": GUARD_ERROR})
+    fake.write(doc)
+    r = subprocess.run([sys.executable, str(f), str(fake.project)], capture_output=True, text=True)
+    assert (r.returncode, r.stdout) == (0, "read_check: 17 captions, 0 short\n"), r.stderr
 
 
 def test_another_page_error_is_left_to_the_builds_check(fake):

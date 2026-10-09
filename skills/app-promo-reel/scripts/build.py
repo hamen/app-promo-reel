@@ -400,8 +400,9 @@ AI_LABEL_GUARD = r"""<script data-ai-label-guard>
     }
     // the label's own inline visibility: visible wins over any hidden ancestor (the runtime hides
     // [data-start] elements until its first seek), and its own look is reset above; its ancestors
-    // (the composition root, body, html) can still hide it by display, opacity, clip-path, mask,
-    // filter or blend mode, so none of those is allowed on them
+    // (the composition root, body, html) can still hide, shrink or move it by display, opacity,
+    // clip-path, mask, filter, blend mode or a transform (`transform` and the separate `translate`,
+    // `rotate` and `scale`), so none of those is allowed on them
     let opacity = 1;
     for (let n = el; n; n = n.parentElement) {
       const cs = getComputedStyle(n);
@@ -409,7 +410,9 @@ AI_LABEL_GUARD = r"""<script data-ai-label-guard>
       if (cs.clipPath !== "none") fail("is clipped");
       if (n !== el && (cs.maskImage !== "none" || cs.webkitMaskImage !== "none")) fail("is masked");
       if (n !== el && (cs.filter !== "none" || cs.mixBlendMode !== "normal")) fail("sits in a filtered or blended element");
-      if (n !== el && cs.transform !== "none") fail("sits in a transformed element");
+      if (n !== el && [cs.transform, cs.translate, cs.rotate, cs.scale].some((v) => v !== "none")) {
+        fail("sits in a transformed element");
+      }
       opacity *= parseFloat(cs.opacity);
     }
     if (opacity < 0.5) fail("is faded out (opacity of the label and its ancestors)");

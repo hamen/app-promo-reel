@@ -584,7 +584,7 @@ globalThis.document = { querySelector: () => root, createElement: (tag) => node(
 globalThis.getComputedStyle = (n, pseudo) => pseudo ? { content: "none" } : { color: "rgb(255, 255, 255)",
   webkitTextFillColor: "rgb(255, 255, 255)", fontSize: px + "px", display: "block", clipPath: "none",
   maskImage: "none", webkitMaskImage: "none", filter: "none", mixBlendMode: "normal", opacity: "1",
-  transform: "none", ...n.cs };
+  transform: "none", translate: "none", rotate: "none", scale: "none", ...n.cs };
 // a fake GSAP: getChildren(nested, tweens, timelines) reads its three flags as GSAP does
 const tween = (...targets) => ({ targets: () => targets });
 const timeline = (...kids) => ({ kids, getChildren(nested, tweens, timelines) {
@@ -600,11 +600,13 @@ BOX_FAIL = "the AI-generated label is not fully inside the feed safe box (refere
 FRAME_FAIL = "the AI-generated label is not fully inside the frame: it must stay on screen"
 
 
-def run_guard(fmt, pill, setup=""):
+def run_guard(fmt, pill, setup="", mutate=None):
     from build import AI_LABEL_PLACES, add_ai_label_guard
     from common import FORMATS
     html = add_ai_label_guard(AI_LABEL, fmt)
     guard = html.split("<script data-ai-label-guard>", 1)[1].split("</script>", 1)[0]
+    if mutate:
+        guard = mutate(guard)
     w, h = FORMATS[fmt]
     r = subprocess.run(["node", "-e", GUARD_RUN % (setup, json.dumps(guard)), "--",
                         *map(str, (w, h, AI_LABEL_PLACES[fmt][1], *pill))], capture_output=True, text=True)
@@ -634,8 +636,7 @@ TWEEN_FAIL = "by a GSAP tween: animate a child of the composition root instead: 
 CSS_FAIL = "by a CSS animation or transition: it must stay on screen"
 
 
-@pytest.mark.skipif(shutil.which("node") is None, reason="needs node")
-@pytest.mark.parametrize("setup, result", [
+ANIMATED = [
     ("", "ok"),                                                       # no GSAP on the page
     ("const s1 = node('SECTION'); root.appendChild(s1);"
      " globalThis.gsap = { globalTimeline: timeline(timeline(tween(s1), tween({}))) };", "ok"),  # a scene, a plain object
@@ -655,13 +656,56 @@ CSS_FAIL = "by a CSS animation or transition: it must stay on screen"
     ("document.fonts.ready.then(() => { root.cs = { opacity: '0.3' }; });",
      "is faded out (opacity of the label and its ancestors): it must stay on screen"),        # set in fonts.ready
     ("root.cs = { transform: 'matrix(1, 0, 0, 1, 4000, 0)' };", "sits in a transformed element: it must stay on screen"),
+    # the separate transform properties: a scale keeps the label inside the frame, smaller
+    ("root.cs = { scale: '0.5' };", "sits in a transformed element: it must stay on screen"),
+    ("body.cs = { rotate: '180deg' };", "sits in a transformed element: it must stay on screen"),
     ("root.shift = 4000;", FRAME_FAIL[len("the AI-generated label "):]),                        # moved with its label
     ("root.anims = [{}];", "sits in the composition root, which is animated " + CSS_FAIL),
     ("document.fonts.ready.then(() => { label().anims = [{}]; });", "is animated " + CSS_FAIL),
-])
+]
+
+
+def expected(result):
+    return result if result == "ok" else "the AI-generated label " + result
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="needs node")
+@pytest.mark.parametrize("setup, result", ANIMATED)
 def test_the_guard_fails_on_anything_that_animates_the_label_or_its_ancestors(setup, result):
-    out = run_guard("9:16", (64, 1430, 300, 1492), setup)  # where build.py puts the label
-    assert out == (result if result == "ok" else "the AI-generated label " + result)
+    assert run_guard("9:16", (64, 1430, 300, 1492), setup) == expected(result)  # where build.py puts the label
+
+
+# control mutations: each part of the guard is needed, so removing it changes the result of a case above
+GUARD_MUTATIONS = {
+    "no ancestor watched": [("    for (let n = el.parentElement; n; n = n.parentElement) watched.push(n);\n", "")],
+    "label not watched": [("    const watched = [el];", "    const watched = [];")],
+    "global timeline only": [('    if (window.__timelines && typeof window.__timelines === "object") '
+                              'lines.push(...Object.values(window.__timelines));\n', "")],
+    "not nested": [("line.getChildren(true, true, false)", "line.getChildren(false, true, false)")],
+    "no second read": [("  document.fonts.ready.then(inspect);\n", "")],
+    "second read of the tween scan only": [
+        ("  const inspect = () => {\n", "  let reads = 0;\n  const inspect = () => {\n    if (!reads++) {\n"),
+        ("    // the checks above read the page at one moment;", "    }\n    // the checks above read the page at one moment;")],
+    "no CSS animation read": [("    for (const n of watched) if (n.getAnimations().length) "
+                               "fail(`${who(n)} by a CSS animation or transition`);\n", "")],
+    "transform only": [("[cs.transform, cs.translate, cs.rotate, cs.scale]", "[cs.transform]")],
+    "no transform read": [("[cs.transform, cs.translate, cs.rotate, cs.scale]", "[]")],
+    "no viewport read": [("      if (box.left < 0 || box.top < 0 || box.right > innerWidth || box.bottom > innerHeight) "
+                          'fail("is not fully inside the frame");\n', "")],
+}
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="needs node")
+@pytest.mark.parametrize("name", GUARD_MUTATIONS)
+def test_each_part_of_the_guard_is_needed(name):
+    def mutate(guard):
+        for old, new in GUARD_MUTATIONS[name]:
+            assert guard.count(old) == 1, (name, old)
+            guard = guard.replace(old, new, 1)
+        return guard
+    changed = [setup for setup, result in ANIMATED
+               if run_guard("9:16", (64, 1430, 300, 1492), setup, mutate) != expected(result)]
+    assert changed, f"no case sees the mutation: {name}"
 
 
 @pytest.mark.parametrize("spans, duration, times", [
