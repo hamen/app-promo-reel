@@ -66,7 +66,7 @@ def test_app_text_lives_only_in_config(tmp_path):
     body = re.sub(r"/\*CONFIG\*/.*?/\*END CONFIG\*/", "", html, flags=re.S)
     for s in ["Zebra Notes", "App Name", "Your hook", "Benefit one", "example.com"]:
         assert s not in body, s
-    assert re.search(r'id="wordmark" data-cfg="end.name"', html)
+    assert re.search(r'id="wordmark"[^>]*\bdata-cfg="end.name"', html)
 
 
 @pytest.mark.parametrize("stores", ["google_play", "app_store", "app_store,google_play"])

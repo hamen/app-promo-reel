@@ -38,7 +38,8 @@ on screen for the whole video.
 See [`skills/app-promo-reel/SKILL.md`](skills/app-promo-reel/SKILL.md). In short: scaffold one
 project per variant, in its format (9:16, 4:5 or 16:9) → research the app (site, stores, app strings)
 → write a design spec with the allowed claims → generate (or
-import) and rank music → beat grid → storyboard on bars → build, check, snapshot, render (optionally at
+import) and rank music → beat grid → storyboard on bars → build, check, time each caption against a
+reading rule (`read_check.py`), snapshot, render (optionally at
 240 fps, blurred by `blur.py`) → finish and verify.
 The skill has hard truthfulness rules: no invented ratings, numbers, people or features, and an
 "AI-generated" label on screen for the whole video.
@@ -108,6 +109,11 @@ The critique loop and the frame checks (blank opening, pops) follow ideas from R
 The feed safe zones, the readable text minimums, the dead-hold rule and the motion-blur rules (a
 shutter centred on the frame, no blur across a cut, one rounding of a float average) follow
 [cinetic](https://github.com/Leonxlnx/cinetic) by Leonxlnx (MIT). No code is copied.
+
+The motion ranges (an entrance in 0.3-0.6 s, an exit in 0.2-0.3 s, a stagger of 60-120 ms, 20-40 ms
+between letters) and the idea of a reading-time check follow the guides of
+[fframes](https://github.com/dmtrKovalenko/fframes) by dmtrKovalenko (MIT). The reading rule itself
+(0.8 s, 0.3 s per word) is this skill's own. No code is copied.
 
 ## Development
 

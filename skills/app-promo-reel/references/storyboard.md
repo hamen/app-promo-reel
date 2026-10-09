@@ -32,8 +32,8 @@ Rules:
 - 16:9 hero: no beats and no bars. Time the scenes in seconds with `{{calc DURATION*x}}`; see `hero.md`.
 - 4:5 feed: a feed video starts muted. Every claim and every step is on screen as text; nothing
   depends on the sound (a sound effect can stress a word, never carry it).
-- One idea per scene. Text a viewer must read stays on screen ≥ 0.8 s (a sentence: ~0.3 s per
-  word).
+- One idea per scene. Text a viewer must read stays readable long enough to read it: the rule is
+  in "Reading time" below.
 - A different tempo means a different bar count: re-map the scenes, never squeeze text.
   The template's last lines (store badges, URL) enter on D(13, 3) and need 1.1 s to settle
   and be read: with a 30 s video that is about 116 bpm or faster (the first downbeat
@@ -73,6 +73,34 @@ put while something else moves: a punch on the next beat, a pulse, a row that po
 `finish.py` warns `still for <length> s from <time> s: nothing on screen moves (look at it)` for
 each longer still run (9:16 and 4:5). It measures the whole frame, so a visible background pulse
 counts as motion: whether the foreground alone is too static is the critique's call.
+
+## Reading time
+
+A text the viewer must read needs max(0.8 s, 0.3 s per word) of readable time: 0.8 s for a short
+label, 0.3 s per word for a longer line (4 words: 1.2 s). Its time is its longest run of readable
+frames. Mark each such text with the `data-read` attribute. The template marks its 17 captions: the
+hook, the two captions of s2, the feature and its three lines, the three benefits and their line, the
+value words and their line, the name, the tagline and the CTA. UI to glance at is not marked: the
+phone's rows, the hero card, the store badges, the URL, the AI-generated label.
+
+`read_check.py <project>` (9:16 and 4:5, after build.py) seeks the page frame by frame. A text is
+readable at a frame when:
+- the frame is inside its scene's time;
+- the text and each element inside it that holds a word of its own are shown: no `display: none`,
+  `visibility` visible, opacity 0.9 or more along the way up (the scene and the root included), no
+  blur over 2 px, not cut by a `clip-path` or by a box whose `overflow` is not `visible` (an `inset()`
+  clip is measured; any other clip shape counts as cut);
+- the box of its text is inside its scene's box.
+
+Words are counted with the browser's word breaker in the page's language, so a language with no spaces
+counts words too. A short text gets one line, for example:
+`warning: reading time: #cap-b "Step two" (2 words) is readable for 0.60 s from 9.30 s; it needs 0.80 s`.
+The warning never fails the run: the critique decides (`references/critique.md`).
+
+The usual cause is a late entrance in the scene. The fixes: enter earlier, use fewer words, or give the
+scene more time (re-map the bars). A punch or a pulse on a held text does not stop its time: the text
+stays readable. The stock template passes at 120 bpm; `#fl-2` and `#ben-line` sit on the limit
+(3 words, 0.9 s) and warn at a faster tempo.
 
 ## Drop placement
 

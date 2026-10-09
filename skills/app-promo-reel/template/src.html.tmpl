@@ -518,7 +518,7 @@
       <!-- S1 hook: bars 0-1 -->
       <section id="s1" class="clip scene" data-start="0" data-duration="{{calc D(2)+0.15}}" data-track-index="1">
         <div id="s1-cam" class="cam">
-          <div id="hook-words" class="center-col">
+          <div id="hook-words" data-read class="center-col">
             <div class="kin" id="w-0" data-cfg="hook.0"></div>
             <div class="kin hl" id="w-1" data-cfg="hook.1"></div>
             <div class="kin" id="w-2" data-cfg="hook.2"></div>
@@ -541,8 +541,8 @@
       <section id="s2" class="clip scene" data-start="{{calc D(2)-0.3}}" data-duration="{{calc D(6)+0.1-(D(2)-0.3)}}" data-track-index="2">
         <div id="s2-cam" class="cam">
           <div id="caption">
-            <div class="cap" id="cap-a" data-cfg="screens.0.caption"></div>
-            <div class="cap" id="cap-b" data-cfg="screens.1.caption"></div>
+            <div class="cap" id="cap-a" data-read data-cfg="screens.0.caption"></div>
+            <div class="cap" id="cap-b" data-read data-cfg="screens.1.caption"></div>
           </div>
           <div class="phone-fit">
             <div id="phone">
@@ -575,10 +575,10 @@
       <section id="s3" class="clip scene" data-start="{{calc D(6)-0.1}}" data-duration="{{calc D(8)+0.15-(D(6)-0.1)}}" data-track-index="3">
         <div id="s3-cam" class="cam">
           <div class="center-col">
-            <div id="feat-title" data-cfg="feature.title"></div>
-            <div class="feat-line" id="fl-0" data-cfg="feature.lines.0"></div>
-            <div class="feat-line" id="fl-1" data-cfg="feature.lines.1"></div>
-            <div class="feat-line" id="fl-2" data-cfg="feature.lines.2"></div>
+            <div id="feat-title" data-read data-cfg="feature.title"></div>
+            <div class="feat-line" id="fl-0" data-read data-cfg="feature.lines.0"></div>
+            <div class="feat-line" id="fl-1" data-read data-cfg="feature.lines.1"></div>
+            <div class="feat-line" id="fl-2" data-read data-cfg="feature.lines.2"></div>
           </div>
         </div>
       </section>
@@ -587,10 +587,10 @@
       <section id="s4" class="clip scene" data-start="{{calc D(8)-0.3}}" data-duration="{{calc D(10)+0.15-(D(8)-0.3)}}" data-track-index="4">
         <div id="s4-cam" class="cam">
           <div class="center-col">
-            <div class="ben" id="ben-0" data-cfg="benefits.items.0"></div>
-            <div class="ben" id="ben-1" data-cfg="benefits.items.1"></div>
-            <div class="ben" id="ben-2" data-cfg="benefits.items.2"></div>
-            <div id="ben-line" data-cfg="benefits.line"></div>
+            <div class="ben" id="ben-0" data-read data-cfg="benefits.items.0"></div>
+            <div class="ben" id="ben-1" data-read data-cfg="benefits.items.1"></div>
+            <div class="ben" id="ben-2" data-read data-cfg="benefits.items.2"></div>
+            <div id="ben-line" data-read data-cfg="benefits.line"></div>
           </div>
         </div>
       </section>
@@ -599,9 +599,9 @@
       <section id="s5" class="clip scene" data-start="{{calc D(10)-0.3}}" data-duration="{{calc D(12)+0.15-(D(10)-0.3)}}" data-track-index="5">
         <div id="s5-cam" class="cam">
           <div class="center-col" id="val-block">
-            <div id="val-a" data-cfg="value.a"></div>
-            <div id="val-b" data-cfg="value.b"></div>
-            <div id="val-sub" data-cfg="value.sub"></div>
+            <div id="val-a" data-read data-cfg="value.a"></div>
+            <div id="val-b" data-read data-cfg="value.b"></div>
+            <div id="val-sub" data-read data-cfg="value.sub"></div>
           </div>
         </div>
       </section>
@@ -612,9 +612,9 @@
         <div id="s6-cam" class="cam">
           <div class="center-col">
             <div id="icon" data-cfg="end.iconText"></div>
-            <div id="wordmark" data-cfg="end.name"></div>
-            <div id="tagline" data-cfg="end.tagline"></div>
-            <div id="cta" data-cfg="end.cta"></div>
+            <div id="wordmark" data-read data-cfg="end.name"></div>
+            <div id="tagline" data-read data-cfg="end.tagline"></div>
+            <div id="cta" data-read data-cfg="end.cta"></div>
             <div id="stores">
               <div class="store" id="st-app_store"><svg><use href="#ic-apple" /></svg>App Store</div>
               <div class="store" id="st-google_play"><svg><use href="#ic-play" /></svg>Google Play</div>

@@ -19,6 +19,13 @@ Pin the version: `npx --yes hyperframes@0.8.78 …` (the project's package.json 
   `requestAnimationFrame`: a frame must depend only on `t`, or two renders differ.
 - Hide an element after it leaves with a short `tl.to(…, {opacity: 0, duration: 0.02})`, not
   `tl.set`; the earlier reels used this pattern for every visibility change.
+- A script in the rendered page must never seek the timeline. GSAP then writes start values (for
+  example `filter: blur(0px)`) as inline styles, and the render changes (measured: 765 of 900 frames).
+- At load the runtime has not yet positioned the scenes (they stack down the page) and hides the root
+  and the scenes until its first seek: measure a box against its own scene, and read `textContent`
+  (`innerText` is empty for hidden text).
+- `read_check.py` adds its measuring pass to a copy of index.html in a temporary folder, after
+  build.py's AI-label script, and runs `check` there.
 
 ## Look
 - Between two phone screens use a **slide, not a crossfade**: a crossfade shows both screens

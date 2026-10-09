@@ -101,6 +101,7 @@ $PY $S/make_bed.py $P/work/music/bgm_5.wav $P --drop-bar 6
 ```bash
 $PY $S/build.py $P      # src.html.tmpl (+ motion.js) -> index.html, cues.json -> cues.realized.json
 <the command after "check:">   # the last line build.py prints
+$PY $S/read_check.py $P   # 9:16 and 4:5: the reading time of each data-read text
 cd $P
 npx --yes hyperframes@0.8.78 snapshot --at 1.0,2.4,4.6,... --describe false --no-end -o snapshots/r1
 ```
@@ -110,6 +111,13 @@ npx --yes hyperframes@0.8.78 snapshot --at 1.0,2.4,4.6,... --describe false --no
   (`--caption-zone`), read only at the settled times (`references/storyboard.md`, "Feed safe zones"). A
   `caption_zone_collision` error is a text in that band on a settled frame: move it up. For 16:9 it is
   the plain check.
+- `read_check.py` (after the check command, about 10 s) prints one line for each `data-read` text that
+  is readable for less time than it needs, for example
+  `warning: reading time: #cap-b "Step two" (2 words) is readable for 0.60 s from 9.30 s; it needs 0.80 s`,
+  then `read_check: <N> captions, <M> short`. It exits 0 with or without warnings, and 2 when it cannot
+  measure (no index.html, npx missing, the check timed out, the pass did not report). It runs
+  `hyperframes check` on a copy of index.html in a temporary folder and never changes the project. For
+  16:9 it prints a note and checks nothing. The rule: `references/storyboard.md`, "Reading time".
 - build.py prints a warning when the page calls `shake(` or `flash(` more than 2 times
   (`references/motion.md`). The build still succeeds.
 - build.py adds the AI-generated label itself (text from `CONFIG.aiLabel`) with the last script
