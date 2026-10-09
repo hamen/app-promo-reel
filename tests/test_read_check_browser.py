@@ -128,6 +128,25 @@ def test_a_fade_of_the_whole_reel_ends_every_caption(tmp_path):
     assert run["#later"] == (0, None)  # its scene starts at 4 s, after the fade
 
 
+def test_a_page_that_fails_the_label_guard_is_not_timed(tmp_path):
+    # the PR #15 finding: the walk stops at the root before a clip test; the guard in the copy fails a
+    # clipped root, so read_check exits 2 instead of counting the clipped captions
+    need_npx()
+
+    def clip_root(p):
+        t = p / "src.html.tmpl"
+        s = t.read_text()
+        reg = "      window.__timelines = window.__timelines || {};\n"
+        assert s.count(reg) == 1
+        t.write_text(s.replace(reg, '      tl.set("#root", { clipPath: "inset(0 0 100% 0)" }, 25);\n' + reg))
+    p, _ = build(tmp_path, fmt="9:16", edit=clip_root)
+    sf.write(p / "assets" / "audio" / "bgm.wav", np.zeros((48000 * 30, 2), np.float32), 48000)
+    r = run_script("read_check.py", p)
+    assert r.returncode == 2, (r.stdout, r.stderr)
+    assert "the AI-generated label sits in the composition root, which is animated by a GSAP tween" in r.stderr
+    assert r.stdout == ""
+
+
 WORDS = {"#hook-words": 5, "#cap-a": 6, "#cap-b": 2, "#feat-title": 3, "#fl-0": 3, "#fl-1": 3, "#fl-2": 3, "#ben-0": 2,
          "#ben-1": 2, "#ben-2": 2, "#ben-line": 3, "#val-a": 1, "#val-b": 1, "#val-sub": 4, "#wordmark": 2,
          "#tagline": 5, "#cta": 1}
