@@ -25,8 +25,10 @@ These rules win over any creative idea:
    "no ads".
 7. The AI-generated label (`CONFIG.aiLabel`, in the video's language) stays on screen for the
    whole video. Never remove it. build.py's script at the end of the page creates the label
-   from `CONFIG.aiLabel` and stops `hyperframes check` and the render when it is empty or
-   something (display, opacity, filter, clip-path, position) keeps it from being seen.
+   from `CONFIG.aiLabel` and fails `hyperframes check` when it is empty, when something
+   (display, opacity, filter, clip-path, transform, position) keeps it from being seen, or when
+   a GSAP tween or a CSS animation animates the label, the composition root, `body` or `html`.
+   The render does not stop on that error: never render a page whose check fails.
 8. When an asset is missing (icon, screenshot, font), use a clearly labelled placeholder and
    tell the user. Never fake it.
 

@@ -115,15 +115,18 @@ npx --yes hyperframes@0.8.78 snapshot --at 1.0,2.4,4.6,... --describe false --no
   is readable for less time than it needs, for example
   `warning: reading time: #cap-b "Step two" (2 words) is readable for 0.60 s from 9.30 s; it needs 0.80 s`,
   then `read_check: <N> captions, <M> short`. It exits 0 with or without warnings, and 2 when it cannot
-  measure (no index.html, npx missing, the check timed out, the pass did not report). It runs
+  measure (no index.html, npx missing, the check timed out, the pass did not report, the page fails
+  the AI-label check). It runs
   `hyperframes check` on a copy of index.html in a temporary folder and never changes the project. For
   16:9 it prints a note and checks nothing. The rule: `references/storyboard.md`, "Reading time".
 - build.py prints a warning when the page calls `shake(` or `flash(` more than 2 times
   (`references/motion.md`). The build still succeeds.
 - build.py adds the AI-generated label itself (text from `CONFIG.aiLabel`) with the last script
   of index.html: never add a label element or CSS for it to the template. A `page_error` about
-  the AI-generated label in `hyperframes check` means it is empty, something hides it, or (9:16 and
-  4:5) it is not fully inside the feed safe box: shorten `CONFIG.aiLabel`.
+  the AI-generated label in `hyperframes check` means it is empty, something hides it, (9:16 and
+  4:5) it is not fully inside the feed safe box: shorten `CONFIG.aiLabel`, or a tween animates the
+  composition root, `body` or `html` (animate a child of the root instead, for example a full-frame
+  layer).
 - Leftover or unknown `{{…}}` → exit 2.
 - A cue whose SFX file is missing is skipped with a warning; the build still succeeds.
 - Snapshots: pick every scene middle and every transition ±0.1 s. Write each round to a new

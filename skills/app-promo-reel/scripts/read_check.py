@@ -19,8 +19,10 @@ decides (references/storyboard.md, "Reading time"). It exits 2 when it cannot me
    project's index.html. read_check copies index.html, adds the pass, puts the copy in a temporary
    folder next to symlinks to the other project files, and runs `hyperframes check` on that folder. The
    pass reports through console warnings that carry a token drawn for the run; other findings of that
-   check are ignored (the build's own check command reports them). The folder is removed at the end,
-   also on an error or Ctrl-C. The project is never changed.
+   check are ignored (the build's own check command reports them), except the error of build.py's
+   AI-label guard, which is in the copy too: a page that fails it (a clip, a fade or a move of the whole
+   reel) is not timed, exit 2. The folder is removed at the end, also on an error or Ctrl-C. The project
+   is never changed.
 
 Usage: read_check.py <project_dir>
 """
@@ -116,6 +118,8 @@ PASS = r"""<script data-read-check>
         if (cs.display === "none") return false;
         opacity *= parseFloat(cs.opacity);
         if (worstBlur(cs.filter) > BLUR_PX) return false;
+        // no clip test on the root either: build.py's AI-label guard fails a page whose root is clipped,
+        // transformed, tweened or animated, and read_check then exits 2 (measure)
         if (n === root) break;
         const box = n.getBoundingClientRect();
         if (cs.clipPath && cs.clipPath !== "none") {
@@ -286,6 +290,10 @@ def measure(project_dir, project):
         doc = run_check(folder)
     finally:
         shutil.rmtree(folder, ignore_errors=True)
+    for f in findings(doc):
+        message = str(f.get("message", ""))
+        if f.get("code") == "page_error" and message.startswith("the AI-generated label"):
+            die(f"{message}: fix it, then run the build's check command")
     return pass_lines(doc, token)
 
 

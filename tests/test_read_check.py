@@ -6,7 +6,9 @@ test_read_check_browser.py (opt-in)."""
 import json
 import os
 import re
+import shutil
 import stat
+import subprocess
 import sys
 from pathlib import Path
 
@@ -14,7 +16,7 @@ import pytest
 
 import build
 import read_check as rc
-from conftest import FIXTURES, TEMPLATE, run_script, write_project
+from conftest import FIXTURES, SCRIPTS, TEMPLATE, run_script, write_project
 
 FAKE_NPX = r'''#!{python}
 """Fake npx: records the call and what the folder holds, then prints the scenario file with the
@@ -222,6 +224,44 @@ def test_lines_with_another_token_or_no_token_are_ignored(fake):
 
 def test_a_check_that_exits_1_with_json_is_still_read(fake):
     r = fake.run(FAKE_EXIT="1")
+    assert (r.returncode, r.stdout) == (0, "read_check: 17 captions, 0 short\n")
+
+
+GUARD_ERROR = ("the AI-generated label sits in the composition root, which is animated by a GSAP tween: "
+               "animate a child of the composition root instead: it must stay on screen")
+
+
+def test_a_page_the_label_guard_fails_exits_2_with_its_message(fake):
+    # the copy holds build.py's guard: a clip or a fade of the whole reel fails it, and read_check may run
+    # without the build's check command, so it does not time that page
+    doc = fixture()
+    runtime(doc).append({"code": "page_error", "severity": "error", "message": GUARD_ERROR})
+    fake.write(doc)
+    r = fake.run()
+    assert r.returncode == 2 and GUARD_ERROR in r.stderr and "run the build's check command" in r.stderr, r.stderr
+    assert r.stdout == ""
+
+
+def test_the_refusal_is_needed(fake, tmp_path):
+    # control mutation: a copy of the scripts whose read_check has no refusal times the page the guard fails
+    scripts = tmp_path / "scripts"
+    shutil.copytree(SCRIPTS, scripts, ignore=shutil.ignore_patterns("__pycache__"))
+    f = scripts / "read_check.py"
+    old = """            die(f"{message}: fix it, then run the build's check command")\n"""
+    assert f.read_text().count(old) == 1
+    f.write_text(f.read_text().replace(old, "            pass\n"))
+    doc = fixture()
+    runtime(doc).append({"code": "page_error", "severity": "error", "message": GUARD_ERROR})
+    fake.write(doc)
+    r = subprocess.run([sys.executable, str(f), str(fake.project)], capture_output=True, text=True)
+    assert (r.returncode, r.stdout) == (0, "read_check: 17 captions, 0 short\n"), r.stderr
+
+
+def test_another_page_error_is_left_to_the_builds_check(fake):
+    doc = fixture()
+    runtime(doc).append({"code": "page_error", "severity": "error", "message": "TypeError: x is undefined"})
+    fake.write(doc)
+    r = fake.run()
     assert (r.returncode, r.stdout) == (0, "read_check: 17 captions, 0 short\n")
 
 
