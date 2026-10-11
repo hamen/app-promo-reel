@@ -139,7 +139,7 @@ npx --yes hyperframes@0.8.78 snapshot --at 1.0,2.4,4.6,... --describe false --no
   - "display: none", "is clipped", "is faded out", "is masked", "filtered or blended element",
     "transformed element" (`transform`, `translate`, `rotate`, `scale`), "zoomed element" → a style
     on the composition root, `body` or `html` (build.py sets the label's own display, opacity, clip,
-    filter and transform with `!important`): remove it.
+    filter and transform with `!important`), or a script that changed the label: remove it.
   - "is zoomed" → `zoom` on the label: remove it.
   - "restyled out of sight" or "covered by its ::before / ::after" → a script changed the label (its
     look is locked, and its words sit in a closed shadow root): never change the label from a script.
