@@ -13,6 +13,15 @@ import sample_colors
 from conftest import SCRIPTS, run_script, tone_file
 
 
+@pytest.mark.parametrize("a, b, same", [
+    (30, "30/1", True), (29.97, "30000/1001", True), ("240000/1001", 29.97 * 8, True),
+    (30, 30 * (1 + 0.9e-4), True), (30, 30 * (1 + 1.1e-4), False),
+    (29.97, 30, False), (60, "60000/1001", False), (60, 30, False)])
+def test_same_rate_tells_ntsc_from_whole_rates(a, b, same):
+    from common import same_rate
+    assert same_rate(a, b) is same and same_rate(b, a) is same
+
+
 def test_sample_colors_relative_coords():
     img = Image.new("RGB", (1290, 2796), "#112233")
     img.paste((250, 240, 10), (0, 1398, 645, 2796))  # bottom-left quarter

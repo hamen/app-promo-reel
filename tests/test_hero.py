@@ -91,6 +91,7 @@ def test_a_16x9_build_needs_no_beats_and_writes_no_sound(tmp_path):
     assert "<audio" not in html and "<video" not in html
     assert not re.search(r"\{\{", html)
     assert re.search(r'id="root"[^>]*data-width="1920" data-height="1080" data-format="16:9"', html)
+    assert re.search(r'id="root"[^>]*data-fps="30"', html)
     # the AI label survives: it is the EU AI Act disclosure
     assert '"aiLabel"' in html and html.rfind("data-ai-label-guard") > html.index('"aiLabel"')
 
