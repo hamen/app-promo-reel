@@ -292,7 +292,8 @@ def measure(project_dir, project):
         shutil.rmtree(folder, ignore_errors=True)
     for f in findings(doc):
         message = str(f.get("message", ""))
-        if f.get("code") == "page_error" and message.startswith("the AI-generated label"):
+        # anywhere in the message: a renderer that puts a prefix ("Uncaught Error: ") on page errors
+        if f.get("code") == "page_error" and "the AI-generated label" in message:
             die(f"{message}: fix it, then run the build's check command")
     return pass_lines(doc, token)
 

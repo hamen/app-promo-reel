@@ -242,6 +242,14 @@ def test_a_page_the_label_guard_fails_exits_2_with_its_message(fake):
     assert r.stdout == ""
 
 
+def test_the_refusal_holds_when_the_renderer_puts_a_prefix_on_the_page_error(fake):
+    doc = fixture()
+    runtime(doc).append({"code": "page_error", "severity": "error", "message": "Uncaught Error: " + GUARD_ERROR})
+    fake.write(doc)
+    r = fake.run()
+    assert r.returncode == 2 and GUARD_ERROR in r.stderr and r.stdout == "", r.stderr
+
+
 def test_the_refusal_is_needed(fake, tmp_path):
     # control mutation: a copy of the scripts whose read_check has no refusal times the page the guard fails
     scripts = tmp_path / "scripts"
