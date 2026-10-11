@@ -442,6 +442,14 @@ def test_docs_pin_the_feed_safe_box_the_density_rule_and_the_punch_cap():
     assert "The last line build.py prints is `check: <command>`. Run that command" in doc("references", "pipeline.md")
 
 
+def test_docs_state_the_limits_of_the_seekability_check():
+    motion = " ".join(SCRIPTS.parent.joinpath("references", "motion.md").read_text().split())
+    sec = motion[motion.index("## Seekable frames"):motion.index("## Motion blur")]
+    assert "A `<script>` inside an HTML comment is still read: delete it instead of commenting it out" in sec
+    assert "The check is a guard, not a proof" in sec and "(also with `?.`)" in sec
+    assert "write it as a constant (a seeded list in the file)" in sec
+
+
 def test_docs_name_the_fps_token_and_the_blur_rates():
     pipeline = " ".join(SCRIPTS.parent.joinpath("references", "pipeline.md").read_text().split())
     tokens = pipeline[pipeline.index("- Template tokens:"):pipeline.index("- In the page script")]

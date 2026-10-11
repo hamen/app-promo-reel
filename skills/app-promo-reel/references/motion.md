@@ -57,8 +57,12 @@ A frame must depend only on the time `t`: `frame = render(t)`. Then a seek, a re
 snapshot all show the same picture. `build.py` fails (exit 2) when an inline script of the page
 uses a hidden clock or a random value: `Math.random`, `Date.now`, `Date(` / `new Date`,
 `performance.now`, `setTimeout`, `setInterval`, `requestAnimationFrame`,
-`crypto.getRandomValues`, `crypto.randomUUID`. Comments, strings and template text are not
-read. Scripts with a `src` and inline event-handler attributes are not read.
+`crypto.getRandomValues`, `crypto.randomUUID` (also with `?.`). JavaScript comments, strings and
+template text are not read. A `<script>` inside an HTML comment is still read: delete it instead of
+commenting it out. Scripts with a `src` and inline event-handler attributes are not read. The check is
+a guard, not a proof: it reads names as written, so a name held in another variable
+(`const M = Math; M.random()`), bracket access (`Math["random"]()`) or a script it does not read can
+still make two renders differ.
 
 If you need variation, write it as a constant (a seeded list in the file), or derive it from
 `t` with `Math.sin`. Check a built page again with `build.py <project>`.
