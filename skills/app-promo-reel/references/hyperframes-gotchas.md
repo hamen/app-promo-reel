@@ -4,7 +4,11 @@ Pin the version: `npx --yes hyperframes@0.8.78 …` (the project's package.json 
 
 ## Timeline
 - The page registers `window.__timelines["main"] = tl` on a paused GSAP timeline; the root has
-  `data-composition-id="main"`, `data-start="0"` and `data-duration` = project duration.
+  `data-composition-id="main"`, `data-start="0"`, `data-duration` = project duration and
+  `data-fps` = project fps (`{{FPS}}`).
+- `render` takes the frame rate from `--fps`, else from the root's `data-fps`, else 30. It reads a
+  whole number or a fraction (`30000/1001`) there. A decimal `data-fps` such as `29.97` is ignored
+  with no message, and the render runs at 30 (measured).
 - Every scene is a `<section class="clip" data-start data-duration data-track-index>`. Its
   times come from beat tokens. Overlap neighbours by ~0.1-0.3 s for the transition.
 - **Every `fromTo` whose from-state is visible needs `immediateRender: false`** — shakes,

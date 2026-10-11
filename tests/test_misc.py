@@ -442,6 +442,14 @@ def test_docs_pin_the_feed_safe_box_the_density_rule_and_the_punch_cap():
     assert "The last line build.py prints is `check: <command>`. Run that command" in doc("references", "pipeline.md")
 
 
+def test_docs_name_the_fps_token_and_the_blur_rates():
+    pipeline = " ".join(SCRIPTS.parent.joinpath("references", "pipeline.md").read_text().split())
+    tokens = pipeline[pipeline.index("- Template tokens:"):pipeline.index("- In the page script")]
+    assert "`{{FPS}}` (the root's `data-fps`, from project.json)" in tokens
+    assert "200 for 25 fps, `240000/1001` for 29.97 and 59.94 fps" in pipeline
+    assert "build.py writes the fps on the composition root as `data-fps`" in pipeline
+
+
 def test_docs_pin_the_optional_motion_blur_step():
     import blur
 
