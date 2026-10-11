@@ -3,10 +3,12 @@
 
 Usage: critique_check.py <project_dir> [--round N]      (default: the highest N)
 Exit 0: the file is well formed. Exit 1: one line per problem on stderr (or no file for the round).
+Exit 2: the file cannot be read, or the project's project.json is missing or not valid.
 It checks form, not quality: that each defect has a time that has a frame, a file that exists as
 evidence and a file to fix. Whether the scores are right is for the reader of the frames.
 """
 import argparse
+import math
 import re
 import sys
 from pathlib import Path
@@ -90,7 +92,9 @@ def check(project_dir, text):
         except ValueError:
             t = None
         if t is None or not 0 <= t <= last_t + 1e-9:
-            problems.append((n, f"t={t_raw}: must be a time from 0 to {last_t:.3f} s (the last frame of the video)"))
+            # rounded down, so the printed limit is accepted; the 1e-9 is the check's own tolerance above
+            limit = math.floor((last_t + 1e-9) * 1000) / 1000
+            problems.append((n, f"t={t_raw}: must be a time from 0 to {limit:.3f} s (the last frame of the video)"))
         ev = pdir / evidence
         if not inside(ev, pdir):
             problems.append((n, f"evidence {evidence} leaves the project folder"))
