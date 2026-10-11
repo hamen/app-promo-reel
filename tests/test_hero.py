@@ -96,6 +96,15 @@ def test_a_16x9_build_needs_no_beats_and_writes_no_sound(tmp_path):
     assert '"aiLabel"' in html and html.rfind("data-ai-label-guard") > html.index('"aiLabel"')
 
 
+@pytest.mark.parametrize("fps, want", [(60, "60"), (29.97, "30000/1001")])
+def test_the_hero_root_carries_the_project_fps(tmp_path, fps, want):
+    def edit(p):
+        doc = json.loads((p / "project.json").read_text())
+        (p / "project.json").write_text(json.dumps({**doc, "fps": fps}))
+    p, _ = built(tmp_path, edit)
+    assert re.search(rf'id="root"[^>]*data-fps="{want}"', (p / "index.html").read_text())
+
+
 def test_the_built_hero_registers_its_timeline_as_main(tmp_path):
     p, _ = built(tmp_path)
     html = (p / "index.html").read_text()
