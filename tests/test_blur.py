@@ -281,9 +281,11 @@ def late_start(tmp_path, clip):
 @pytest.mark.parametrize("case, rule", [
     ("16:9", "blur is for 9:16 and 4:5"),
     ("missing", "not found"),
-    ("30 fps input", "whole multiple (4 or more) of the project fps"),
-    ("25 fps project", "whole multiple (4 or more) of the project fps"),
-    ("29.97 fps project", "whole multiple (4 or more) of the project fps"),
+    ("30 fps input", "whole multiple (4 or more) of the project fps (30); render with --fps 240 for 30 fps"),
+    ("25 fps project", "whole multiple (4 or more) of the project fps (25); render with --fps 240 for 30 fps, "
+                       "or with the largest multiple of the project fps up to 240 (200 for 25 fps)"),
+    ("29.97 fps project", "whole multiple (4 or more) of the project fps (29.97). There is no motion blur at "
+                          "23.976, 29.97 or 59.94 fps (references/pipeline.md, step 5): render without --fps"),
     ("65 frames", "not a whole number of output frames"),
     ("size", "is 256x320, but a 9:16 project is 1080x1920"),
     ("no audio", "has no audio stream"),
@@ -303,6 +305,10 @@ def test_a_bad_input_exits_2_and_writes_nothing(tmp_path, case, rule):
         src = late_start(tmp_path, src)
     r = run_blur(proj, src)
     assert r.returncode == 2 and rule in r.stderr, r.stderr
+    if "fps" in case:
+        # each fps gets only its own fix: at an NTSC rate the largest multiple renders as 240/1 and loops
+        ntsc = case == "29.97 fps project"
+        assert ("largest multiple" in r.stderr) is not ntsc and ("no motion blur" in r.stderr) is ntsc, r.stderr
     assert nothing_written(proj)
 
 

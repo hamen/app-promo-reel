@@ -56,6 +56,7 @@ CELL = 16            # fastest: cells of 16 x 16 sampled pixels (64 x 64 px); on
 FAST_MIN = 2.0       # gray levels: a frame below this did not move
 FAST_MAX, FAST_GAP = 6, 0.5
 RATE_TOL = 1e-4      # 240000/1001 over a project fps of 29.97 is 8.0000027
+NTSC_FPS = (23.976, 29.97, 59.94)  # the NTSC project rates of build.py's NTSC_FPS
 START_TOL = 0.001
 X264 = ["-c:v", "libx264", "-preset", "slow", "-crf", "15", "-profile:v", "high", "-pix_fmt", "yuv420p"]
 # ffprobe field -> ffmpeg option, for the four colour tags
@@ -181,10 +182,13 @@ def check_input(project, src):
     fps = project["fps"]
     k = factor(info["rate"], fps) if info["rate"] else None
     if k is None:
-        die(f"{src} runs at {info['rate']} fps: the input rate must be a whole multiple (4 or more) of the "
-            f"project fps ({fps:g}); render with --fps 240 for 30 fps, or with the largest multiple of the "
-            f"project fps up to 240 (200 for 25 fps). There is no motion blur at 23.976, 29.97 or 59.94 fps "
-            f"(references/pipeline.md, step 5): render without --fps and finish that file")
+        rule = (f"{src} runs at {info['rate']} fps: the input rate must be a whole multiple (4 or more) of the "
+                f"project fps ({fps:g})")
+        if fps in NTSC_FPS:  # their largest multiple up to 240 renders as 240/1, which is no multiple
+            die(f"{rule}. There is no motion blur at 23.976, 29.97 or 59.94 fps (references/pipeline.md, "
+                f"step 5): render without --fps and finish that file")
+        die(f"{rule}; render with --fps 240 for 30 fps, or with the largest multiple of the project fps up "
+            f"to 240 (200 for 25 fps)")
     n = info["frames"]
     if (info["avg_rate"] != info["rate"] or info["start"] is None or abs(info["start"]) > START_TOL
             or info["duration"] is None or abs(info["duration"] - n / info["rate"]) > 1 / info["rate"]):
