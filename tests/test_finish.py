@@ -339,7 +339,8 @@ def test_video_info_reads_the_frame_rate(monkeypatch, rate, want):
     assert vi["rate"] == want
     problems = finish.picture_problems({"width": 1, "height": 1, "format": "9:16", "fps": 30, "duration": 4},
                                        vi, vi)
-    assert ("ffprobe gives no frame rate for the video" in problems) is (want is None)
+    no_rate = [p for p in problems if p.startswith("ffprobe gives no frame rate for the video")]
+    assert bool(no_rate) is (want is None) and all("render it again" in p for p in no_rate)
 
 
 def test_video_info_falls_back_to_the_format_duration(monkeypatch):
@@ -599,14 +600,14 @@ def test_a_beat_up_to_two_frames_before_a_cut_plans_it(tmp_path, frames_before, 
 def test_a_bad_data_start_skips_only_its_own_scene(tmp_path):
     marks(tmp_path, (0.0, "x", "1e999", 1.0))
     assert finish.scene_starts((tmp_path / "index.html").read_text()) == ([0.0, 1.0], [
-        "index.html: data-start 'x' is not a number: that scene start is not compared with cuts",
-        "index.html: data-start '1e999' is not a number: that scene start is not compared with cuts"])
+        "index.html: data-start 'x' is not a finite number: that scene start is not compared with cuts",
+        "index.html: data-start '1e999' is not a finite number: that scene start is not compared with cuts"])
     r = checks(tmp_path, np.concatenate([texture(1, 30), texture(2, 30)]))
     assert [(e["type"], e["time"], e["planned"]) for e in r["events"]] == [("cut", 1.0, True)]
     assert r["warnings"] == [STILL_1S]
     assert r["notes"] == [
-        "index.html: data-start 'x' is not a number: that scene start is not compared with cuts",
-        "index.html: data-start '1e999' is not a number: that scene start is not compared with cuts"]
+        "index.html: data-start 'x' is not a finite number: that scene start is not compared with cuts",
+        "index.html: data-start '1e999' is not a finite number: that scene start is not compared with cuts"]
 
 
 def test_frame_warnings_reach_stderr(tmp_path, proj, capsys):

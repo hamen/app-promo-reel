@@ -247,7 +247,7 @@ def test_blur_end_to_end(tmp_path, clip):
     assert audio_md5(out) == audio_md5(clip)
 
     assert line(r.stdout, "blur") == ["K=8,", "5", "of", "8", "input", "frames", "per", "output", "frame", "(about",
-                                      "225", "degrees),", "8", "frames,", "1", "windows", "cut", "short"]
+                                      "225", "degrees),", "8", "frames,", "1", "window", "cut", "short"]
     assert line(r.stdout, "cuts") == ["0.167"]
     fastest = line(r.stdout, "fastest")
     assert len(fastest) == 1 and fastest[0] in ("0.067", "0.100", "0.133")

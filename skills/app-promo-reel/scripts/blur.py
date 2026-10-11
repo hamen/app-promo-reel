@@ -183,7 +183,8 @@ def check_input(project, src):
     if k is None:
         die(f"{src} runs at {info['rate']} fps: the input rate must be a whole multiple (4 or more) of the "
             f"project fps ({fps:g}); render with --fps 240 for 30 fps, or with the largest multiple of the "
-            f"project fps up to 240 (200 for 25 fps, 240000/1001 for 29.97)")
+            f"project fps up to 240 (200 for 25 fps). There is no motion blur at 23.976, 29.97 or 59.94 fps "
+            f"(references/pipeline.md, step 5): render without --fps and finish that file")
     n = info["frames"]
     if (info["avg_rate"] != info["rate"] or info["start"] is None or abs(info["start"]) > START_TOL
             or info["duration"] is None or abs(info["duration"] - n / info["rate"]) > 1 / info["rate"]):
@@ -281,7 +282,8 @@ def blur(project_dir, src, out=None):
 
     times = lambda ns: " ".join(f"{float(i / rate):.3f}" for i in ns) or "none"  # noqa: E731
     print(f"blur: K={k}, {2 * r + 1} of {k} input frames per output frame "
-          f"(about {round(360 * (2 * r + 1) / k)} degrees), {n_out} frames, {len(cut_short)} windows cut short")
+          f"(about {round(360 * (2 * r + 1) / k)} degrees), {n_out} frames, {len(cut_short)} "
+          f"{'window' if len(cut_short) == 1 else 'windows'} cut short")
     print(f"cuts: {times(cut_short)}")
     print(f"fastest: {times(pick_fastest(scores, rate))}")
     print(f"wrote {out}")
