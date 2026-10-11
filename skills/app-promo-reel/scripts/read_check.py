@@ -11,18 +11,21 @@ decides (references/storyboard.md, "Reading time"). It exits 2 when it cannot me
 2. Rule: a caption needs max(MIN_READ, PER_WORD x words) seconds. Its time is its longest readable run,
    in frames. It is short when that run has fewer frames than the need.
 3. Readable, at a frame: inside its scene's time; it and every element inside it that holds a word of
-   its own are shown (no display: none, visibility visible, opacity 0.9 or more along the way up to the
-   composition root, the scene and the root included, no blur over 2 px), not cut by a clip-path or an
-   overflow box, and the box of its text is inside its scene's box.
+   its own are shown (no display: none, visibility visible, the opacities on the way up to the
+   composition root multiplied together 0.9 or more, the scene and the root included, no blur over
+   2 px), not cut by a clip-path or an overflow box, and the box of its text is inside its scene's box.
 4. How: the measuring pass seeks the timeline frame by frame, and a page that seeks its timeline at
    load renders differently (measured: 765 of 900 frames changed). So the pass never goes into the
    project's index.html. read_check copies index.html, adds the pass, puts the copy in a temporary
    folder next to symlinks to the other project files, and runs `hyperframes check` on that folder. The
    pass reports through console warnings that carry a token drawn for the run; other findings of that
    check are ignored (the build's own check command reports them), except the error of build.py's
-   AI-label guard, which is in the copy too: a page that fails it (a clip, a fade or a move of the whole
-   reel) is not timed, exit 2. The folder is removed at the end, also on an error or Ctrl-C. The project
-   is never changed.
+   AI-label guard, which is in the copy too: a page that fails it is not timed, exit 2. The guard sees
+   a clip, a fade or a move of the whole reel made by a style, a GSAP tween, a CSS animation or a CSS
+   transition, as the page stands at load and after document.fonts.ready; not one that a callback
+   (tl.call, onUpdate) or a later timeline makes, and a CSS transition only while it runs
+   (references/hyperframes-gotchas.md). The folder is removed at the end, also on an error or Ctrl-C.
+   The project is never changed.
 
 Usage: read_check.py <project_dir>
 """
@@ -118,8 +121,8 @@ PASS = r"""<script data-read-check>
         if (cs.display === "none") return false;
         opacity *= parseFloat(cs.opacity);
         if (worstBlur(cs.filter) > BLUR_PX) return false;
-        // no clip test on the root either: build.py's AI-label guard fails a page whose root is clipped,
-        // transformed, tweened or animated, and read_check then exits 2 (measure)
+        // no clip test on the root either: a clip of the root also clips the AI label, which build.py's
+        // guard checks (its limits: references/hyperframes-gotchas.md)
         if (n === root) break;
         const box = n.getBoundingClientRect();
         if (cs.clipPath && cs.clipPath !== "none") {
