@@ -511,7 +511,7 @@ def test_a_script_that_does_not_run_inline_is_not_scanned(attrs):
     check_seekable(page("Math.random()", attrs))
 
 
-@pytest.mark.parametrize("end", ["</script foo>", "</script/>", "</script\tdata-x='1'>"])
+@pytest.mark.parametrize("end", ["</script foo>", "</script/>", "</script\tdata-x='1'>", '</script data-x="a>b">'])
 def test_an_end_tag_with_more_after_its_name_still_ends_a_scanned_script(capsys, end):
     # the browser ends a script at </script and white space, / or >; with no later </script> in the page
     # (a literal page, not page(), which adds one) the script was not read at all
