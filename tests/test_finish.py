@@ -303,6 +303,45 @@ def test_video_info_without_stream_or_duration_exits_2(monkeypatch, capsys, doc,
     assert e.value.code == 2 and expect in capsys.readouterr().err
 
 
+def test_a_video_at_another_rate_than_project_json_fails(tmp_path, capsys):
+    # the render ran at 30 (no data-fps on the root) for a 60 fps project: size and duration agree,
+    # and before the rate check finish.py said ok, with the poster taken from the wrong time
+    p = write_project(tmp_path, duration=4, fps=60)
+    (p / "renders").mkdir()
+    realize(p, [])
+    assert finish.finish(p, make_raw_mp4(tmp_path, fps=30)) == 1
+    err = capsys.readouterr().err
+    assert "video runs at 30/1 fps, project.json says 60 fps" in err
+    assert 'data-fps="{{FPS}}"' in err and "src.html.tmpl" in err and "blur step of references/pipeline.md" in err
+    assert (p / "renders" / "demo-a-v1-failed.mp4").is_file() and not (p / "renders" / "demo-a-v1.mp4").exists()
+
+
+def test_an_ntsc_video_passes_a_29_97_project(tmp_path):
+    # 29.97 in project.json and 30000/1001 in the video are the same rate; the mux keeps the rate
+    p = write_project(tmp_path, duration=4, fps=29.97)
+    (p / "renders").mkdir()
+    realize(p, [])
+    raw = make_raw_mp4(tmp_path, fps="30000/1001")
+    assert finish.finish(p, raw) == 0
+    report = json.loads((p / "renders" / "demo-a-v1-report.json").read_text())
+    assert report["video"]["rate"] == "30000/1001" and report["problems"] == []
+
+
+@pytest.mark.parametrize("rate, want", [("30000/1001", "30000/1001"), ("60/1", "60/1"), ("0/0", None), ("", None),
+                                        ("-30/1", None), ("abc", None), (None, None)])
+def test_video_info_reads_the_frame_rate(monkeypatch, rate, want):
+    s = {"codec_name": "h264", "width": 1, "height": 1, "nb_read_packets": "120", "duration": "4.0"}
+    if rate is not None:
+        s["r_frame_rate"] = rate
+    doc = {"streams": [s], "format": {}}
+    monkeypatch.setattr(finish, "run", lambda cmd: subprocess.CompletedProcess(cmd, 0, json.dumps(doc), ""))
+    vi = finish.video_info("x.mp4")
+    assert vi["rate"] == want
+    problems = finish.picture_problems({"width": 1, "height": 1, "format": "9:16", "fps": 30, "duration": 4},
+                                       vi, vi)
+    assert ("ffprobe gives no frame rate for the video" in problems) is (want is None)
+
+
 def test_video_info_falls_back_to_the_format_duration(monkeypatch):
     doc = {"streams": [{"codec_name": "h264", "width": 1, "height": 1, "nb_read_packets": "120"}],
            "format": {"duration": "4.000"}}

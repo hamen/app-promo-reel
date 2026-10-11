@@ -385,6 +385,28 @@ def test_size_tokens_come_from_the_format(tmp_path, fmt, want):
     assert substitute("{{WIDTH}} {{HEIGHT}} {{FORMAT}} {{FRAME_SCALE}}", GRID, load_project(tmp_path)) == want
 
 
+@pytest.mark.parametrize("fps, want", [(30, "30"), (60, "60"), (25, "25"), (1, "1"), (240, "240"), (60.0, "60"),
+                                       (29.97, "30000/1001"), (59.94, "60000/1001"), (23.976, "24000/1001")])
+def test_the_fps_token_is_the_rate_as_hyperframes_reads_it(tmp_path, fps, want):
+    # HyperFrames takes a whole number or N/D from data-fps; a decimal such as "29.97" it ignores
+    from common import load_project
+    (tmp_path / "project.json").write_text(json.dumps({"app": "x", "variant": "a", "fps": fps}))
+    assert substitute("{{FPS}}", GRID, load_project(tmp_path)) == want
+
+
+@pytest.mark.parametrize("fps", [12.5, 23.98, 59.944, 47.952, 241, 0.5])
+def test_an_fps_hyperframes_cannot_render_exits_2(tmp_path, capsys, fps):
+    from common import load_project
+    (tmp_path / "project.json").write_text(json.dumps({"app": "x", "variant": "a", "fps": fps}))
+    project = load_project(tmp_path)
+    with pytest.raises(SystemExit) as e:
+        substitute("{{FPS}}", GRID, project)
+    assert e.value.code == 2
+    assert f"fps {fps:g}: HyperFrames renders a whole number" in capsys.readouterr().err
+    # the check is in the token: a page without it builds at any fps (finish.py checks the video)
+    assert substitute("{{DURATION}}", GRID, project) == "30"
+
+
 # --- the seekability check and the {{MOTION}} token (the motion language) ---------------------
 
 def page(js, attrs=""):

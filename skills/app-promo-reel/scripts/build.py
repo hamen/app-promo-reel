@@ -16,6 +16,10 @@ Tokens (the `{{ }}` delimiter never appears in CSS, so @font-face/@media/@keyfra
   {{STORES}}                   JSON array of the project's stores (project.json)
   {{WIDTH}} / {{HEIGHT}}       the frame size of the project's format (project.json)
   {{FORMAT}}                   the format: 9:16, 4:5 or 16:9
+  {{FPS}}                      the project fps as HyperFrames reads it on the root's data-fps: a
+                               whole number from 1 to 240, or 24000/1001, 30000/1001, 60000/1001 for
+                               23.976, 29.97, 59.94; any other fps exits 2 (HyperFrames ignores a
+                               decimal data-fps and renders at 30)
   {{FRAME_SCALE}}              the frame height divided by the 9:16 height (1 for 9:16): scales
                                pixel distances, e.g. a camera shake, to the frame
   {{MOTION}}                   the text of <project>/motion.js (the spring eases and the MOTION
@@ -59,6 +63,21 @@ _OPS = {ast.Add: operator.add, ast.Sub: operator.sub, ast.Mult: operator.mul, as
 
 class CalcError(ValueError):
     pass
+
+
+# the NTSC rates as HyperFrames takes them: a decimal data-fps such as "29.97" is ignored
+NTSC_FPS = {23.976: "24000/1001", 29.97: "30000/1001", 59.94: "60000/1001"}
+
+
+def render_fps(fps):
+    """project.json fps as the root's data-fps, or CalcError for a rate HyperFrames cannot render."""
+    if float(fps).is_integer() and 1 <= fps <= 240:
+        return str(int(fps))
+    if fps in NTSC_FPS:
+        return NTSC_FPS[fps]
+    raise CalcError(f"fps {fps:g}: HyperFrames renders a whole number of frames per second from 1 to "
+                    f"240, or one of the NTSC rates 23.976, 29.97 and 59.94; set fps in project.json "
+                    f"to one of these")
 
 
 BEAT_TOKENS = ("D", "E", "LEN", "TO_END", "BEFORE_END", "BEATS", "DOWNBEAT_INDEX", "BEATS_PER_BAR")
@@ -153,6 +172,8 @@ def substitute(src, grid, project, motion=None):
             return str(project[name.lower()])
         if name == "FORMAT":
             return project["format"]
+        if name == "FPS":
+            return render_fps(project["fps"])
         if name == "FRAME_SCALE":
             return f"{project['height'] / FORMATS['9:16'][1]:g}"
         if name == "MOTION":

@@ -251,6 +251,26 @@ def test_the_page_takes_its_size_from_the_format(tmp_path, fmt, w, h, scale):
     assert re.search(rf"html,\s*body \{{\s*width: {w}px;\s*height: {h}px;", html)
     assert re.search(rf'id="root"[^>]*data-width="{w}" data-height="{h}" data-format="{fmt}"', html)
     assert f"const FRAME_SCALE = {scale};" in html
+    assert re.search(r'id="root"[^>]*data-fps="30"', html)
+
+
+def set_fps(fps):
+    def edit(p):
+        doc = json.loads((p / "project.json").read_text())
+        (p / "project.json").write_text(json.dumps({**doc, "fps": fps}))
+    return edit
+
+
+@pytest.mark.parametrize("fps, want", [(60, "60"), (29.97, "30000/1001")])
+def test_the_root_carries_the_project_fps(tmp_path, fps, want):
+    # without data-fps HyperFrames renders at 30, whatever project.json says
+    _, html = build(tmp_path, edit=set_fps(fps))
+    assert re.search(rf'id="root"[^>]*data-fps="{want}"', html)
+
+
+def test_an_fps_the_renderer_cannot_take_stops_the_build(tmp_path):
+    _, err = build(tmp_path, edit=set_fps(12.5), expect=2)
+    assert "fps 12.5: HyperFrames renders a whole number" in err and "Traceback" not in err
 
 
 def test_the_template_fixes_no_frame_height():

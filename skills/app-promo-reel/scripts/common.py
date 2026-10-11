@@ -10,6 +10,7 @@ import math
 import re
 import subprocess
 import sys
+from fractions import Fraction
 from pathlib import Path
 
 # the frame size of each format; "9:16" is the default and the reference for FRAME_SCALE
@@ -35,6 +36,9 @@ PROJECT_DEFAULTS = {
     "stores": ["app_store", "google_play"],
 }
 KNOWN_STORES = ("app_store", "google_play")
+# two frame rates are the same rate within this share: 29.97 against 30000/1001 is about 1e-6,
+# 29.97 against 30 is about 1e-3
+RATE_TOL = 1e-4
 
 
 def is_silent(project):
@@ -52,6 +56,12 @@ def is_number(v):
         return math.isfinite(v)
     except OverflowError:
         return False
+
+
+def same_rate(a, b):
+    """True when the frame rates `a` and `b` (numbers, Fractions or "N/D" strings, above 0) are the
+    same within RATE_TOL."""
+    return abs(Fraction(a) / Fraction(b) - 1) < RATE_TOL
 
 
 def die(msg, code=2):

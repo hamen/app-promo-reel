@@ -13,7 +13,8 @@ pickup beats before it); `beat` is 0-based inside the bar; `beats_per_bar` is in
   `{{TO_END 12}}`, `{{calc D(2)-0.3}}` (numbers, + − * /, parentheses, D, E, DURATION only),
   `{{BEFORE_END 1.1 D(13, 3)}}` (renders nothing; the build fails when the time is less than
   1.1 s before the end),
-  `{{BEATS}}`, `{{DOWNBEAT_INDEX}}`, `{{BEATS_PER_BAR}}`, `{{DURATION}}`, `{{STORES}}`.
+  `{{BEATS}}`, `{{DOWNBEAT_INDEX}}`, `{{BEATS_PER_BAR}}`, `{{DURATION}}`, `{{STORES}}`,
+  `{{FPS}}` (the root's `data-fps`, from project.json).
 - In the page script the same `D()` / `E()` exist in JavaScript.
 - `cues.json` `"at"` fields and `make_bed.py --drop-bar k` use the same `D()`.
 
@@ -27,7 +28,10 @@ SFX_DIR=~/my-sfx $PY $S/new_project.py --app myapp --variant a --lang en --store
 would show a badge for a store the app is not in.
 Default out folder `~/app-promo-reels`. Refuses a folder inside a git work tree (use `--force`
 if you are sure) and always refuses the app-promo-reel repo itself. project.json is the one
-place for duration, fps, format, beats per bar and stores.
+place for duration, fps, format, beats per bar and stores. build.py writes the fps on the
+composition root as `data-fps`, and the render runs at that rate. The fps is a whole number from
+1 to 240, or one of the NTSC rates 23.976, 29.97 and 59.94; build.py stops on any other value.
+finish.py fails a video whose frame rate is not the project fps.
 `--format`: `9:16` (1080x1920; Reels, TikTok, Shorts, Stories; the default) or `4:5` (1080x1350; a
 feed post). The format sets the frame size: width and height in project.json must match it, and
 `16:9` (1920x1080; a silent web-hero loop, see `hero.md`) is a different product, not a wider
@@ -149,7 +153,9 @@ $PY $S/blur.py $P renders/sub240.mp4
 $PY $S/finish.py $P renders/raw.mp4
 ```
 The input rate must be a whole multiple (4 or more) of the project fps: `--fps 240` for 30 fps,
-the largest multiple up to 240 for another fps (200 for 25 fps). blur.py prints `cuts:` (the frames
+the largest multiple up to 240 for another whole fps (200 for 25 fps). Not for 23.976, 29.97 or
+59.94 fps: measured with HyperFrames 0.8.78, `--fps 240000/1001` writes a video that ffprobe reads
+as 240/1, and blur.py refuses it. blur.py prints `cuts:` (the frames
 whose window a cut made shorter) and `fastest:` (the frames to check for copies, `references/motion.md`,
 "Motion blur"). It sets the colour tags of the render on its raw frames as well as on the output:
 with tags on the output only, ffmpeg 7 converts the colour matrix and a still frame changes level.

@@ -13,6 +13,15 @@ import sample_colors
 from conftest import SCRIPTS, run_script, tone_file
 
 
+@pytest.mark.parametrize("a, b, same", [
+    (30, "30/1", True), (29.97, "30000/1001", True), ("240000/1001", 29.97 * 8, True),
+    (30, 30 * (1 + 0.9e-4), True), (30, 30 * (1 + 1.1e-4), False),
+    (29.97, 30, False), (60, "60000/1001", False), (60, 30, False)])
+def test_same_rate_tells_ntsc_from_whole_rates(a, b, same):
+    from common import same_rate
+    assert same_rate(a, b) is same and same_rate(b, a) is same
+
+
 def test_sample_colors_relative_coords():
     img = Image.new("RGB", (1290, 2796), "#112233")
     img.paste((250, 240, 10), (0, 1398, 645, 2796))  # bottom-left quarter
@@ -431,6 +440,16 @@ def test_docs_pin_the_feed_safe_box_the_density_rule_and_the_punch_cap():
     step5 = skill[skill.index("5. **Build, check"):skill.index("6. **Critique")]
     assert "run the `check:` command it prints as its last line" in step5
     assert "The last line build.py prints is `check: <command>`. Run that command" in doc("references", "pipeline.md")
+
+
+def test_docs_name_the_fps_token_and_the_blur_rates():
+    pipeline = " ".join(SCRIPTS.parent.joinpath("references", "pipeline.md").read_text().split())
+    tokens = pipeline[pipeline.index("- Template tokens:"):pipeline.index("- In the page script")]
+    assert "`{{FPS}}` (the root's `data-fps`, from project.json)" in tokens
+    # measured: HyperFrames 0.8.78 writes --fps 240000/1001 as 240/1, which blur.py refuses
+    assert "(200 for 25 fps). Not for 23.976, 29.97 or 59.94 fps" in pipeline
+    assert "`--fps 240000/1001` writes a video that ffprobe reads as 240/1" in pipeline
+    assert "build.py writes the fps on the composition root as `data-fps`" in pipeline
 
 
 def test_docs_pin_the_optional_motion_blur_step():

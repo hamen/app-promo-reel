@@ -44,9 +44,10 @@ the first, the **seam**, against the 3 steps before it and the 3 after it (the r
 `moved` sees shapes (a phone shifted by 1 px, a 1.5 degree tilt: both measured). `mad` sees soft light
 (a glow that ends 15 % larger and 60 px away is caught; 8 % and 30 px was not caught).
 
-A bad seam, a clip with fewer than 8 frames, a decode that fails, or a frame count
-that is not `duration x fps` (one frame more or less is a hitch at the seam) all go into the report
-`problems` and the exit code is 1. The report has a `seam` block with the numbers.
+A bad seam, a clip with fewer than 8 frames, a decode that fails, a frame rate that is not the
+project fps, or a frame count that is not `duration x fps` (one frame more or less is a hitch at
+the seam) all go into the report `problems` and the exit code is 1. The report has a `seam` block
+with the numbers.
 
 A loop that passes can still be dull. Play the clip twice in a row (a doubled strip of frames
 around the seam) and look at it before you deliver.
