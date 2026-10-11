@@ -153,8 +153,9 @@ $PY $S/blur.py $P renders/sub240.mp4
 $PY $S/finish.py $P renders/raw.mp4
 ```
 The input rate must be a whole multiple (4 or more) of the project fps: `--fps 240` for 30 fps,
-the largest multiple up to 240 for another fps (200 for 25 fps, `240000/1001` for 29.97 and
-59.94 fps). blur.py prints `cuts:` (the frames
+the largest multiple up to 240 for another whole fps (200 for 25 fps). Not for 23.976, 29.97 or
+59.94 fps: measured with HyperFrames 0.8.78, `--fps 240000/1001` writes a video that ffprobe reads
+as 240/1, and blur.py refuses it. blur.py prints `cuts:` (the frames
 whose window a cut made shorter) and `fastest:` (the frames to check for copies, `references/motion.md`,
 "Motion blur"). It sets the colour tags of the render on its raw frames as well as on the output:
 with tags on the output only, ffmpeg 7 converts the colour matrix and a still frame changes level.

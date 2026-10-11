@@ -446,7 +446,9 @@ def test_docs_name_the_fps_token_and_the_blur_rates():
     pipeline = " ".join(SCRIPTS.parent.joinpath("references", "pipeline.md").read_text().split())
     tokens = pipeline[pipeline.index("- Template tokens:"):pipeline.index("- In the page script")]
     assert "`{{FPS}}` (the root's `data-fps`, from project.json)" in tokens
-    assert "200 for 25 fps, `240000/1001` for 29.97 and 59.94 fps" in pipeline
+    # measured: HyperFrames 0.8.78 writes --fps 240000/1001 as 240/1, which blur.py refuses
+    assert "(200 for 25 fps). Not for 23.976, 29.97 or 59.94 fps" in pipeline
+    assert "`--fps 240000/1001` writes a video that ffprobe reads as 240/1" in pipeline
     assert "build.py writes the fps on the composition root as `data-fps`" in pipeline
 
 
