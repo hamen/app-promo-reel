@@ -58,6 +58,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from fractions import Fraction
 from pathlib import Path
 
 import numpy as np
@@ -65,7 +66,7 @@ import scipy.signal as ss
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from common import (attack_index, decode_audio, die, is_number, is_silent, load_project, read_json,  # noqa: E402
-                    SCENE_SETTLE, SCENE_SETTLE_END, scene_spans, scene_windows)
+                    same_rate, SCENE_SETTLE, SCENE_SETTLE_END, scene_spans, scene_windows)
 
 SR = 48000
 TARGET_I, TARGET_TP, TARGET_LRA = -14.0, -2.0, 11.0
@@ -127,7 +128,7 @@ def next_version_path(renders, stem):
 
 def video_info(path):
     out = run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-count_packets", "-show_entries",
-               "stream=codec_name,width,height,nb_read_packets,duration:format=duration", "-of", "json",
+               "stream=codec_name,width,height,nb_read_packets,duration,r_frame_rate:format=duration", "-of", "json",
                str(path)]).stdout
     doc = json.loads(out)
     streams = doc.get("streams") or []
@@ -141,7 +142,16 @@ def video_info(path):
     if duration is None:
         die(f"ffprobe gives no duration for {path}")
     return {"codec": s["codec_name"], "width": s["width"], "height": s["height"],
-            "frames": int(s["nb_read_packets"]), "duration": round(duration, 3)}
+            "frames": int(s["nb_read_packets"]), "duration": round(duration, 3), "rate": _rate(s.get("r_frame_rate"))}
+
+
+def _rate(v):
+    """The frame rate as ffprobe writes it ("30/1", "30000/1001"), or None for a missing or unreadable
+    one ("0/0" is what ffprobe writes when it does not know the rate)."""
+    try:
+        return v if Fraction(v) > 0 else None
+    except (TypeError, ValueError, ZeroDivisionError):
+        return None
 
 
 def _seconds(v):
@@ -603,14 +613,22 @@ def frame_checks(pdir, mp4, vi, silent=False):
 
 
 def picture_problems(project, vi_raw, vi_out):
-    """The video stream is unchanged by the mux, has the size of the format and the duration of
-    project.json (within one frame)."""
+    """The video stream is unchanged by the mux, has the size of the format, the frame rate and the
+    duration of project.json (the duration within one frame)."""
     problems = []
     if vi_raw != vi_out:
         problems.append(f"video stream changed: {vi_raw} -> {vi_out}")
     if (vi_out["width"], vi_out["height"]) != (project["width"], project["height"]):
         problems.append(f"video is {vi_out['width']}x{vi_out['height']}, project.json says "
                         f"{project['width']}x{project['height']} (format {project['format']}): build and render again")
+    if vi_out["rate"] is None:
+        problems.append("ffprobe gives no frame rate for the video")
+    elif not same_rate(vi_out["rate"], project["fps"]):
+        problems.append(f"video runs at {vi_out['rate']} fps, project.json says {project['fps']:g} fps: the "
+                        "composition root sets the render rate. Check that #root in the project's src.html.tmpl "
+                        'has data-fps="{{FPS}}" (a project made before that token does not: add it next to '
+                        "data-duration), then build and render again. For motion blur, render at the rate that "
+                        "the blur step of references/pipeline.md gives for this fps")
     frame = 1.0 / project["fps"]
     if abs(vi_out["duration"] - project["duration"]) > frame + 1e-6:
         problems.append(f"video is {vi_out['duration']}s, project.json says {project['duration']:g}s")

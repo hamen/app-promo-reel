@@ -228,9 +228,9 @@ def eased(i):  # 0 at both ends of the loop, with zero speed there
     return 30 * np.sin(np.pi * i / N) ** 2
 
 
-def encode(path, frames, audio=False):
+def encode(path, frames, audio=False, rate="30"):
     n, h, w = frames.shape
-    cmd = ["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "gray", "-s", f"{w}x{h}", "-framerate", "30",
+    cmd = ["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "gray", "-s", f"{w}x{h}", "-framerate", rate,
            "-i", "-"]
     if audio:
         cmd += ["-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo", "-shortest", "-c:a", "aac"]
@@ -273,6 +273,15 @@ def test_a_loop_that_ends_a_few_pixels_off_fails_the_seam(tmp_path, hero, px):
     # px at 192 px wide: the check decodes at 480 px, so the shift is 2.5x as large there
     raw = encode(tmp_path / "raw.mp4", loop_frames(lambda i: eased(i) + px * (i / N) ** 6))
     assert finish.finish(hero, raw) == 1
+
+
+def test_a_loop_at_30_fps_fails_a_29_97_project(tmp_path, hero, capsys):
+    # the frame count allows one frame either way at 29.97, so it does not see a 30 fps render
+    doc = json.loads((hero / "project.json").read_text())
+    (hero / "project.json").write_text(json.dumps({**doc, "fps": 29.97}))
+    assert finish.finish(hero, encode(tmp_path / "raw.mp4", loop_frames(eased))) == 1
+    assert "video runs at 30/1 fps, project.json says 29.97 fps" in capsys.readouterr().err
+    assert finish.finish(hero, encode(tmp_path / "ntsc.mp4", loop_frames(eased), rate="30000/1001")) == 0
 
 
 def test_the_final_file_of_a_silent_loop_has_no_audio_even_if_the_render_had_some(tmp_path, hero):

@@ -19,10 +19,10 @@ def click(sr, dur=0.004, freq=3000.0, amp=0.8):
     return amp * np.sin(2 * np.pi * freq * t) * np.exp(-t / (dur / 4))
 
 
-def write_project(tmp_path, duration=30, stores=("app_store", "google_play"), bpb=4):
+def write_project(tmp_path, duration=30, stores=("app_store", "google_play"), bpb=4, fps=30):
     p = tmp_path / "proj"
     p.mkdir(exist_ok=True)
-    (p / "project.json").write_text(json.dumps({"app": "demo", "variant": "a", "duration": duration, "fps": 30,
+    (p / "project.json").write_text(json.dumps({"app": "demo", "variant": "a", "duration": duration, "fps": fps,
                                                 "beats_per_bar": bpb, "stores": list(stores)}))
     return p
 
