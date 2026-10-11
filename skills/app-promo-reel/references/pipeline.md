@@ -30,7 +30,10 @@ Default out folder `~/app-promo-reels`. Refuses a folder inside a git work tree 
 if you are sure) and always refuses the app-promo-reel repo itself. project.json is the one
 place for duration, fps, format, beats per bar and stores. build.py writes the fps on the
 composition root as `data-fps`, and the render runs at that rate. The fps is a whole number from
-1 to 240, or one of the NTSC rates 23.976, 29.97 and 59.94; build.py stops on any other value.
+1 to 240, or one of the NTSC rates 23.976, 29.97 and 59.94; build.py stops on any other value
+where the template has `{{FPS}}` (the stock templates do). A template without it (a project made
+before the token) builds at any fps and renders at 30; at another project fps, finish.py then fails
+the video and names the fix.
 finish.py fails a video whose frame rate is not the project fps.
 `--format`: `9:16` (1080x1920; Reels, TikTok, Shorts, Stories; the default) or `4:5` (1080x1350; a
 feed post). The format sets the frame size: width and height in project.json must match it, and
@@ -91,8 +94,9 @@ $PY $S/make_bed.py $P/work/music/bgm_5.wav $P --drop-bar 6
 - `beat_grid.py --bpm`: the value asked of ACE-Step; for MusicGen and an own track, the `tempo`
   column of the rank table. When beat_grid stops ("the grid came out at X BPM") it writes
   nothing: count the seed as rejected and never run make_bed on it.
-- music_rank.py and beat_grid.py judge only the first `--duration` seconds, the part make_bed
-  keeps; an outro after it does not count.
+- music_rank.py judges only the first `--duration` seconds; beat_grid.py and make_bed.py use the
+  duration in project.json. Give music_rank.py the project duration, so all three judge the part
+  make_bed keeps; an outro after it does not count.
 - An own track needs a steady tempo and no quiet passage inside that window: choose the window
   with `--start`. For a 3/4 or 6/8 track, set `beats_per_bar` in project.json first.
 - Seeds with a real lift: note `lift_at` from the rank table (drop rule: storyboard.md).
@@ -127,10 +131,23 @@ npx --yes hyperframes@0.8.78 snapshot --at 1.0,2.4,4.6,... --describe false --no
   (`references/motion.md`). The build still succeeds.
 - build.py adds the AI-generated label itself (text from `CONFIG.aiLabel`) with the last script
   of index.html: never add a label element or CSS for it to the template. A `page_error` about
-  the AI-generated label in `hyperframes check` means it is empty, something hides it, (9:16 and
-  4:5) it is not fully inside the feed safe box: shorten `CONFIG.aiLabel`, or a tween animates the
-  composition root, `body` or `html` (animate a child of the root instead, for example a full-frame
-  layer).
+  the AI-generated label in `hyperframes check` means that the page breaks SKILL.md rule 7. The
+  message names the cause:
+  - empty, or no visible character → write the text of `CONFIG.aiLabel`.
+  - "is not fully inside the feed safe box" (9:16, 4:5) or "the frame" → shorten `CONFIG.aiLabel`.
+  - "is outside the page" → a style moved the composition root partly off the page: move it back.
+  - "display: none", "is clipped", "is faded out", "is masked", "filtered or blended element",
+    "transformed element" (`transform`, `translate`, `rotate`, `scale`), "zoomed element" → a style
+    on the composition root, `body` or `html` (build.py sets the label's own display, opacity, clip,
+    filter and transform with `!important`): remove it.
+  - "is zoomed" → `zoom` on the label: remove it.
+  - "restyled out of sight" or "covered by its ::before / ::after" → a script changed the label (its
+    look is locked, and its words sit in a closed shadow root): never change the label from a script.
+  - "animated by a GSAP tween" or "by a CSS animation or transition" (the label, the root, `body`,
+    `html`) → animate a child of the root instead (for a fade to black, a full-frame layer).
+  - The guard reads the page at load and again after `document.fonts.ready`. It does not see a
+    callback (`tl.call`, `onUpdate`) or a later timeline (`references/hyperframes-gotchas.md`): never
+    hide or move the label or the root that way.
 - Leftover or unknown `{{…}}` → exit 2.
 - A cue whose SFX file is missing is skipped with a warning; the build still succeeds.
 - Snapshots: pick every scene middle and every transition ±0.1 s. Write each round to a new
@@ -175,7 +192,9 @@ change near no beat and no scene start, or a still run over 0.8 s (not for 16:9;
 hold 2.5 s; `"holds"` in the report). They are in the report under `"frames"`; the critique step of SKILL.md reads them.
 When every check passed, finish.py also writes `…-v<N>-poster.jpg`: one frame at the full video size
 (JPEG, quality 90) for a store listing, a link preview or a social cover. It is the frame with the most
-detail among the settled frame of each scene (1.1 s after its start, 0.5 s before the end for the last one);
-the report has `"poster"` with its time, its score and every candidate. `--poster-at <s>` names the frame
-instead (0 or more, inside the video; else exit 2 before any file is written). A poster that cannot be
-written fails the run like any error after the mux: `-failed`, no report. The skill never uploads it.
+detail among the settled frame of each scene (1.1 s after its start, 0.5 s before the end for the last one).
+With no such frame, and always for a 16:9 hero (one scene), it is the middle frame of the video, unless
+`--poster-at` is set. The report has `"poster"` with its time, its score and every candidate.
+`--poster-at <s>` names the frame instead (0 or more, inside the video; else exit 2 before any file is
+written). A poster that cannot be written fails the run like any error after the mux: `-failed`, no
+report. The skill never uploads it.
