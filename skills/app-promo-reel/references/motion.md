@@ -44,7 +44,9 @@ shake.
 The template's entrance classes (`headline` 0.35 s, `icon` 0.32 s, `panel` 0.55 s) and its scene exits
 (0.2-0.3 s) are inside. Two moves are outside on purpose: the `slam` helper (0.2 s: `#feat-title`,
 `#ben-line`, `#val-a`, `#val-b`) and `#phone` (0.7 s). `micro` (0.18 s) is a response in place, not an
-entrance, and the template timeline does not use it.
+entrance, and the template timeline does not use it. Some template moves keep their own ease instead
+of the class ease, for example the end-card `#icon` (`power4.in`: at full speed on the hit, with the
+shake and the flash) and the slams, the benefit whips and the store badges (`expo.out`).
 
 The template does not keep to calm ranges of distance, scale and rotation (a short travel, a scale
 from just under 1, a small turn). Its loud moves are deliberate: the captions drop 220 px, the
@@ -70,16 +72,17 @@ If you need variation, write it as a constant (a seeded list in the file), or de
 ## Motion blur
 Optional, for 9:16 and 4:5 reels with fast moves: render at 240 fps and let `scripts/blur.py` make
 the project-fps video (commands in `references/pipeline.md`, step 5). It costs about 2.5 minutes for
-a 30 s reel instead of about 25 s.
+a 30 s reel instead of about 25 s. Not at 23.976, 29.97 or 59.94 fps (`references/pipeline.md`, step 5).
 - Each output frame averages the input frames within a third of a frame of its time: 5 of 8 at
   30 fps (about 225° of shutter), 3 of 4 at 60 fps. The window is centred on the frame time.
-- No blur across a cut. A step between two input frames 2.5 times the steps around it (or more) is
-  a cut, and the frame keeps only the side of its own time. That catches hard cuts, slams on a frame
-  time, and the in and out steps of a one-frame flash (that frame gets less blur). An instant change
-  in the gap between two windows (more than a third of a frame from both frame times) is in no
-  window and needs no cut. A change inside a window that is too small for the cut rule blends on
-  that one frame. A cut under a fast move can be too small too: the frame shows a ghost of the old
-  scene, and blur.py names that frame on its `fastest:` line.
+- No blur across a cut. A step between two input frames (the mean change of gray level) is a cut
+  when it is more than 1 gray level and more than 2.5 times the median of the steps around it (two
+  on each side, fewer at the ends of the clip). The frame keeps only the side of its own time. That
+  catches hard cuts, slams on a frame time, and the in and out steps of a one-frame flash (that
+  frame gets less blur). An instant change in the gap between two windows (more than a third of a
+  frame from both frame times) is in no window and needs no cut. A change inside a window that is
+  too small for the cut rule blends on that one frame. A cut under a fast move can be too small too:
+  the frame shows a ghost of the old scene, and blur.py names that frame on its `fastest:` line.
 - Copies: the samples of a frame sit one input frame apart. A move faster than about 10 × K px per
   output frame (K input frames per output frame: 80 px at 30 fps, 40 px at 60 fps) shows separate
   copies instead of a smear. The stock s2 exit whip moves about 210 px per frame and shows 5 copies.

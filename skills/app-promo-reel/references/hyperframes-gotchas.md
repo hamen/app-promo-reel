@@ -17,8 +17,9 @@ Pin the version: `npx --yes hyperframes@0.8.78 …` (the project's package.json 
 - A property in the from-vars but not in the to-vars animates BACK to its CSS value. Put it in
   both (a slide-in screen with `opacity: 1` only in the from-state stayed invisible).
 - A tween `ease` can be a plain function of progress. HyperFrames 0.8.78 accepts it: `check`
-  reports 0 errors, snapshots repeat exactly and two draft renders gave identical frame hashes.
-  The springs in `motion.js` rely on this (`references/motion.md`).
+  reports 0 errors, snapshots repeat exactly and two draft renders gave identical frame hashes in
+  that run (a render does not always repeat exactly: see below). The springs in `motion.js` rely on
+  this (`references/motion.md`).
 - `build.py` fails when an inline script uses `Math.random`, `Date.now`, a timer or
   `requestAnimationFrame`: a frame must depend only on `t`, or two renders differ.
 - Hide an element after it leaves with a short `tl.to(…, {opacity: 0, duration: 0.02})`, not
@@ -71,6 +72,8 @@ Pin the version: `npx --yes hyperframes@0.8.78 …` (the project's package.json 
 - `render -o renders/raw.mp4 -q delivery --quiet`. Then finish.py.
 - Motion blur: `render -o renders/sub240.mp4 -q delivery --fps 240 --quiet`, then `scripts/blur.py`
   writes `renders/raw.mp4` (`references/pipeline.md`, step 5).
+- Two renders of one page are not always identical (measured). To compare two builds frame by
+  frame, render each side more than once and compare the sets.
 
 ## Off-page text and the contrast check
 `hyperframes check` measures the text of a clipped, off-page element (a screen parked at

@@ -454,8 +454,12 @@ AI_LABEL_GUARD = r"""<script data-ai-label-guard>
       if (box.left < frame.left || box.top < frame.top || box.right > frame.right || box.bottom > frame.bottom) {
         fail(safe ? "is not fully inside the feed safe box (references/storyboard.md)" : "is not fully inside the frame");
       }
-      // the boxes above are relative to the root: a root moved off the page takes the label with it
-      if (box.left < 0 || box.top < 0 || box.right > innerWidth || box.bottom > innerHeight) fail("is not fully inside the frame");
+      // getBoundingClientRect() reads viewport coordinates, and the frame above comes from the root's
+      // box: a root partly off the page takes the label with it and passes that test, so the page is
+      // checked too
+      if (box.left < 0 || box.top < 0 || box.right > innerWidth || box.bottom > innerHeight) {
+        fail("is outside the page (the composition root is partly off it)");
+      }
     }
     // the checks above read the page at one moment; a tween or a CSS animation can still hide the
     // label later in the video (a fade of the whole reel), so none may animate the label or an

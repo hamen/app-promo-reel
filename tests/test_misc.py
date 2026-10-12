@@ -129,7 +129,7 @@ def test_music_gen_second_process_exits_2(tmp_path, monkeypatch):
                             f"music_gen.LOCK = Path({str(lock)!r}); "
                             f"music_gen.main(['--prompt', 'x', '--duration', '30', '--seeds', '1', '--out', {str(tmp_path / 'o')!r}])"],
                            capture_output=True, text=True, cwd=str(music_gen.__file__.rsplit('/', 1)[0]))
-    assert r.returncode == 2 and "another music_gen.py is running" in r.stderr
+    assert r.returncode == 2 and "another music generator is running" in r.stderr
 
 
 def test_repo_root_from_a_linked_worktree(tmp_path):

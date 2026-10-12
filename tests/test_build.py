@@ -649,6 +649,7 @@ try { new Function(%s)(); for (const f of later) f(); console.log("ok"); } catch
 """
 BOX_FAIL = "the AI-generated label is not fully inside the feed safe box (references/storyboard.md): it must stay on screen"
 FRAME_FAIL = "the AI-generated label is not fully inside the frame: it must stay on screen"
+PAGE_FAIL = "the AI-generated label is outside the page (the composition root is partly off it): it must stay on screen"
 
 
 def run_guard(fmt, pill, setup="", mutate=None):
@@ -714,7 +715,7 @@ ANIMATED = [
     # zoom shrinks the label without a transform: in 16:9, anchored right, it stays inside the frame
     ("root.cs = { zoom: '0.8' };", "sits in a zoomed element: it must stay on screen"),
     ("document.fonts.ready.then(() => { label().cs = { zoom: '0.5' }; });", "is zoomed: it must stay on screen"),
-    ("root.shift = 4000;", FRAME_FAIL[len("the AI-generated label "):]),                        # moved with its label
+    ("root.shift = 4000;", PAGE_FAIL[len("the AI-generated label "):]),                         # moved with its label
     ("root.anims = [{}];", "sits in the composition root, which is animated " + CSS_FAIL),
     ("document.fonts.ready.then(() => { label().anims = [{}]; });", "is animated " + CSS_FAIL),
 ]
@@ -747,8 +748,8 @@ GUARD_MUTATIONS = {
     "no translate read": [("[cs.transform, cs.translate, cs.rotate, cs.scale]", "[cs.transform, cs.rotate, cs.scale]")],
     "no zoom read": [('      if (!["1", "normal"].includes(cs.zoom)) fail(n === el ? "is zoomed" : "sits in a zoomed element");\n', "")],
     "no transform read": [("[cs.transform, cs.translate, cs.rotate, cs.scale]", "[]")],
-    "no viewport read": [("      if (box.left < 0 || box.top < 0 || box.right > innerWidth || box.bottom > innerHeight) "
-                          'fail("is not fully inside the frame");\n', "")],
+    "no viewport read": [("      if (box.left < 0 || box.top < 0 || box.right > innerWidth || box.bottom > innerHeight) {\n"
+                          '        fail("is outside the page (the composition root is partly off it)");\n      }\n', "")],
 }
 
 

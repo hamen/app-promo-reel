@@ -7,8 +7,8 @@ video that uses the output. This script makes no claim about what it permits.
 Every hard failure (no torch/CUDA, CUDA out of memory, a model that cannot load or generate, a
 file that cannot be written, a duration the model cannot make) stops the run with exit 2. A
 seed whose output is shorter than asked gets no file; the other seeds still run, and the run
-exits 2 at the end naming it. No broken seed can ever be ranked. Only one music_gen.py runs at
-a time (GPU memory): a second one exits 2.
+exits 2 at the end naming it. No broken seed can ever be ranked. Only one music generator (this
+script or music_gen_ace.py) runs at a time (GPU memory): a second one exits 2.
 
 Usage: music_gen.py --prompt "..." --duration 30 --seeds 5,17,23 --out work/
 Writes <out>/bgm_<seed>.wav for each seed.
@@ -24,6 +24,8 @@ MODEL = "facebook/musicgen-small"
 FRAME_RATE = 50          # musicgen audio tokens per second
 HEADROOM = 1.2           # extra seconds generated past the video length
 MAX_TOKENS = 1560        # the longest generation this script accepts (31.2 s)
+# the same path as music_gen_ace.py's LOCK (it runs in another venv, so the path is repeated
+# there): one music generator at a time, whichever it is
 LOCK = Path(tempfile.gettempdir()) / f"app-promo-reel-music-gen-{os.getuid()}.lock"
 
 
@@ -66,7 +68,7 @@ def main(argv=None):
         lock = open(LOCK, "a")
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except BlockingIOError:
-        fail(f"another music_gen.py is running (lock {LOCK}); run one at a time")
+        fail(f"another music generator is running (lock {LOCK}); run one at a time")
     except OSError as e:
         fail(f"cannot use the lock file {LOCK}: {e}")
     # an old bgm_<seed>.wav from an earlier run must not survive a failure and get ranked

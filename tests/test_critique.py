@@ -1,5 +1,6 @@
 import json
 import os
+import re
 from pathlib import Path
 
 import pytest
@@ -119,7 +120,18 @@ def test_t_must_have_a_frame(proj, t, ok):
     r = check(proj)
     assert (r.returncode == 0) == ok, r.stderr
     if not ok:
-        assert f"t={t}: must be a time from 0 to 3.967 s" in r.stderr
+        assert f"t={t}: must be a time from 0 to 3.966 s" in r.stderr
+
+
+def test_the_limit_in_the_message_is_accepted(proj):
+    # 4 s at 30 fps: the last frame is at 3.96667 s; the message must not print a limit (3.967) that fails
+    write(proj, SCORES + "\n" + DEFECT.replace("t=1.2", "t=99") + "\n")
+    r = check(proj)
+    m = re.search(r"must be a time from 0 to (\S+) s", r.stderr)
+    assert r.returncode == 1 and m, r.stderr
+    write(proj, SCORES + "\n" + DEFECT.replace("t=1.2", f"t={m.group(1)}") + "\n")
+    r = check(proj)
+    assert r.returncode == 0, r.stderr
 
 
 def test_missing_evidence_fails(proj):

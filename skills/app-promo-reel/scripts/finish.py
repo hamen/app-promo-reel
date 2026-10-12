@@ -386,7 +386,7 @@ def scene_starts(html):
         except ValueError:
             t = None
         if not is_number(t):
-            notes.append(f"index.html: data-start {m.group(2)!r} is not a number: that scene start is "
+            notes.append(f"index.html: data-start {m.group(2)!r} is not a finite number: that scene start is "
                          f"not compared with cuts")
             continue
         starts.append(t)
@@ -622,7 +622,8 @@ def picture_problems(project, vi_raw, vi_out):
         problems.append(f"video is {vi_out['width']}x{vi_out['height']}, project.json says "
                         f"{project['width']}x{project['height']} (format {project['format']}): build and render again")
     if vi_out["rate"] is None:
-        problems.append("ffprobe gives no frame rate for the video")
+        problems.append("ffprobe gives no frame rate for the video: it is not a HyperFrames render, or it is "
+                        "damaged; render it again (references/pipeline.md, step 5)")
     elif not same_rate(vi_out["rate"], project["fps"]):
         problems.append(f"video runs at {vi_out['rate']} fps, project.json says {project['fps']:g} fps: the "
                         "composition root sets the render rate. Check that #root in the project's src.html.tmpl "

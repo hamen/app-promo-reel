@@ -26,8 +26,10 @@ These rules win over any creative idea:
 7. The AI-generated label (`CONFIG.aiLabel`, in the video's language) stays on screen for the
    whole video. Never remove it. build.py's script at the end of the page creates the label
    from `CONFIG.aiLabel` and fails `hyperframes check` when it is empty, when something
-   (display, opacity, filter, clip-path, transform, position) keeps it from being seen, or when
-   a GSAP tween or a CSS animation animates the label, the composition root, `body` or `html`.
+   (display, opacity, filter, blend mode, clip-path, mask, `transform`, `translate`, `rotate`,
+   `scale` or `zoom` on the elements that hold it, or a place outside the frame or the page)
+   keeps it from being seen, or when a GSAP tween, a CSS animation or a CSS transition animates
+   the label, the composition root, `body` or `html`.
    The render does not stop on that error: never render a page whose check fails.
 8. When an asset is missing (icon, screenshot, font), use a clearly labelled placeholder and
    tell the user. Never fake it.
@@ -103,9 +105,9 @@ Commands for every step: `references/pipeline.md`.
    purpose, entry state and exit state. If you cannot say why a scene exists, it does not belong
    in the render. `build.py` fails when a scene has no row. Never delete `shotlist.md`. In 9:16 and
    4:5, keep every text and tap inside the feed safe box at the format's minimum size, and keep
-   something moving: no still second (`references/storyboard.md`, "Feed safe zones" and
-   "Density"). See `references/storyboard.md`, `references/motion.md` and
-   `references/hyperframes-gotchas.md`.
+   something moving (`references/storyboard.md`, "Feed safe zones" and "Density"): nothing still
+   for more than 0.8 s, except the end card (at most 2.5 s). See `references/storyboard.md`,
+   `references/motion.md` and `references/hyperframes-gotchas.md`.
 5. **Build, check, look, render, finish.**
    - `build.py <project>` → run the `check:` command it prints as its last line, until 0 errors.
      In 9:16 and 4:5 it reads the bottom of the feed safe box at the settled times.
