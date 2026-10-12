@@ -436,6 +436,15 @@ def seekable_error(html, capsys):
     ("requestAnimationFrame", "requestAnimationFrame(tick);"),
     ("crypto.getRandomValues", "crypto.getRandomValues(a);"),
     ("crypto.randomUUID", "const id = crypto.randomUUID();"),
+    ("Math.random", "const r = Math.random?.();"),
+    # optional chaining is the same call to the browser
+    ("Math.random", "const r = Math?.random();"),
+    ("Math.random", "const r = Math ?.random();"),
+    ("Date.now", "const t = Date?.now();"),
+    ("Date(", "const d = Date?.();"),
+    ("performance.now", "const t = performance?.now();"),
+    ("crypto.getRandomValues", "crypto?.getRandomValues(a);"),
+    ("crypto.randomUUID", "const id = crypto?.randomUUID();"),
 ])
 def test_a_hidden_clock_or_random_value_exits_2_and_quotes_its_line(capsys, name, line):
     err = seekable_error(page(f"const a = 1;\n    {line}\nconst b = 2;"), capsys)
@@ -482,7 +491,12 @@ def test_text_inside_an_attribute_value_does_not_hide_a_script_from_the_check(ca
                                    " type=module", ' TYPE="Module"', ' type=""', ' type',
                                    ' type="module" type="application/json"',
                                    ' type="text/javascript; charset=UTF-8"', ' type="text/javascript;charset=utf-8"',
-                                   ' type=" text/javascript "', ' type="\tmodule\n"'])
+                                   ' type=" text/javascript "', ' type="\tmodule\n"'] + [
+    # the other JavaScript MIME type essences of the HTML standard: the browser runs these too
+    f' type="{t}"' for t in ("application/ecmascript", "application/x-ecmascript", "application/x-javascript",
+                             "text/ecmascript", "text/javascript1.0", "text/javascript1.1", "text/javascript1.2",
+                             "text/javascript1.3", "text/javascript1.4", "text/javascript1.5", "text/jscript",
+                             "text/livescript", "text/x-ecmascript", "TEXT/X-JavaScript")])
 def test_a_script_that_runs_is_scanned(capsys, attrs):
     assert "Math.random" in seekable_error(page("Math.random()", attrs), capsys)
 
@@ -495,6 +509,21 @@ def test_a_script_that_runs_is_scanned(capsys, attrs):
 def test_a_script_that_does_not_run_inline_is_not_scanned(attrs):
     from build import check_seekable
     check_seekable(page("Math.random()", attrs))
+
+
+@pytest.mark.parametrize("end", ["</script foo>", "</script/>", "</script\tdata-x='1'>", '</script data-x="a>b">'])
+def test_an_end_tag_with_more_after_its_name_still_ends_a_scanned_script(capsys, end):
+    # the browser ends a script at </script and white space, / or >; with no later </script> in the page
+    # (a literal page, not page(), which adds one) the script was not read at all
+    assert "Math.random" in seekable_error(f"<html><body><script>\nMath.random();\n{end}</body></html>", capsys)
+
+
+def test_a_quoted_gt_in_the_end_tag_does_not_end_it():
+    # the browser runs only the first script: the second <script> is text in an attribute value of the end
+    # tag. The newlines keep it out of a JavaScript string when a pattern reads the value as script text.
+    from build import check_seekable
+    check_seekable('<html><body><script>const a = 1;</script data-x="a>\n<script>Math.random()</script>\n">'
+                   "</body></html>")
 
 
 def test_every_hit_in_every_inline_script_gets_its_own_line(capsys):

@@ -95,6 +95,25 @@ def test_a_scene_with_no_id_stops_the_build(tmp_path):
           edit_html=lambda h: h.replace('<section id="s2" ', "<section ", 1))
 
 
+def test_a_data_id_is_not_an_id(tmp_path):
+    fails(tmp_path, lambda t: t, "a scene has no id",
+          edit_html=lambda h: h.replace('<section id="s2" ', '<section data-id="s2" ', 1))
+
+
+def test_two_live_sections_with_one_id_stop_the_build(tmp_path):
+    # one row would cover both of them
+    err = fails(tmp_path, lambda t: t, "scene s2: 2 live sections have this id; each scene needs its own id",
+                edit_html=lambda h: h.replace('<section id="s3" ', '<section id="s2" ', 1))
+    assert err.count("live sections have this id") == 1
+
+
+def test_a_shared_id_with_no_row_is_reported_once(tmp_path):
+    def html(h):
+        return h.replace('<section id="s2" ', '<section id="s9" ', 1).replace('<section id="s3" ', '<section id="s9" ', 1)
+    err = fails(tmp_path, lambda t: t, "scene s9: 2 live sections have this id", "scene s9 has no row", edit_html=html)
+    assert err.count("scene s9 has no row") == 1 and err.count("live sections have this id") == 1
+
+
 def test_every_problem_is_reported_in_one_message(tmp_path):
     def edit(t):
         return t.replace(row(t, "s3") + "\n", "").rstrip("\n") + "\n| s9 | a | b | c |\n"
@@ -109,8 +128,16 @@ def test_a_commented_out_scene_needs_no_row(tmp_path):
 
 def test_a_title_before_the_table_is_fine_but_no_table_or_two_fail(tmp_path):
     scaffold_and_build(tmp_path / "ok", edit=lambda t: "# Another title\n\nSome prose.\n\n" + t)
-    fails(tmp_path / "none", lambda t: "# Shot list\n\nnothing here\n", "found 0")
-    fails(tmp_path / "two", lambda t: t + "\n" + t, "found 2")
+    fails(tmp_path / "none", lambda t: "# Shot list\n\nnothing here\n",
+          "whose header row is `| scene | purpose | entry state | exit state |`, found 0: every row of the "
+          "table starts with `|`")
+    assert "starts with" not in fails(tmp_path / "two", lambda t: t + "\n" + t, "found 2")
+
+
+def test_rows_without_the_end_pipe_still_build(tmp_path):
+    def edit(t):
+        return "\n".join(x.rstrip().rstrip("|").rstrip() if x.startswith("|") else x for x in t.splitlines()) + "\n"
+    scaffold_and_build(tmp_path, edit=edit)
 
 
 def test_a_row_with_the_wrong_cell_count_stops_the_build(tmp_path):
@@ -132,6 +159,7 @@ def test_the_docs_state_the_shotlist_rule():
     for text in (" ".join(skill.split()), " ".join(story.split())):
         assert "If you cannot say why a scene exists, it does not belong in the render" in text
         assert "Never delete `shotlist.md`" in text
+    assert "no `id` (`data-id` is not an id), or when two live scenes have the same id" in " ".join(story.split())
 
 
 def sep_index(lines):

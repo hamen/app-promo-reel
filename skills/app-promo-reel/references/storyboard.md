@@ -16,8 +16,9 @@
 Each project has a `shotlist.md`: one row per scene, with the scene id (`s1`, not `s1 hook`), its
 purpose, its entry state and its exit state. The Job column above is where the purposes start.
 If you cannot say why a scene exists, it does not belong in the render. `build.py` fails when a
-live scene has no row, when a row has no scene, or when a cell is empty or `TODO`. When you add,
-remove or rename a scene, edit its row. Never delete `shotlist.md`: the check runs only while the
+live scene has no row, when a row has no scene, when a cell is empty or `TODO`, when a live scene has
+no `id` (`data-id` is not an id), or when two live scenes have the same id. When you add, remove or
+rename a scene, edit its row. Never delete `shotlist.md`: the check runs only while the
 file exists.
 
 | scene | purpose | entry state | exit state |

@@ -323,6 +323,19 @@ blur.average = average
     assert nothing_written(proj)
 
 
+def test_a_decoder_that_fails_after_every_frame_is_an_error(tmp_path, clip):
+    # all 64 frames arrive, then the decoder exits 3: its exit code still counts
+    proj = write_proj(tmp_path)
+    old_output(proj)
+    patch = """
+real = blur.decoder_cmd
+blur.decoder_cmd = lambda src: ["sh", "-c", '"$0" "$@"; exit 3', *real(src)]
+"""
+    r = run_blur(proj, clip, patch=patch)
+    assert r.returncode == 2 and "the decoder gave 64 of 64 frames (exit 3)" in r.stderr, r.stderr
+    assert nothing_written(proj)
+
+
 def test_a_decoder_that_stops_early_is_an_error(tmp_path, clip):
     proj = write_proj(tmp_path)
     old_output(proj)

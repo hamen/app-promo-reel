@@ -275,7 +275,7 @@ def check_scenes(html_out, duration):
         start = re.search(r"""\bdata-start\s*=\s*(["'])(.*?)\1""", tag)
         if not start:
             continue
-        name = re.search(r"""\bid\s*=\s*(["'])(.*?)\1""", tag)
+        name = re.search(r"""(?<![\w-])id\s*=\s*(["'])(.*?)\1""", tag)  # not data-id
         try:
             t = float(start.group(2))
         except ValueError:
@@ -298,8 +298,8 @@ def shotlist_rows(text):
     tables = [i for i, line in enumerate(lines) if split_row(line) is not None
               and [c.lower() for c in split_row(line)] == SHOTLIST_HEADER]
     if len(tables) != 1:
-        return (f"it needs exactly one table headed `{' | '.join(SHOTLIST_HEADER)}`, "
-                f"found {len(tables)}")
+        return (f"it needs exactly one table whose header row is `| {' | '.join(SHOTLIST_HEADER)} |`, "
+                f"found {len(tables)}" + (": every row of the table starts with `|`" if not tables else ""))
     sep = split_row(lines[tables[0] + 1]) if tables[0] + 1 < len(lines) else None
     if sep is None or len(sep) != len(SHOTLIST_HEADER) or not all(re.fullmatch(r":?-+:?", c) for c in sep):
         return "the line under the header must be a separator row: | --- | --- | --- | --- |"
@@ -340,7 +340,7 @@ def check_shotlist(project_dir, html_out):
     for tag in re.findall(r"<section\b[^>]*>", live):
         if not re.search(r"""\bdata-start\s*=\s*(["']).*?\1""", tag):
             continue
-        name = re.search(r"""\bid\s*=\s*(["'])(.*?)\1""", tag)
+        name = re.search(r"""(?<![\w-])id\s*=\s*(["'])(.*?)\1""", tag)  # not data-id
         if name and name.group(2):
             scenes.append(name.group(2))
         else:
@@ -358,7 +358,10 @@ def check_shotlist(project_dir, html_out):
         for label, cell in zip(SHOTLIST_HEADER[1:], row[1:]):
             if not cell or cell.upper() == "TODO":
                 problems.append(f"scene {scene}: the {label} is empty or TODO")
-    for scene in scenes:
+    for scene in dict.fromkeys(scenes):  # each id once, in page order
+        if scenes.count(scene) > 1:
+            problems.append(f"scene {scene}: {scenes.count(scene)} live sections have this id; each scene needs "
+                            "its own id")
         if scene not in seen:
             problems.append(f"scene {scene} has no row: add one to shotlist.md")
     for scene in seen:
@@ -488,20 +491,28 @@ BLANK_GLYPHS = "\u115f\u1160\u3164\uffa0\u2800"  # letters that draw nothing (Ha
 
 
 SEEKABLE_BANNED = (
-    ("Math.random", r"(?<![\w$])Math\s*\.\s*random(?![\w$])"),
-    ("Date.now", r"(?<![\w$])Date\s*\.\s*now(?![\w$])"),
+    # `?.` is a plain `.` to the browser: Math?.random() is Math.random()
+    ("Math.random", r"(?<![\w$])Math\s*\??\.\s*random(?![\w$])"),
+    ("Date.now", r"(?<![\w$])Date\s*\??\.\s*now(?![\w$])"),
     ("new Date", r"(?<![\w$])new\s+Date(?![\w$])"),
-    ("Date(", r"(?<![\w$])Date\s*\("),
-    ("performance.now", r"(?<![\w$])performance\s*\.\s*now(?![\w$])"),
+    ("Date(", r"(?<![\w$])Date\s*(?:\?\.\s*)?\("),
+    ("performance.now", r"(?<![\w$])performance\s*\??\.\s*now(?![\w$])"),
     ("setTimeout", r"(?<![\w$])setTimeout(?![\w$])"),
     ("setInterval", r"(?<![\w$])setInterval(?![\w$])"),
     ("requestAnimationFrame", r"(?<![\w$])requestAnimationFrame(?![\w$])"),
-    ("crypto.getRandomValues", r"(?<![\w$])crypto\s*\.\s*getRandomValues(?![\w$])"),
-    ("crypto.randomUUID", r"(?<![\w$])crypto\s*\.\s*randomUUID(?![\w$])"),
+    ("crypto.getRandomValues", r"(?<![\w$])crypto\s*\??\.\s*getRandomValues(?![\w$])"),
+    ("crypto.randomUUID", r"(?<![\w$])crypto\s*\??\.\s*randomUUID(?![\w$])"),
 )
-SCRIPT_TAG = r"<script\b((?:\"[^\"]*\"|'[^']*'|[^'\">])*)>(.*?)</script\s*>"
+# the end tag as the HTML tokenizer reads it: the name ends on white space, / or >, and the rest of the
+# tag (`</script foo>`, `</script/>`, a quoted value with a > in it) is read up to its >
+SCRIPT_TAG = (r"<script\b((?:\"[^\"]*\"|'[^']*'|[^'\">])*)>(.*?)"
+              r"</script(?=[ \t\n\f\r/>])(?:\"[^\"]*\"|'[^']*'|[^'\">])*>")
 ATTRIBUTE = r"""([^\s"'>/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?"""
-JS_TYPES = ("", "module", "text/javascript", "application/javascript")
+# every "JavaScript MIME type essence" of the HTML standard runs as a classic script
+JS_TYPES = ("", "module", "application/ecmascript", "application/javascript", "application/x-ecmascript",
+            "application/x-javascript", "text/ecmascript", "text/javascript", "text/javascript1.0",
+            "text/javascript1.1", "text/javascript1.2", "text/javascript1.3", "text/javascript1.4",
+            "text/javascript1.5", "text/jscript", "text/livescript", "text/x-ecmascript", "text/x-javascript")
 
 
 def blank_js(src):
