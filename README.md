@@ -108,8 +108,10 @@ What you can give it:
 A **gated run** stops at four points and waits for you to say go: after the research (the asset
 list), after the storyboard (`DESIGN.md` and `shotlist.md`), after the first render (contact sheet
 and poster), and after the last critique round. Only the words "gated run" or "gated reel" turn it
-on. Without them, the agent runs to the end without stopping, so an unattended job (a scheduled one,
-for example) never waits on a person.
+on. Without them, the agent does not stop between steps. It still asks for an input that is missing,
+and once for the music source when `ACESTEP_DIR` is not set (ACE-Step, MusicGen or your own track).
+For an unattended job (a scheduled one, for example), give the inputs and the music source in the
+request, so that it never waits on a person.
 
 ## What happens, step by step
 
