@@ -21,17 +21,61 @@ last frame flows into the first, and `finish.py` measures that seam. Details:
 
 It **only generates video files.** It does not post, upload, schedule or send anything.
 
-Contents: [Samples](#samples) · [How to use](#how-to-use) · [What happens, step by step](#what-happens-step-by-step) ·
-[What you get](#what-you-get) · [Formats](#formats) · [Iterating](#iterating) ·
-[Troubleshooting](#troubleshooting) · [Requirements](#requirements) · [Install](#install) ·
-[Licences](#licences)
+Contents: [What's new](#whats-new) · [Samples](#samples) · [How to use](#how-to-use) ·
+[What happens, step by step](#what-happens-step-by-step) · [What you get](#what-you-get) ·
+[Formats](#formats) · [Iterating](#iterating) · [Troubleshooting](#troubleshooting) ·
+[Requirements](#requirements) · [Install](#install) · [Licences](#licences)
+
+## What's new
+
+The skill shipped on 2026-09-27 as a 9:16 reel maker. Since then, 21 pull requests have been
+merged. Newest first:
+
+- 2026-10-13: the AI-generated label of 9:16 and 4:5 reels is back in a corner of the frame, at the
+  bottom-left, below the feed safe box ([#21](https://github.com/hamen/app-promo-reel/pull/21)).
+  Inside the box, it read as the middle of the video on a player with no overlay, such as Telegram.
+  To move the label of an older reel, build, check, render and finish it again. The same day: this
+  README, with samples in all three formats ([#20](https://github.com/hamen/app-promo-reel/pull/20)).
+- 2026-10-12: seven checks that could pass a page or a render they exist to refuse now refuse it
+  ([#18](https://github.com/hamen/app-promo-reel/pull/18)), and 21 docs, comments and messages now
+  say what the code does ([#19](https://github.com/hamen/app-promo-reel/pull/19)).
+- 2026-10-11: the frame rate in `project.json` reaches the render, and `finish.py` checks the rate
+  of the MP4 ([#17](https://github.com/hamen/app-promo-reel/pull/17)).
+- 2026-10-10: the AI-label guard reads the timeline. A fade, a clip or a move of the whole reel can
+  no longer hide the label ([#16](https://github.com/hamen/app-promo-reel/pull/16)).
+- 2026-10-09: `read_check.py` times each caption against a reading rule, max(0.8 s, 0.3 s per word)
+  ([#15](https://github.com/hamen/app-promo-reel/pull/15)).
+- 2026-10-08: optional motion blur that stops at cuts: render at 240 fps, and `blur.py` blends the
+  frames into a 30 fps shutter ([#14](https://github.com/hamen/app-promo-reel/pull/14)).
+- 2026-10-07: a feed-safe layout. Text and taps stay out of the platforms' UI zones, at a readable
+  size, and `finish.py` warns when nothing moves for more than 0.8 s
+  ([#13](https://github.com/hamen/app-promo-reel/pull/13)).
+- 2026-10-06: a shot list, a poster frame, a critique file for each round, an optional reference
+  look, and the gated run ([#12](https://github.com/hamen/app-promo-reel/pull/12)).
+- 2026-10-05: a motion language, with one ease for each class of object. The build refuses a page
+  script that reads the clock or a random number, so a seek always gives the same frame
+  ([#11](https://github.com/hamen/app-promo-reel/pull/11)).
+- 2026-10-03: the silent 16:9 hero loop, with a seam check
+  ([#10](https://github.com/hamen/app-promo-reel/pull/10)).
+- 2026-10-01: the 4:5 feed format ([#9](https://github.com/hamen/app-promo-reel/pull/9)), and the
+  first samples in this README ([#4](https://github.com/hamen/app-promo-reel/pull/4)).
+- 2026-09-30: ACE-Step 1.5 is the default music source, and you can bring your own track
+  ([#6](https://github.com/hamen/app-promo-reel/pull/6)). The hook is readable from frame 0
+  ([#7](https://github.com/hamen/app-promo-reel/pull/7),
+  [#8](https://github.com/hamen/app-promo-reel/pull/8)).
+- 2026-09-29: the critique loop and the frame checks
+  ([#5](https://github.com/hamen/app-promo-reel/pull/5)).
+- 2026-09-27: the first release, beat-synced 9:16 reels
+  ([#1](https://github.com/hamen/app-promo-reel/pull/1)).
 
 ## Samples
 
 Every sample is unedited: the MP4s are exactly what `finish.py` delivered. The previews below are
 silent; click one to watch the MP4 (with sound, except the hero). All the files are in the
 [`samples` release](https://github.com/hamen/app-promo-reel/releases/tag/samples), not in git
-(`bin/ci` keeps media out of the repo).
+(`bin/ci` keeps media out of the repo). Every sample was made before 2026-10-13, so its
+AI-generated label sits where the skill put it at that time, not in the corner of
+[#21](https://github.com/hamen/app-promo-reel/pull/21).
 
 ### One app, three formats
 
