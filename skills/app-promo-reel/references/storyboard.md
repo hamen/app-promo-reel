@@ -56,8 +56,9 @@ a line: nothing can be read while it moves.
 
 - Text in a scaled element counts at its rendered size: the 4:5 phone is scaled 0.79, so its 38 px
   text shows at 30 px.
-- The AI-generated label sits at the bottom-left corner of the box (9:16: y 1430-1492, 32 px; 4:5:
-  y 1186-1246, 30 px). Keep that corner free of text in every scene.
+- The AI-generated label sits at the bottom-left corner of the frame, below the box (9:16: y
+  1826-1888, 32 px; 4:5: y 1258.5-1318, 30 px). build.py places it; it is the only text outside the
+  box. On a feed, the feed's caption can cover part of it.
 - Long captions or a paid post: use the strict 9:16 box (bottom 672, right 192) when the user asks
   for it. It is an option the user names, not the default.
 - Put the visual mass near the middle of the box (y 885 in 9:16), not at its top. Do not leave the

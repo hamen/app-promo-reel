@@ -134,7 +134,7 @@ npx --yes hyperframes@0.8.78 snapshot --at 1.0,2.4,4.6,... --describe false --no
   the AI-generated label in `hyperframes check` means that the page breaks SKILL.md rule 7. The
   message names the cause:
   - empty, or no visible character → write the text of `CONFIG.aiLabel`.
-  - "is not fully inside the feed safe box" (9:16, 4:5) or "the frame" → shorten `CONFIG.aiLabel`.
+  - "is not fully inside the frame" → shorten `CONFIG.aiLabel`.
   - "is outside the page" → a style moved the composition root partly off the page: move it back.
   - "display: none", "is clipped", "is faded out", "is masked", "filtered or blended element",
     "transformed element" (`transform`, `translate`, `rotate`, `scale`), "zoomed element" → a style

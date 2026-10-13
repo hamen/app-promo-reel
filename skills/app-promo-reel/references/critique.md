@@ -27,7 +27,8 @@ scores: hook=8 readability=7 motion=8 variety=8 composition=8 claims=9 sound=8
 
 ## Scores with a fixed rule
 
-- **readability**: a text or a tap outside the feed safe box on a settled frame, or a text under the
+- **readability**: a text or a tap outside the feed safe box on a settled frame (not the AI-generated
+  label: build.py puts it at the frame's bottom-left corner), or a text under the
   format's minimum size (`references/storyboard.md`, "Feed safe zones"), caps readability at 6.
   Read the 270 px contact sheet first, then the stills at full size.
   Each `reading time:` warning from read_check.py that is not fixed is a readability defect. Its `t=`
