@@ -28,17 +28,17 @@ Contents: [What's new](#whats-new) · [Samples](#samples) · [How to use](#how-t
 
 ## What's new
 
-The skill shipped on 2026-09-27 as a 9:16 reel maker. Since then, 21 pull requests have been
-merged. Newest first:
+The skill shipped on 2026-09-27 as a 9:16 reel maker. To date, 21 pull requests have been merged.
+Newest first, in merge order:
 
 - 2026-10-13: the AI-generated label of 9:16 and 4:5 reels is back in a corner of the frame, at the
   bottom-left, below the feed safe box ([#21](https://github.com/hamen/app-promo-reel/pull/21)).
   Inside the box, it read as the middle of the video on a player with no overlay, such as Telegram.
   To move the label of an older reel, build, check, render and finish it again. The same day: this
   README, with samples in all three formats ([#20](https://github.com/hamen/app-promo-reel/pull/20)).
-- 2026-10-12: seven checks that could pass a page or a render they exist to refuse now refuse it
-  ([#18](https://github.com/hamen/app-promo-reel/pull/18)), and 21 docs, comments and messages now
-  say what the code does ([#19](https://github.com/hamen/app-promo-reel/pull/19)).
+- 2026-10-12: 21 docs, comments and messages now say what the code does
+  ([#19](https://github.com/hamen/app-promo-reel/pull/19)), and seven checks that could pass a page
+  or a render they exist to refuse now refuse it ([#18](https://github.com/hamen/app-promo-reel/pull/18)).
 - 2026-10-11: the frame rate in `project.json` reaches the render, and `finish.py` checks the rate
   of the MP4 ([#17](https://github.com/hamen/app-promo-reel/pull/17)).
 - 2026-10-10: the AI-label guard reads the timeline. A fade, a clip or a move of the whole reel can
@@ -57,25 +57,27 @@ merged. Newest first:
   ([#11](https://github.com/hamen/app-promo-reel/pull/11)).
 - 2026-10-03: the silent 16:9 hero loop, with a seam check
   ([#10](https://github.com/hamen/app-promo-reel/pull/10)).
-- 2026-10-01: the 4:5 feed format ([#9](https://github.com/hamen/app-promo-reel/pull/9)), and the
-  first samples in this README ([#4](https://github.com/hamen/app-promo-reel/pull/4)).
+- 2026-10-01: the first samples in this README ([#4](https://github.com/hamen/app-promo-reel/pull/4)),
+  and the 4:5 feed format ([#9](https://github.com/hamen/app-promo-reel/pull/9)).
 - 2026-09-30: ACE-Step 1.5 is the default music source, and you can bring your own track
   ([#6](https://github.com/hamen/app-promo-reel/pull/6)). The hook is readable from frame 0
-  ([#7](https://github.com/hamen/app-promo-reel/pull/7),
-  [#8](https://github.com/hamen/app-promo-reel/pull/8)).
+  ([#8](https://github.com/hamen/app-promo-reel/pull/8),
+  [#7](https://github.com/hamen/app-promo-reel/pull/7)).
 - 2026-09-29: the critique loop and the frame checks
-  ([#5](https://github.com/hamen/app-promo-reel/pull/5)).
-- 2026-09-27: the first release, beat-synced 9:16 reels
-  ([#1](https://github.com/hamen/app-promo-reel/pull/1)).
+  ([#5](https://github.com/hamen/app-promo-reel/pull/5)), and the fixes from the closing review of
+  #2 ([#3](https://github.com/hamen/app-promo-reel/pull/3)).
+- 2026-09-27: fixes from the review of the first release
+  ([#2](https://github.com/hamen/app-promo-reel/pull/2)), and the first release, beat-synced 9:16
+  reels ([#1](https://github.com/hamen/app-promo-reel/pull/1)).
 
 ## Samples
 
 Every sample is unedited: the MP4s are exactly what `finish.py` delivered. The previews below are
 silent; click one to watch the MP4 (with sound, except the hero). All the files are in the
 [`samples` release](https://github.com/hamen/app-promo-reel/releases/tag/samples), not in git
-(`bin/ci` keeps media out of the repo). Every sample was made before 2026-10-13, so its
-AI-generated label sits where the skill put it at that time, not in the corner of
-[#21](https://github.com/hamen/app-promo-reel/pull/21).
+(`bin/ci` keeps media out of the repo). Every sample was made before the label change of
+[#21](https://github.com/hamen/app-promo-reel/pull/21), so its AI-generated label sits where the
+skill put it at that time, not at the frame's bottom-left corner.
 
 ### One app, three formats
 
