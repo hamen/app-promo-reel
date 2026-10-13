@@ -28,14 +28,16 @@ Contents: [What's new](#whats-new) · [Samples](#samples) · [How to use](#how-t
 
 ## What's new
 
-The skill shipped on 2026-09-27 as a 9:16 reel maker. To date, 21 pull requests have been merged.
-Newest first, in merge order:
+The skill shipped on 2026-09-27 as a 9:16 reel maker. Every merged pull request is listed here, newest
+first, in merge order:
 
 - 2026-10-13: the AI-generated label of 9:16 and 4:5 reels is back in a corner of the frame, at the
   bottom-left, below the feed safe box ([#21](https://github.com/hamen/app-promo-reel/pull/21)).
   Inside the box, it read as the middle of the video on a player with no overlay, such as Telegram.
   To move the label of an older reel, build, check, render and finish it again. The same day: this
-  README, with samples in all three formats ([#20](https://github.com/hamen/app-promo-reel/pull/20)).
+  README, with samples in all three formats ([#20](https://github.com/hamen/app-promo-reel/pull/20)),
+  this list ([#22](https://github.com/hamen/app-promo-reel/pull/22)), and the 9:16 and 4:5 samples
+  rendered again with the label in the corner ([#23](https://github.com/hamen/app-promo-reel/pull/23)).
 - 2026-10-12: 21 docs, comments and messages now say what the code does
   ([#19](https://github.com/hamen/app-promo-reel/pull/19)), and seven checks that could pass a page
   or a render they exist to refuse now refuse it ([#18](https://github.com/hamen/app-promo-reel/pull/18)).
@@ -75,9 +77,10 @@ Newest first, in merge order:
 Every sample is unedited: the MP4s are exactly what `finish.py` delivered. The previews below are
 silent; click one to watch the MP4 (with sound, except the hero). All the files are in the
 [`samples` release](https://github.com/hamen/app-promo-reel/releases/tag/samples), not in git
-(`bin/ci` keeps media out of the repo). Every sample was made before the label change of
-[#21](https://github.com/hamen/app-promo-reel/pull/21), so its AI-generated label sits where the
-skill put it at that time, not at the frame's bottom-left corner.
+(`bin/ci` keeps media out of the repo). The 9:16 and 4:5 samples were built, checked, rendered and
+finished again after [#21](https://github.com/hamen/app-promo-reel/pull/21), with no edits, so their
+AI-generated label is at the frame's bottom-left corner. The 16:9 hero keeps its label at the
+bottom-right corner.
 
 ### One app, three formats
 
@@ -95,14 +98,14 @@ story text word for word from a store screenshot.
 
 ### More reels
 
-| 3 Things A Day (English) | Smart Pantry (Italian) | facecam-tui (open-source tool) |
-| :---: | :---: | :---: |
-| [![3 Things A Day reel](https://github.com/hamen/app-promo-reel/releases/download/samples/three-things.webp)](https://github.com/hamen/app-promo-reel/releases/download/samples/three-things.mp4) | [![Smart Pantry reel](https://github.com/hamen/app-promo-reel/releases/download/samples/smart-pantry.webp)](https://github.com/hamen/app-promo-reel/releases/download/samples/smart-pantry.mp4) | [![facecam-tui reel](https://github.com/hamen/app-promo-reel/releases/download/samples/facecam-tui.webp)](https://github.com/hamen/app-promo-reel/releases/download/samples/facecam-tui.mp4) |
-| App Store + Google Play end card | Italian copy, App Store + Google Play end card | not a store app: ends on the GitHub link |
+| app-promo-reel (this skill) |
+| :---: |
+| [![app-promo-reel reel](https://github.com/hamen/app-promo-reel/releases/download/samples/app-promo-reel.webp)](https://github.com/hamen/app-promo-reel/releases/download/samples/app-promo-reel.mp4) |
+| 1080×1920, 30 s. Hook "21 pull requests in 17 days"; the skill is on no store, so the end card shows the GitHub link. MusicGen, 121 BPM |
 
-Each of these reels: 30 s, 1080×1920, H.264/AAC at -14 LUFS; every sound effect that `finish.py`
-checks for sync lands within 1 ms of its scheduled time. Every sample, the silent hero included,
-keeps an AI-generation label, in the video's language, on screen for the whole video.
+This reel is H.264/AAC at -14.2 LUFS, and the 22 sound effects that `finish.py` checks for sync land
+within 14 ms of their scheduled times. Every sample, the silent hero included, keeps an AI-generated
+label, in the video's language, on screen for the whole video.
 
 ### The contact sheet
 
