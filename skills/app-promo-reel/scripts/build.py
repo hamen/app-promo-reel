@@ -446,13 +446,10 @@ AI_LABEL_GUARD = r"""<script data-ai-label-guard>
     range.selectNodeContents(words);
     const ink = range.getBoundingClientRect(), root_box = root.getBoundingClientRect();
     if (ink.width < Math.max(12, 6 * visible) || ink.height < 16) fail("text has no width on screen");
-    // a feed format keeps the label inside its safe box (the feed's own UI covers the rest)
-    const safe = __AI_LABEL_BOX__;
-    const frame = safe ? { left: root_box.left + safe[0], top: root_box.top + safe[1], right: root_box.left + safe[2],
-      bottom: root_box.top + safe[3] } : root_box;
+    const frame = root_box;
     for (const box of [el.getBoundingClientRect(), ink]) {
       if (box.left < frame.left || box.top < frame.top || box.right > frame.right || box.bottom > frame.bottom) {
-        fail(safe ? "is not fully inside the feed safe box (references/storyboard.md)" : "is not fully inside the frame");
+        fail("is not fully inside the frame");
       }
       // getBoundingClientRect() reads viewport coordinates, and the frame above comes from the root's
       // box: a root partly off the page takes the label with it and passes that test, so the page is
@@ -660,11 +657,12 @@ def check_ai_label(html_out):
             "line is not removed before this check")
 
 
-# Where the label sits and its text size, per format: inside the feed safe box at the format's
-# minimum readable size (9:16 and 4:5, references/storyboard.md), or the corner of a 16:9 web hero.
+# Where the label sits and its text size, per format: the bottom-left corner of the frame at the
+# format's minimum readable size (9:16 and 4:5, references/storyboard.md), or the bottom-right corner
+# of a 16:9 web hero.
 AI_LABEL_PLACES = {
-    "9:16": ('left: "64px", bottom: "428px"', 32),
-    "4:5": ('left: "64px", bottom: "104px"', 30),
+    "9:16": ('left: "40px", bottom: "32px"', 32),
+    "4:5": ('left: "40px", bottom: "32px"', 30),
     "16:9": ('right: "44px", bottom: "40px"', 24),
 }
 
@@ -674,10 +672,8 @@ def add_ai_label_guard(html_out, fmt):
     if end < 0:
         die("the page has no </body>: build.py puts the AI-generated label check just before it")
     place, px = AI_LABEL_PLACES[fmt]
-    box = FEED_BOXES.get(fmt)
     guard = (AI_LABEL_GUARD.replace("__AI_LABEL_ID__", "ai-label-" + secrets.token_hex(6))
-             .replace("__AI_LABEL_PLACE__", place).replace("__AI_LABEL_PX__", str(px))
-             .replace("__AI_LABEL_BOX__", json.dumps(list(box)) if box else "null"))
+             .replace("__AI_LABEL_PLACE__", place).replace("__AI_LABEL_PX__", str(px)))
     return html_out[:end] + guard + html_out[end:]
 
 

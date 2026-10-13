@@ -195,7 +195,8 @@ bedtime-stories-a/
 | `4:5` | 1080×1350 | 30 s | music and sound effects | a feed post, which starts muted |
 | `16:9` | 1920×1080 | 8 s | none: no audio stream at all | a web-hero loop behind a headline |
 
-In 9:16 and 4:5, every text and tap stays inside the feed safe box at the format's minimum size, and
+In 9:16 and 4:5, every text and tap stays inside the feed safe box at the format's minimum size (the
+AI-generated label sits below it, at the frame's bottom-left corner), and
 something moves at all times: nothing holds still for more than 0.8 s, except the end card. The 16:9
 hero has no music, no beat grid and no cues; its contract is the loop, and `finish.py` fails a
 clip whose last frame does not flow into its first. To use the hero on a page:

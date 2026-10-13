@@ -392,6 +392,16 @@ def test_caption_hero_tap_and_button_sit_inside_the_safe_box_and_above_the_label
     inside((tx - r, ty - r, tx + r, ty + r), "tap dot")
 
 
+@pytest.mark.parametrize("fmt", ["9:16", "4:5"])
+def test_the_label_sits_in_the_frame_corner_below_the_safe_box(fmt):
+    # bottom-left of the frame: under the box, so no settled text (it stays in the box) is under the label
+    from build import AI_LABEL_PLACES
+    place = AI_LABEL_PLACES[fmt][0]
+    left, bottom = (float(re.search(rf'{k}: "([\d.]+)px"', place).group(1)) for k in ("left", "bottom"))
+    assert 0 < left < FEED_BOXES[fmt][0] and bottom > 0
+    assert label_top(fmt) >= FEED_BOXES[fmt][3]
+
+
 # --- the motion language in the shipped templates ---------------------------------------------
 
 @pytest.mark.parametrize("fmt", ["9:16", "4:5", "16:9"])

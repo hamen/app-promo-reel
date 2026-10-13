@@ -104,7 +104,8 @@ Commands for every step: `references/pipeline.md`.
    template marks its 17 captions; `references/storyboard.md`, "Reading time"). Keep `shotlist.md` in step with the scenes: one row per scene with its
    purpose, entry state and exit state. If you cannot say why a scene exists, it does not belong
    in the render. `build.py` fails when a scene has no row. Never delete `shotlist.md`. In 9:16 and
-   4:5, keep every text and tap inside the feed safe box at the format's minimum size, and keep
+   4:5, keep every text and tap inside the feed safe box at the format's minimum size (build.py puts
+   the AI-generated label below it, at the frame's bottom-left corner), and keep
    something moving (`references/storyboard.md`, "Feed safe zones" and "Density"): nothing still
    for more than 0.8 s, except the end card (at most 2.5 s). See `references/storyboard.md`,
    `references/motion.md` and `references/hyperframes-gotchas.md`.
@@ -138,7 +139,8 @@ Commands for every step: `references/pipeline.md`.
      cannot show copies.
    - Score 1-10, one line each: **hook** (something readable in the first 1 s, frame 0 not
      empty); **readability** (at the 270 px size of the contact sheet; a text or a tap outside the feed
-     safe box on a settled frame, or under the format's minimum size, caps it at 6; read each
+     safe box on a settled frame (the AI-generated label excepted), or under the format's minimum
+     size, caps it at 6; read each
      `reading time:` warning from read_check.py); **motion** (no two texts
      on top of each other, nothing crossing another element by accident, no dead second: read each `still for` warning; each
      object moves as its class; at most one class overshoots hard at a time; the viewer knows
