@@ -31,13 +31,15 @@ Contents: [What's new](#whats-new) · [Samples](#samples) · [How to use](#how-t
 The skill shipped on 2026-09-27 as a 9:16 reel maker. Every merged pull request is listed here, newest
 first, in merge order:
 
-- 2026-10-13: the AI-generated label of 9:16 and 4:5 reels is back in a corner of the frame, at the
-  bottom-left, below the feed safe box ([#21](https://github.com/hamen/app-promo-reel/pull/21)).
-  Inside the box, it read as the middle of the video on a player with no overlay, such as Telegram.
-  To move the label of an older reel, build, check, render and finish it again. The same day: this
-  README, with samples in all three formats ([#20](https://github.com/hamen/app-promo-reel/pull/20)),
-  this list ([#22](https://github.com/hamen/app-promo-reel/pull/22)), and the 9:16 and 4:5 samples
-  rendered again with the label in the corner ([#23](https://github.com/hamen/app-promo-reel/pull/23)).
+- 2026-10-13: sample reels for Ebooks Gratis and Blackjack Trainer
+  ([#24](https://github.com/hamen/app-promo-reel/pull/24)), the 9:16 and 4:5 samples rendered again
+  with the label in the corner ([#23](https://github.com/hamen/app-promo-reel/pull/23)), this list
+  ([#22](https://github.com/hamen/app-promo-reel/pull/22)), and the AI-generated label of 9:16 and
+  4:5 reels back in a corner of the frame, at the bottom-left, below the feed safe box
+  ([#21](https://github.com/hamen/app-promo-reel/pull/21)). Inside the box, it read as the middle of
+  the video on a player with no overlay, such as Telegram. To move the label of an older reel, build,
+  check, render and finish it again. Earlier the same day: this README, with samples in all three
+  formats ([#20](https://github.com/hamen/app-promo-reel/pull/20)).
 - 2026-10-12: 21 docs, comments and messages now say what the code does
   ([#19](https://github.com/hamen/app-promo-reel/pull/19)), and seven checks that could pass a page
   or a render they exist to refuse now refuse it ([#18](https://github.com/hamen/app-promo-reel/pull/18)).
@@ -98,13 +100,13 @@ story text word for word from a store screenshot.
 
 ### More reels
 
-| app-promo-reel (this skill) |
-| :---: |
-| [![app-promo-reel reel](https://github.com/hamen/app-promo-reel/releases/download/samples/app-promo-reel.webp)](https://github.com/hamen/app-promo-reel/releases/download/samples/app-promo-reel.mp4) |
-| 1080×1920, 30 s. Hook "21 pull requests in 17 days"; the skill is on no store, so the end card shows the GitHub link. MusicGen, 121 BPM |
+| Ebooks Gratis | Blackjack Trainer | app-promo-reel (this skill) |
+| :---: | :---: | :---: |
+| [![Ebooks Gratis reel](https://github.com/hamen/app-promo-reel/releases/download/samples/kindle-gratis.webp)](https://github.com/hamen/app-promo-reel/releases/download/samples/kindle-gratis.mp4) | [![Blackjack Trainer reel](https://github.com/hamen/app-promo-reel/releases/download/samples/blackjack-trainer.webp)](https://github.com/hamen/app-promo-reel/releases/download/samples/blackjack-trainer.mp4) | [![app-promo-reel reel](https://github.com/hamen/app-promo-reel/releases/download/samples/app-promo-reel.webp)](https://github.com/hamen/app-promo-reel/releases/download/samples/app-promo-reel.mp4) |
+| 1080×1920, 30 s. Hook "Free Kindle books, daily."; the categories screen, then the Amazon store picker. The app is on Google Play only, so the end card has one store badge. MusicGen, 120 BPM | 1080×1920, 30 s. Hook "The house has a system. Do you?"; the trainer screen, then the statistics screen. MusicGen, 122 BPM | 1080×1920, 30 s. Hook "21 pull requests in 17 days"; the skill is on no store, so the end card shows the GitHub link. MusicGen, 122 BPM |
 
-This reel is H.264/AAC at -14.2 LUFS, and the 22 sound effects that `finish.py` checks for sync land
-within 14 ms of their scheduled times. Every sample, the silent hero included, keeps an AI-generated
+These three reels are H.264/AAC at -14.2 to -14.3 LUFS, and in each one the 22 sound effects that
+`finish.py` checks for sync land within 14 ms of their scheduled times. Every sample, the silent hero included, keeps an AI-generated
 label, in the video's language, on screen for the whole video.
 
 ### The contact sheet
