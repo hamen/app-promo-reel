@@ -130,7 +130,7 @@ variant, the agent:
    (all text, colours and screens), rebuilds the app's screens as HTML, times every move with beat
    tokens (`D(bar, beat)`), and places the sound effects in `cues.json`. `shotlist.md` has one row
    for each scene: a scene with no reason to exist is cut.
-5. **Builds, checks, renders and finishes.** `build.py` then `hyperframes check` until 0 errors:
+5. **Builds, checks, renders and finishes.** `build.py`, then the check command it prints, until 0 errors:
    the check fails a page whose AI label is hidden, a text in the platform's UI zones, or two texts
    on top of each other. `read_check.py` times each caption against a reading rule. It renders the MP4,
    and `finish.py` normalises the loudness, checks the sync of every checked cue, and writes the
@@ -219,13 +219,19 @@ S=~/code/app-promo-reel/skills/app-promo-reel/scripts
 P=~/app-promo-reels/myapp-a
 PY=~/code/app-promo-reel/.venv/bin/python
 
-$PY $S/build.py $P                      # its last line is the check command: run it
-cd $P && npx --yes hyperframes@0.8.78 check
-npx --yes hyperframes@0.8.78 render -o renders/raw.mp4 -q delivery --quiet
-$PY $S/finish.py $P renders/raw.mp4     # writes the next version
+$PY $S/build.py $P                      # its last line is "check: <command>"
 ```
 
-Never render a page whose check fails: the render does not stop on the error.
+Run the command after `check:` exactly as `build.py` prints it, until it reports 0 errors. Do not
+replace it with a plain `hyperframes check`: for 9:16 and 4:5 the printed command also carries the
+feed safe box (`--caption-zone`). Never render a page whose check fails: the render does not stop
+on the error. Then:
+
+```bash
+$PY $S/read_check.py $P                 # 9:16 and 4:5: the reading time of each caption
+cd $P && npx --yes hyperframes@0.8.78 render -o renders/raw.mp4 -q delivery --quiet
+$PY $S/finish.py $P $P/renders/raw.mp4  # writes the next version
+```
 
 ## Troubleshooting
 
@@ -298,8 +304,8 @@ Then ask Claude Code for "promo reels for <app>" ([How to use](#how-to-use)). Ou
 - The MusicGen model weights (`facebook/musicgen-small`) are published by Meta under
   **CC-BY-NC 4.0**. This repo makes no claim about what uses of the generated music that licence
   permits. Read the model licence before you publish a video with it; for any doubt (for example
-  paid ads), use a licensed music track instead. The music of the Bedtime Stories samples was made
-  with MusicGen.
+  paid ads), use a licensed music track instead. The music of every sample in this README was made
+  with MusicGen. The sample videos show what the skill makes; they are not offered for reuse.
 - Your own track: its licence is yours to check. `music_import.py` never downloads anything, and
   many music sites forbid automated downloads.
 - No sound effects, fonts, screenshots, icons or generated audio are distributed here.
