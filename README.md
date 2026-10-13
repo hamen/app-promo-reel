@@ -29,7 +29,7 @@ Contents: [Samples](#samples) · [How to use](#how-to-use) · [What happens, ste
 ## Samples
 
 Every sample is unedited: the MP4s are exactly what `finish.py` delivered. The previews below are
-silent; click one to watch the MP4 (with sound, except the hero). All the files live in the
+silent; click one to watch the MP4 (with sound, except the hero). All the files are in the
 [`samples` release](https://github.com/hamen/app-promo-reel/releases/tag/samples), not in git
 (`bin/ci` keeps media out of the repo).
 
@@ -54,9 +54,9 @@ story text word for word from a store screenshot.
 | [![3 Things A Day reel](https://github.com/hamen/app-promo-reel/releases/download/samples/three-things.webp)](https://github.com/hamen/app-promo-reel/releases/download/samples/three-things.mp4) | [![Smart Pantry reel](https://github.com/hamen/app-promo-reel/releases/download/samples/smart-pantry.webp)](https://github.com/hamen/app-promo-reel/releases/download/samples/smart-pantry.mp4) | [![facecam-tui reel](https://github.com/hamen/app-promo-reel/releases/download/samples/facecam-tui.webp)](https://github.com/hamen/app-promo-reel/releases/download/samples/facecam-tui.mp4) |
 | App Store + Google Play end card | Italian copy, App Store + Google Play end card | not a store app: ends on the GitHub link |
 
-Each reel: H.264/AAC at -14 LUFS; every sound effect that `finish.py` checks for sync lands within
-1 ms of its scheduled time; an AI-generation label, in the video's language, stays on screen for the
-whole video (the hero too).
+Each of these reels: 30 s, 1080×1920, H.264/AAC at -14 LUFS; every sound effect that `finish.py`
+checks for sync lands within 1 ms of its scheduled time. Every sample, the silent hero included,
+keeps an AI-generation label, in the video's language, on screen for the whole video.
 
 ### The contact sheet
 
@@ -100,7 +100,7 @@ What you can give it:
 | Number of variants | 2 | Each variant is its own folder and renders on its own. |
 | Format per variant | `9:16` | `9:16`, `4:5` or `16:9`; see [Formats](#formats). |
 | Output folder | `~/app-promo-reels` | Never inside a git work tree. |
-| App source repo | none | Optional, read-only: the agent reads the default branch with `git show`, never edits it. Real strings and screens make better reels. |
+| App source repo | none | Optional, read-only: the agent reads the default branch with `git show`, never edits it. |
 | Sound effects | none | Optional: a folder of your own files in `SFX_DIR`. |
 | Brand notes | none | Optional: forbidden words, spelling, rules from your notes or memory system. |
 | A reference video or image | none | Optional: sets the palette, type, pacing and motion only; no logo, text, music or claim comes from it. |
@@ -132,15 +132,18 @@ variant, the agent:
    for each scene: a scene with no reason to exist is cut.
 5. **Builds, checks, renders and finishes.** `build.py`, then the check command it prints, until 0 errors:
    the check fails a page whose AI label is hidden, a text in the platform's UI zones, or two texts
-   on top of each other. `read_check.py` times each caption against a reading rule. It renders the MP4,
-   and `finish.py` normalises the loudness, checks the sync of every checked cue, and writes the
-   versioned MP4, the contact sheet and the poster.
+   that stay on top of each other for 0.5 s or more (a shorter overlap is only an `info` line, so the
+   agent also looks at the frames). `read_check.py` times each caption against a reading rule. It
+   renders the MP4, and `finish.py` normalises the loudness, checks the sync of every checked cue, and
+   writes the versioned MP4, the contact sheet and the poster. For a 16:9 hero, `read_check.py` times
+   nothing, and `finish.py` checks the seam and the frame count instead of the loudness and the sync.
 6. **Critiques the real frames**, at most three rounds. It scores seven things from 1 to 10 (hook,
    readability, motion, variety, composition, claims, and sound, or loop for the hero), writes the
    worst problems with a still as evidence in `reviews/critique-N.md`, fixes each one in the file
    that controls it, and renders again. It stops when every score is 8 or more.
-7. **Delivers** a list of MP4 paths, with the angle, the music source and seed, the tempo, the sync
-   result, the loudness, the scores and any problem still open. Nothing is uploaded or sent.
+7. **Delivers** a list of MP4 paths, with the angle, the scores and any problem still open; for a
+   reel also the music source and seed, the tempo, the sync result and the loudness. Nothing is
+   uploaded or sent.
 
 A critique round looks like this (round 1 of the 4:5 sample; round 2 had no defect):
 
@@ -229,15 +232,15 @@ on the error. Then:
 
 ```bash
 $PY $S/read_check.py $P                 # 9:16 and 4:5: the reading time of each caption
-cd $P && npx --yes hyperframes@0.8.78 render -o renders/raw.mp4 -q delivery --quiet
-$PY $S/finish.py $P $P/renders/raw.mp4  # writes the next version
+cd $P && npx --yes hyperframes@0.8.78 render -o renders/raw.mp4 -q delivery --quiet &&
+  $PY $S/finish.py $P $P/renders/raw.mp4  # only after a render that succeeded: the next version
 ```
 
 ## Troubleshooting
 
 | What you see | What to do |
 | --- | --- |
-| `hyperframes check` reports errors | Fix them before you render. A hidden or moving AI label, a text in a UI zone, two overlapping texts and a missing font face are all errors on purpose. |
+| `hyperframes check` reports errors | Fix them before you render. A hidden or moving AI label, a text in a UI zone, two texts that overlap for 0.5 s or more and a missing font face are all errors on purpose. A shorter overlap is only an `info` line: look at the frames. |
 | `font_family_without_font_face` | Copy the font file into `assets/fonts/` and declare it with `@font-face`. Emoji need a face too (for example Noto Color Emoji). |
 | `music_gen_ace.py` exits 3 | The GPU ran out of memory: run the same command once with `--device cpu`. |
 | All three seeds are rejected | The agent tries three new seeds, then a simpler prompt (steadier genre words), then stops and shows you the rank tables. |
