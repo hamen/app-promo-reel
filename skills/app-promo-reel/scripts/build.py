@@ -40,6 +40,7 @@ is written as an empty list. Time the scenes with {{DURATION}} and {{calc DURATI
 
 Usage: build.py <project_dir>
 """
+
 import ast
 import html
 import json
@@ -52,9 +53,23 @@ import unicodedata
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from common import (FEED_BOXES, FORMATS, SCENE_SETTLE, SCENE_SETTLE_END, SILENT_FORMATS, Grid,  # noqa: E402
-                    attack_seconds, die, is_number, is_silent, load_project, media_duration, read_json,
-                    scene_spans, scene_windows)
+from common import (
+    FEED_BOXES,
+    FORMATS,
+    SCENE_SETTLE,
+    SCENE_SETTLE_END,
+    SILENT_FORMATS,
+    Grid,  # noqa: E402
+    attack_seconds,
+    die,
+    is_number,
+    is_silent,
+    load_project,
+    media_duration,
+    read_json,
+    scene_spans,
+    scene_windows,
+)
 
 TOKEN = re.compile(r"\{\{\s*([A-Za-z_]+)\s*(.*?)\s*\}\}", re.S)
 SFX_FIRST_TRACK = 21
@@ -75,14 +90,18 @@ def render_fps(fps):
         return str(int(fps))
     if fps in NTSC_FPS:
         return NTSC_FPS[fps]
-    raise CalcError(f"fps {fps:g}: HyperFrames renders a whole number of frames per second from 1 to "
-                    f"240, or one of the NTSC rates 23.976, 29.97 and 59.94; set fps in project.json "
-                    f"to one of these")
+    raise CalcError(
+        f"fps {fps:g}: HyperFrames renders a whole number of frames per second from 1 to "
+        f"240, or one of the NTSC rates 23.976, 29.97 and 59.94; set fps in project.json "
+        f"to one of these"
+    )
 
 
 BEAT_TOKENS = ("D", "E", "LEN", "TO_END", "BEFORE_END", "BEATS", "DOWNBEAT_INDEX", "BEATS_PER_BAR")
-NO_GRID = (f"{', '.join(SILENT_FORMATS)} is silent and has no beat grid: time the scenes with "
-           f"{{{{DURATION}}}} (for example {{{{calc DURATION*0.4}}}})")
+NO_GRID = (
+    f"{', '.join(SILENT_FORMATS)} is silent and has no beat grid: time the scenes with "
+    f"{{{{DURATION}}}} (for example {{{{calc DURATION*0.4}}}})"
+)
 
 
 def calc(expr, grid, duration):
@@ -104,8 +123,13 @@ def calc(expr, grid, duration):
             return -v if isinstance(node.op, ast.USub) else v
         if isinstance(node, ast.Name) and node.id == "DURATION":
             return duration
-        if (isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in ("D", "E")
-                and not node.keywords and 1 <= len(node.args) <= 2):
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id in ("D", "E")
+            and not node.keywords
+            and 1 <= len(node.args) <= 2
+        ):
             if grid is None:
                 raise CalcError(NO_GRID)
             args = [ev(a) for a in node.args]
@@ -152,9 +176,11 @@ def substitute(src, grid, project, motion=None):
             margin, _, expr = args.partition(" ")
             t = calc(expr, grid, duration)
             if t > duration - float(margin):
-                die(f"{expr} is at {t:.2f}s; the template needs it at least {float(margin):g}s before the "
+                die(
+                    f"{expr} is at {t:.2f}s; the template needs it at least {float(margin):g}s before the "
                     f"{duration:g}s end so the text after it can be read. The storyboard needs fewer bars at "
-                    f"this tempo/duration: re-map the scenes (references/storyboard.md)")
+                    f"this tempo/duration: re-map the scenes (references/storyboard.md)"
+                )
             return ""
         if args:
             raise CalcError(f"{{{{{name}}}}} takes no arguments")
@@ -178,11 +204,14 @@ def substitute(src, grid, project, motion=None):
             return f"{project['height'] / FORMATS['9:16'][1]:g}"
         if name == "MOTION":
             if motion is None:
-                raise CalcError("the template has {{MOTION}} but the project has no motion.js: copy it "
-                                "from template/motion.js")
+                raise CalcError(
+                    "the template has {{MOTION}} but the project has no motion.js: copy it from template/motion.js"
+                )
             if "{{" in motion or "}}" in motion:
-                raise CalcError("motion.js must not contain a double brace (it would read as a token): "
-                                "put a space between the braces")
+                raise CalcError(
+                    "motion.js must not contain a double brace (it would read as a token): "
+                    "put a space between the braces"
+                )
             return motion
         raise CalcError(f"unknown token {{{{{name}}}}}")
 
@@ -195,7 +224,7 @@ def substitute(src, grid, project, motion=None):
         die(f"leftover token after build: {left.group(0)[:60]!r}")
     if "{{" in out:
         i = out.index("{{")
-        die(f"unclosed token (no closing }}}}) in the template: {out[i:i + 40]!r}")
+        die(f"unclosed token (no closing }}}}) in the template: {out[i : i + 40]!r}")
     return out
 
 
@@ -255,11 +284,14 @@ def sfx_tags(project_dir, cues_doc, grid, duration):
             track += 1
         track_end[track] = t + d
         rel = f"assets/audio/{files[key]}"
-        lines.append(f'      <audio id="sfx-{cid}" src="{html.escape(rel, quote=True)}" data-start="{t:.3f}" data-duration="{d:.3f}" '
-                     f'data-track-index="{track}" data-volume="{vol:g}"></audio>')
+        lines.append(
+            f'      <audio id="sfx-{cid}" src="{html.escape(rel, quote=True)}" data-start="{t:.3f}" data-duration="{d:.3f}" '
+            f'data-track-index="{track}" data-volume="{vol:g}"></audio>'
+        )
         sync = sync if "sync" in cue else align != "end"
-        realized.append({"id": cid, "file": rel, "time": round(t, 4), "volume": vol, "track": track,
-                         "align": align, "sync": sync})
+        realized.append(
+            {"id": cid, "file": rel, "time": round(t, 4), "volume": vol, "track": track, "align": align, "sync": sync}
+        )
     return lines, realized
 
 
@@ -283,9 +315,11 @@ def check_scenes(html_out, duration):
         if not 0 <= t <= duration - MIN_SCENE_TAIL:
             bad.append(f"{name.group(2) if name else tag[:40]} at {start.group(2)}s")
     if bad:
-        die(f"scenes outside the {duration:g}s video or starting less than {MIN_SCENE_TAIL:g}s before its "
+        die(
+            f"scenes outside the {duration:g}s video or starting less than {MIN_SCENE_TAIL:g}s before its "
             f"end: {', '.join(bad)}. The storyboard needs fewer bars at "
-            f"this tempo/duration: re-map the scenes (references/storyboard.md)")
+            f"this tempo/duration: re-map the scenes (references/storyboard.md)"
+        )
 
 
 SHOTLIST_HEADER = ["scene", "purpose", "entry state", "exit state"]
@@ -295,16 +329,21 @@ def shotlist_rows(text):
     """The rows of the one table headed `scene | purpose | entry state | exit state`: a list of
     four-cell lists, or a string that says what is wrong with the file."""
     lines = text.splitlines()
-    tables = [i for i, line in enumerate(lines) if split_row(line) is not None
-              and [c.lower() for c in split_row(line)] == SHOTLIST_HEADER]
+    tables = [
+        i
+        for i, line in enumerate(lines)
+        if split_row(line) is not None and [c.lower() for c in split_row(line)] == SHOTLIST_HEADER
+    ]
     if len(tables) != 1:
-        return (f"it needs exactly one table whose header row is `| {' | '.join(SHOTLIST_HEADER)} |`, "
-                f"found {len(tables)}" + (": every row of the table starts with `|`" if not tables else ""))
+        return (
+            f"it needs exactly one table whose header row is `| {' | '.join(SHOTLIST_HEADER)} |`, "
+            f"found {len(tables)}" + (": every row of the table starts with `|`" if not tables else "")
+        )
     sep = split_row(lines[tables[0] + 1]) if tables[0] + 1 < len(lines) else None
     if sep is None or len(sep) != len(SHOTLIST_HEADER) or not all(re.fullmatch(r":?-+:?", c) for c in sep):
         return "the line under the header must be a separator row: | --- | --- | --- | --- |"
     rows = []
-    for line in lines[tables[0] + 2:]:
+    for line in lines[tables[0] + 2 :]:
         cells = split_row(line)
         if cells is None:
             break
@@ -348,8 +387,7 @@ def check_shotlist(project_dir, html_out):
     seen = {}
     for row in rows:
         if len(row) != len(SHOTLIST_HEADER):
-            problems.append(f"the row for {row[0] if row else '?'!r} has {len(row)} cells, not "
-                            f"{len(SHOTLIST_HEADER)}")
+            problems.append(f"the row for {row[0] if row else '?'!r} has {len(row)} cells, not {len(SHOTLIST_HEADER)}")
             continue
         scene = row[0]
         seen[scene] = seen.get(scene, 0) + 1
@@ -360,8 +398,9 @@ def check_shotlist(project_dir, html_out):
                 problems.append(f"scene {scene}: the {label} is empty or TODO")
     for scene in dict.fromkeys(scenes):  # each id once, in page order
         if scenes.count(scene) > 1:
-            problems.append(f"scene {scene}: {scenes.count(scene)} live sections have this id; each scene needs "
-                            "its own id")
+            problems.append(
+                f"scene {scene}: {scenes.count(scene)} live sections have this id; each scene needs its own id"
+            )
         if scene not in seen:
             problems.append(f"scene {scene} has no row: add one to shotlist.md")
     for scene in seen:
@@ -506,14 +545,32 @@ SEEKABLE_BANNED = (
 )
 # the end tag as the HTML tokenizer reads it: the name ends on white space, / or >, and the rest of the
 # tag (`</script foo>`, `</script/>`, a quoted value with a > in it) is read up to its >
-SCRIPT_TAG = (r"<script\b((?:\"[^\"]*\"|'[^']*'|[^'\">])*)>(.*?)"
-              r"</script(?=[ \t\n\f\r/>])(?:\"[^\"]*\"|'[^']*'|[^'\">])*>")
+SCRIPT_TAG = (
+    r"<script\b((?:\"[^\"]*\"|'[^']*'|[^'\">])*)>(.*?)"
+    r"</script(?=[ \t\n\f\r/>])(?:\"[^\"]*\"|'[^']*'|[^'\">])*>"
+)
 ATTRIBUTE = r"""([^\s"'>/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?"""
 # every "JavaScript MIME type essence" of the HTML standard runs as a classic script
-JS_TYPES = ("", "module", "application/ecmascript", "application/javascript", "application/x-ecmascript",
-            "application/x-javascript", "text/ecmascript", "text/javascript", "text/javascript1.0",
-            "text/javascript1.1", "text/javascript1.2", "text/javascript1.3", "text/javascript1.4",
-            "text/javascript1.5", "text/jscript", "text/livescript", "text/x-ecmascript", "text/x-javascript")
+JS_TYPES = (
+    "",
+    "module",
+    "application/ecmascript",
+    "application/javascript",
+    "application/x-ecmascript",
+    "application/x-javascript",
+    "text/ecmascript",
+    "text/javascript",
+    "text/javascript1.0",
+    "text/javascript1.1",
+    "text/javascript1.2",
+    "text/javascript1.3",
+    "text/javascript1.4",
+    "text/javascript1.5",
+    "text/jscript",
+    "text/livescript",
+    "text/x-ecmascript",
+    "text/x-javascript",
+)
 
 
 def blank_js(src):
@@ -534,7 +591,7 @@ def blank_js(src):
     while i < n:
         kind, c = stack[-1][0], src[i]
         if kind == "code":
-            two = src[i:i + 2]
+            two = src[i : i + 2]
             if two == "//":
                 j = src.find("\n", i)
                 j = n if j < 0 else j
@@ -575,7 +632,7 @@ def blank_js(src):
             stack.pop()
             blank(i, i + 1)
             i += 1
-        elif src[i:i + 2] == "${":
+        elif src[i : i + 2] == "${":
             stack.append(["code", 0])
             blank(i, i + 2)
             i += 2
@@ -606,10 +663,14 @@ def punch_warnings(html_out):
     inline scripts. Calls in comments and strings do not count, and neither does a definition."""
     warnings = []
     for name in ("shake", "flash"):
-        calls = sum(len(re.findall(rf"(?<![\w$.])(?<!function ){name}\s*\(", code)) for _, code in inline_scripts(html_out))
+        calls = sum(
+            len(re.findall(rf"(?<![\w$.])(?<!function ){name}\s*\(", code)) for _, code in inline_scripts(html_out)
+        )
         if calls > PUNCH_CAP:
-            warnings.append(f"{calls} {name}() calls in the page (at most {PUNCH_CAP}, on the drop and the end card: "
-                            "references/motion.md)")
+            warnings.append(
+                f"{calls} {name}() calls in the page (at most {PUNCH_CAP}, on the drop and the end card: "
+                "references/motion.md)"
+            )
     return warnings
 
 
@@ -625,13 +686,16 @@ def check_seekable(html_out):
             line = body.split("\n")[body.count("\n", 0, pos)].strip()
             found.append(f"  remove {name} in `{line[:140]}`")
     if found:
-        die("a frame must depend only on t (a hidden clock or a random value makes two renders differ):\n"
-            + "\n".join(found))
+        die(
+            "a frame must depend only on t (a hidden clock or a random value makes two renders differ):\n"
+            + "\n".join(found)
+        )
 
 
 def has_visible_character(label):
     return isinstance(label, str) and any(
-        unicodedata.category(c)[0] not in "ZCM" and c not in BLANK_GLYPHS for c in label)
+        unicodedata.category(c)[0] not in "ZCM" and c not in BLANK_GLYPHS for c in label
+    )
 
 
 def check_ai_label(html_out):
@@ -652,9 +716,11 @@ def check_ai_label(html_out):
         except ValueError:
             labels.append(None)
     if not labels or not all(has_visible_character(x) for x in labels):
-        die("CONFIG.aiLabel is missing, empty, not a string or has no visible character: the "
+        die(
+            "CONFIG.aiLabel is missing, empty, not a string or has no visible character: the "
             "AI-generated label must stay on screen (SKILL.md rule 7). A comment after code on the same "
-            "line is not removed before this check")
+            "line is not removed before this check"
+        )
 
 
 # Where the label sits and its text size, per format: the bottom-left corner of the frame at the
@@ -672,8 +738,11 @@ def add_ai_label_guard(html_out, fmt):
     if end < 0:
         die("the page has no </body>: build.py puts the AI-generated label check just before it")
     place, px = AI_LABEL_PLACES[fmt]
-    guard = (AI_LABEL_GUARD.replace("__AI_LABEL_ID__", "ai-label-" + secrets.token_hex(6))
-             .replace("__AI_LABEL_PLACE__", place).replace("__AI_LABEL_PX__", str(px)))
+    guard = (
+        AI_LABEL_GUARD.replace("__AI_LABEL_ID__", "ai-label-" + secrets.token_hex(6))
+        .replace("__AI_LABEL_PLACE__", place)
+        .replace("__AI_LABEL_PX__", str(px))
+    )
     return html_out[:end] + guard + html_out[end:]
 
 
@@ -764,8 +833,10 @@ def build(project_dir):
     if silent:
         print(f"built {project_dir / 'index.html'}: silent {project['format']} loop, {project['duration']:g} s")
     else:
-        print(f"built {project_dir / 'index.html'}: {len(realized)} SFX cues mixed; downbeats "
-              f"{[round(b, 2) for b in grid.beats[grid.first::grid.bpb]]}")
+        print(
+            f"built {project_dir / 'index.html'}: {len(realized)} SFX cues mixed; downbeats "
+            f"{[round(b, 2) for b in grid.beats[grid.first :: grid.bpb]]}"
+        )
     print(f"check: {check_command(project_dir, out, project)}")
 
 

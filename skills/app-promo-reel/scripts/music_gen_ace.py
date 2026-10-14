@@ -18,6 +18,7 @@ seeds still run, and the run exits 2 at the end naming it. Only one music genera
 
 Writes <out>/bgm_<seed>.wav for each seed.
 """
+
 import argparse
 import fcntl
 import os
@@ -34,8 +35,7 @@ EXTRA = 10.0  # seconds past the reel: measured, the song's ending then falls af
 # the same path as music_gen.py's LOCK (the two scripts run in different venvs, so it is repeated
 # here): one music generator at a time, whichever it is
 LOCK = Path(tempfile.gettempdir()) / f"app-promo-reel-music-gen-{os.getuid()}.lock"
-OOM_HINT = ("not enough GPU memory: run again with --device cpu (about 85 s per seed on a 32-thread "
-            "CPU, 15 GB RAM)")
+OOM_HINT = "not enough GPU memory: run again with --device cpu (about 85 s per seed on a 32-thread CPU, 15 GB RAM)"
 
 
 def fail(msg, code=2):
@@ -98,9 +98,11 @@ def main(argv=None):
 
     ace = os.environ.get("ACESTEP_DIR")
     if not ace or not Path(ace).is_dir():
-        fail("ACESTEP_DIR is not set to the ACE-Step 1.5 clone: git clone "
-             "https://github.com/ace-step/ACE-Step-1.5 && cd ACE-Step-1.5 && uv sync, then export "
-             "ACESTEP_DIR=<that folder> (see README)")
+        fail(
+            "ACESTEP_DIR is not set to the ACE-Step 1.5 clone: git clone "
+            "https://github.com/ace-step/ACE-Step-1.5 && cd ACE-Step-1.5 && uv sync, then export "
+            "ACESTEP_DIR=<that folder> (see README)"
+        )
     sys.path.insert(0, ace)
     try:
         from acestep.handler import AceStepHandler
@@ -121,9 +123,19 @@ def main(argv=None):
         work = Path(tempfile.mkdtemp(prefix=".ace-", dir=out))
         try:
             params = GenerationParams(
-                task_type="text2music", caption=a.prompt, lyrics="[Instrumental]", instrumental=True,
-                bpm=a.bpm, duration=a.duration + EXTRA, timesignature=str(a.beats_per_bar), seed=seed,
-                thinking=False, use_cot_caption=False, use_cot_metas=False, use_cot_language=False)
+                task_type="text2music",
+                caption=a.prompt,
+                lyrics="[Instrumental]",
+                instrumental=True,
+                bpm=a.bpm,
+                duration=a.duration + EXTRA,
+                timesignature=str(a.beats_per_bar),
+                seed=seed,
+                thinking=False,
+                use_cot_caption=False,
+                use_cot_metas=False,
+                use_cot_language=False,
+            )
             config = GenerationConfig(batch_size=1, audio_format="wav", use_random_seed=False, seeds=[seed])
             try:
                 result = generate_music(handler, None, params, config, save_dir=str(work))
@@ -136,8 +148,10 @@ def main(argv=None):
             src = Path(result.audios[0]["path"])
             length = media_duration(src)
             if length < a.duration:
-                print(f"error: seed {seed} came out {length:.2f}s, shorter than {a.duration:g}s; no file written",
-                      file=sys.stderr)
+                print(
+                    f"error: seed {seed} came out {length:.2f}s, shorter than {a.duration:g}s; no file written",
+                    file=sys.stderr,
+                )
                 short.append(seed)
                 continue
             dest = out / f"bgm_{seed}.wav"

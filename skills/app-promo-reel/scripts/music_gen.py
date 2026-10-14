@@ -13,6 +13,7 @@ script or music_gen_ace.py) runs at a time (GPU memory): a second one exits 2.
 Usage: music_gen.py --prompt "..." --duration 30 --seeds 5,17,23 --out work/
 Writes <out>/bgm_<seed>.wav for each seed.
 """
+
 import argparse
 import fcntl
 import os
@@ -21,9 +22,9 @@ import tempfile
 from pathlib import Path
 
 MODEL = "facebook/musicgen-small"
-FRAME_RATE = 50          # musicgen audio tokens per second
-HEADROOM = 1.2           # extra seconds generated past the video length
-MAX_TOKENS = 1560        # the longest generation this script accepts (31.2 s)
+FRAME_RATE = 50  # musicgen audio tokens per second
+HEADROOM = 1.2  # extra seconds generated past the video length
+MAX_TOKENS = 1560  # the longest generation this script accepts (31.2 s)
 # the same path as music_gen_ace.py's LOCK (it runs in another venv, so the path is repeated
 # there): one music generator at a time, whichever it is
 LOCK = Path(tempfile.gettempdir()) / f"app-promo-reel-music-gen-{os.getuid()}.lock"
@@ -43,8 +44,10 @@ def partial_path(out, seed):
 def tokens_for(duration):
     n = int(round((duration + HEADROOM) * FRAME_RATE))
     if duration <= 0 or n > MAX_TOKENS:
-        fail(f"duration {duration:g}s is not possible: musicgen-small here makes at most "
-             f"{MAX_TOKENS / FRAME_RATE - HEADROOM:g}s")
+        fail(
+            f"duration {duration:g}s is not possible: musicgen-small here makes at most "
+            f"{MAX_TOKENS / FRAME_RATE - HEADROOM:g}s"
+        )
     return n
 
 
@@ -81,8 +84,7 @@ def main(argv=None):
         import torch
         from transformers import AutoProcessor, MusicgenForConditionalGeneration
     except ImportError as e:
-        fail(f"{e.name} is not installed: pip install -r requirements-gen.txt and a CUDA build "
-             f"of torch (see README)")
+        fail(f"{e.name} is not installed: pip install -r requirements-gen.txt and a CUDA build of torch (see README)")
     if not torch.cuda.is_available():
         fail("CUDA is not available; musicgen generation needs an NVIDIA GPU")
 
@@ -107,8 +109,10 @@ def main(argv=None):
             fail(f"generation failed on seed {seed} ({type(e).__name__}: {e})")
         length = len(y) / sr
         if length < a.duration:
-            print(f"error: seed {seed} came out {length:.2f}s, shorter than {a.duration:g}s; no file written",
-                  file=sys.stderr)
+            print(
+                f"error: seed {seed} came out {length:.2f}s, shorter than {a.duration:g}s; no file written",
+                file=sys.stderr,
+            )
             short.append(seed)
             continue
         dest = out / f"bgm_{seed}.wav"

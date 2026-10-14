@@ -21,15 +21,41 @@ def make_raw_mp4(tmp_path, seconds=4.0, fps=30, size="108x192", vf=None):
     c = click(SR)
     for t in [t for t in CLICKS if t + 0.01 < seconds]:
         a = int(t * SR)
-        y[a:a + len(c)] += c
+        y[a : a + len(c)] += c
     wav = tmp_path / "raw_audio.wav"
     sf.write(wav, np.stack([y, y], 1).astype(np.float32), SR)
     mp4 = tmp_path / "raw.mp4"
-    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i",
-                    f"color=c=blue:s={size}:r={fps}:d={seconds}", "-i", str(wav), "-map", "0:v", "-map", "1:a",
-                    *(["-vf", vf] if vf else []),
-                    "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k",
-                    str(mp4)], check=True)
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-v",
+            "error",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            f"color=c=blue:s={size}:r={fps}:d={seconds}",
+            "-i",
+            str(wav),
+            "-map",
+            "0:v",
+            "-map",
+            "1:a",
+            *(["-vf", vf] if vf else []),
+            "-c:v",
+            "libx264",
+            "-preset",
+            "ultrafast",
+            "-pix_fmt",
+            "yuv420p",
+            "-c:a",
+            "aac",
+            "-b:a",
+            "192k",
+            str(mp4),
+        ],
+        check=True,
+    )
     return mp4
 
 
@@ -38,6 +64,7 @@ def small_9x16(monkeypatch):
     """finish.py checks the video against the format's size; a 9:16 of 108x192 keeps the ~20 encodes
     of these tests fast. The real sizes are tested in test_build.py and test_template.py."""
     import common
+
     monkeypatch.setitem(common.FORMATS, "9:16", (108, 192))
 
 
@@ -52,10 +79,22 @@ def realize(p, cues):
     audio = p / "assets" / "audio"
     audio.mkdir(parents=True, exist_ok=True)
     sf.write(audio / "click.wav", click(SR), SR)  # the same sound the fixture mixes in
-    (p / "cues.realized.json").write_text(json.dumps(
-        [{"id": f"c{i}", "file": "assets/audio/click.wav", "time": t, "volume": 1, "track": 21, "align": "start",
-          "sync": s}
-         for i, (t, s) in enumerate(cues)]))
+    (p / "cues.realized.json").write_text(
+        json.dumps(
+            [
+                {
+                    "id": f"c{i}",
+                    "file": "assets/audio/click.wav",
+                    "time": t,
+                    "volume": 1,
+                    "track": 21,
+                    "align": "start",
+                    "sync": s,
+                }
+                for i, (t, s) in enumerate(cues)
+            ]
+        )
+    )
 
 
 def test_sync_ok_versioned_and_never_overwritten(tmp_path, proj):
@@ -147,11 +186,11 @@ def test_matched_filter_finds_sfx_under_louder_music():
     music = 0.3 * np.sin(2 * np.pi * 110 * t) + 0.1 * rng.standard_normal(len(t))
     for k in np.arange(0.5, 4, 0.25):  # loud transients every 250 ms, like hats and kicks
         a = int(k * SR)
-        music[a:a + 400] += 0.8 * rng.standard_normal(400)
+        music[a : a + 400] += 0.8 * rng.standard_normal(400)
     sfx = click(SR, dur=0.03, freq=1800, amp=0.25)
     at = 1.9  # 100 ms from the nearest music transients at 1.75 and 2.0
     y = music.copy()
-    y[int(at * SR):int(at * SR) + len(sfx)] += sfx
+    y[int(at * SR) : int(at * SR) + len(sfx)] += sfx
     found, score = finish.locate(y, sfx, at + 0.02)
     assert abs(found - at) < 0.001 and score > finish.MIN_MATCH
 
@@ -160,7 +199,9 @@ def test_leading_silence_in_sfx_is_measured_from_the_attack(tmp_path, proj, caps
     raw = make_raw_mp4(tmp_path)
     realize(proj, [(t - 0.2, True) for t in CLICKS])  # cue times 200 ms before each click ...
     audio = proj / "assets" / "audio"
-    sf.write(audio / "click.wav", np.concatenate([np.zeros(int(0.2 * SR)), click(SR)]), SR)  # ... after 200 ms of silence
+    sf.write(
+        audio / "click.wav", np.concatenate([np.zeros(int(0.2 * SR)), click(SR)]), SR
+    )  # ... after 200 ms of silence
     assert finish.finish(proj, raw) == 0
     report = json.loads((proj / "renders" / "demo-a-v1-report.json").read_text())
     assert all(abs(r["delta_ms"]) < 2 and r["lead_ms"] == 200.0 for r in report["sync"])
@@ -185,6 +226,7 @@ def test_loudnorm_that_moves_audio_fails(tmp_path, proj, monkeypatch):
         y, sr = sf.read(dst)
         sf.write(dst, np.concatenate([np.zeros((480, y.shape[1])), y[:-480]]), sr, subtype="PCM_16")
         return meas
+
     monkeypatch.setattr(finish, "loudnorm", shifted)
     assert finish.finish(proj, raw) == 1
     report = json.loads((proj / "renders" / "demo-a-v1-report.json").read_text())
@@ -220,8 +262,12 @@ def test_realized_cues_that_are_not_a_list_exit_2(tmp_path, proj):
 def test_realized_entries_are_checked(tmp_path, proj):
     raw = make_raw_mp4(tmp_path)
     realize(proj, [(1.0, True)])  # the cue file exists: only the entry shape can fail
-    for bad in ("[{}]", '[{"id": "c", "file": "assets/audio/click.wav"}]',
-                '[{"id": "c", "file": "assets/audio/click.wav", "time": "1.0"}]', '["c"]'):
+    for bad in (
+        "[{}]",
+        '[{"id": "c", "file": "assets/audio/click.wav"}]',
+        '[{"id": "c", "file": "assets/audio/click.wav", "time": "1.0"}]',
+        '["c"]',
+    ):
         (proj / "cues.realized.json").write_text(bad)
         with pytest.raises(SystemExit) as e:
             finish.finish(proj, raw)
@@ -231,8 +277,9 @@ def test_realized_entries_are_checked(tmp_path, proj):
 def test_negative_frames_exit_2_before_any_output(tmp_path, proj):
     raw = make_raw_mp4(tmp_path)
     realize(proj, [(t, True) for t in CLICKS])
-    r = subprocess.run([sys.executable, str(finish.__file__), str(proj), str(raw), "--frames", "1,-2"],
-                       capture_output=True, text=True)
+    r = subprocess.run(
+        [sys.executable, str(finish.__file__), str(proj), str(raw), "--frames", "1,-2"], capture_output=True, text=True
+    )
     assert r.returncode == 2 and not list((proj / "renders").glob("*.mp4"))
 
 
@@ -257,6 +304,7 @@ def test_error_after_the_mux_leaves_only_a_failed_file(tmp_path, proj, monkeypat
     def broken_sheet(*a, **k):
         during.extend(p.name for p in r.iterdir())  # what a reader sees while the checks run
         raise RuntimeError("disk full")
+
     monkeypatch.setattr(finish, "contact_sheet", broken_sheet)
     with pytest.raises(RuntimeError):
         finish.finish(proj, raw)
@@ -281,6 +329,7 @@ def test_failed_report_write_leaves_no_report(tmp_path, proj, monkeypatch):
             real_write(self, text[:20])
             raise OSError("disk full")
         return real_write(self, text, *a, **k)
+
     monkeypatch.setattr(Path, "write_text", half_write)
     with pytest.raises(OSError):
         finish.finish(proj, raw)
@@ -291,11 +340,16 @@ def test_failed_report_write_leaves_no_report(tmp_path, proj, monkeypatch):
     assert not (r / "demo-a-v1-sheet.jpg").exists()
 
 
-@pytest.mark.parametrize("doc, expect", [
-    ({"streams": [], "format": {"duration": "4.0"}}, "no video stream"),
-    ({"streams": [{"codec_name": "h264", "width": 1, "height": 1, "nb_read_packets": "120"}], "format": {}},
-     "no duration"),
-])
+@pytest.mark.parametrize(
+    "doc, expect",
+    [
+        ({"streams": [], "format": {"duration": "4.0"}}, "no video stream"),
+        (
+            {"streams": [{"codec_name": "h264", "width": 1, "height": 1, "nb_read_packets": "120"}], "format": {}},
+            "no duration",
+        ),
+    ],
+)
 def test_video_info_without_stream_or_duration_exits_2(monkeypatch, capsys, doc, expect):
     monkeypatch.setattr(finish, "run", lambda cmd: subprocess.CompletedProcess(cmd, 0, json.dumps(doc), ""))
     with pytest.raises(SystemExit) as e:
@@ -327,8 +381,18 @@ def test_an_ntsc_video_passes_a_29_97_project(tmp_path):
     assert report["video"]["rate"] == "30000/1001" and report["problems"] == []
 
 
-@pytest.mark.parametrize("rate, want", [("30000/1001", "30000/1001"), ("60/1", "60/1"), ("0/0", None), ("", None),
-                                        ("-30/1", None), ("abc", None), (None, None)])
+@pytest.mark.parametrize(
+    "rate, want",
+    [
+        ("30000/1001", "30000/1001"),
+        ("60/1", "60/1"),
+        ("0/0", None),
+        ("", None),
+        ("-30/1", None),
+        ("abc", None),
+        (None, None),
+    ],
+)
 def test_video_info_reads_the_frame_rate(monkeypatch, rate, want):
     s = {"codec_name": "h264", "width": 1, "height": 1, "nb_read_packets": "120", "duration": "4.0"}
     if rate is not None:
@@ -337,15 +401,16 @@ def test_video_info_reads_the_frame_rate(monkeypatch, rate, want):
     monkeypatch.setattr(finish, "run", lambda cmd: subprocess.CompletedProcess(cmd, 0, json.dumps(doc), ""))
     vi = finish.video_info("x.mp4")
     assert vi["rate"] == want
-    problems = finish.picture_problems({"width": 1, "height": 1, "format": "9:16", "fps": 30, "duration": 4},
-                                       vi, vi)
+    problems = finish.picture_problems({"width": 1, "height": 1, "format": "9:16", "fps": 30, "duration": 4}, vi, vi)
     no_rate = [p for p in problems if p.startswith("ffprobe gives no frame rate for the video")]
     assert bool(no_rate) is (want is None) and all("render it again" in p for p in no_rate)
 
 
 def test_video_info_falls_back_to_the_format_duration(monkeypatch):
-    doc = {"streams": [{"codec_name": "h264", "width": 1, "height": 1, "nb_read_packets": "120"}],
-           "format": {"duration": "4.000"}}
+    doc = {
+        "streams": [{"codec_name": "h264", "width": 1, "height": 1, "nb_read_packets": "120"}],
+        "format": {"duration": "4.000"},
+    }
     monkeypatch.setattr(finish, "run", lambda cmd: subprocess.CompletedProcess(cmd, 0, json.dumps(doc), ""))
     assert finish.video_info("x.mp4")["duration"] == 4.0
     for bad in ("N/A", "nan", "inf"):  # "N/A" is what ffprobe writes when the stream has none
@@ -373,10 +438,10 @@ def test_lead_silence_warning_covers_unsynced_cues(tmp_path, proj, capsys):
 def test_window_energy_matches_the_direct_sum():
     rng = np.random.default_rng(3)
     seg, n = rng.standard_normal(5000), 400
-    assert np.allclose(finish.window_energy(seg, n), np.convolve(seg ** 2, np.ones(n), mode="valid"))
+    assert np.allclose(finish.window_energy(seg, n), np.convolve(seg**2, np.ones(n), mode="valid"))
     y = np.zeros(SR)
     tmpl = click(SR)
-    y[int(0.5 * SR):int(0.5 * SR) + len(tmpl)] += tmpl
+    y[int(0.5 * SR) : int(0.5 * SR) + len(tmpl)] += tmpl
     found, score = finish.locate(y, tmpl, 0.52)
     assert abs(found - 0.5) < 1e-3 and score > 0.99
 
@@ -388,6 +453,7 @@ def test_error_in_the_warning_step_leaves_no_file(tmp_path, proj, monkeypatch):
 
     def broken(*a, **k):
         raise RuntimeError("cannot decode")
+
     monkeypatch.setattr(finish, "late_starts", broken)
     with pytest.raises(RuntimeError, match="cannot decode"):
         finish.finish(proj, raw)
@@ -397,13 +463,38 @@ def test_error_in_the_warning_step_leaves_no_file(tmp_path, proj, monkeypatch):
 
 # --- frame checks: blank opening and pops -------------------------------------------------------
 
+
 def gray_clip(tmp_path, frames, rate="30", name="clip.mp4"):
     """An MP4 whose luma is exactly `frames` (uint8, n x h x w): x264 at qp 0."""
     n, h, w = frames.shape
     mp4 = tmp_path / name
-    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "gray", "-s", f"{w}x{h}",
-                    "-framerate", rate, "-i", "-", "-c:v", "libx264", "-qp", "0", "-pix_fmt", "yuv420p", str(mp4)],
-                   input=frames.astype(np.uint8).tobytes(), check=True)
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-v",
+            "error",
+            "-y",
+            "-f",
+            "rawvideo",
+            "-pix_fmt",
+            "gray",
+            "-s",
+            f"{w}x{h}",
+            "-framerate",
+            rate,
+            "-i",
+            "-",
+            "-c:v",
+            "libx264",
+            "-qp",
+            "0",
+            "-pix_fmt",
+            "yuv420p",
+            str(mp4),
+        ],
+        input=frames.astype(np.uint8).tobytes(),
+        check=True,
+    )
     return mp4
 
 
@@ -412,7 +503,9 @@ def texture(seed, n, h=192, w=108):
 
 
 def marks(p, scenes=(0.0,), beats=()):
-    (p / "index.html").write_text("".join(f'<section id="s{i}" data-start="{t}"></section>' for i, t in enumerate(scenes)))
+    (p / "index.html").write_text(
+        "".join(f'<section id="s{i}" data-start="{t}"></section>' for i, t in enumerate(scenes))
+    )
     (p / "beats.json").write_text(json.dumps({"beats": list(beats), "downbeat_phase": 0}))
 
 
@@ -434,7 +527,8 @@ def test_blank_opening_is_reported_with_the_first_readable_time(tmp_path):
     assert r["warnings"] == [
         "frame 0 is blank, and feeds show frame 0 as the thumbnail: start on the hook text or UI",
         "nothing to read until 1.50 s: the hook must show within 1 s",
-        "still for 1.50 s from 0.00 s: nothing on screen moves (look at it)"]
+        "still for 1.50 s from 0.00 s: nothing on screen moves (look at it)",
+    ]
 
 
 def test_an_empty_video_gives_only_the_empty_warning(tmp_path):
@@ -518,6 +612,7 @@ def test_frame_checks_never_fail_the_reel(tmp_path, proj, monkeypatch, capsys):
         if len(calls) == 1:  # the frame checks run first; the poster decodes again and needs it
             raise RuntimeError("decoder gone")
         return real_decode(*a, **k)
+
     monkeypatch.setattr(finish, "decode_gray", broken)
     assert finish.finish(proj, raw) == 0
     report = json.loads((proj / "renders" / "demo-a-v2-report.json").read_text())
@@ -560,9 +655,32 @@ def test_audio_longer_than_the_video_does_not_stretch_frame_times(tmp_path):
     marks(tmp_path, (0.0,), (0.5,))
     video = gray_clip(tmp_path, np.concatenate([texture(1, 60), texture(2, 30)]))  # cut at 2.0 s of 3.0 s
     mp4 = tmp_path / "long-audio.mp4"
-    subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(video), "-f", "lavfi", "-i",
-                    "anullsrc=r=48000:cl=stereo", "-t", "4.0", "-map", "0:v", "-map", "1:a", "-c:v", "copy",
-                    "-c:a", "aac", str(mp4)], check=True)
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-v",
+            "error",
+            "-y",
+            "-i",
+            str(video),
+            "-f",
+            "lavfi",
+            "-i",
+            "anullsrc=r=48000:cl=stereo",
+            "-t",
+            "4.0",
+            "-map",
+            "0:v",
+            "-map",
+            "1:a",
+            "-c:v",
+            "copy",
+            "-c:a",
+            "aac",
+            str(mp4),
+        ],
+        check=True,
+    )
     vi = finish.video_info(mp4)
     assert vi["duration"] == pytest.approx(3.0, abs=0.01)
     r = finish.frame_checks(tmp_path, mp4, vi)
@@ -580,7 +698,9 @@ def test_a_blank_frame_0_with_an_early_hook_gives_only_the_thumbnail_warning(tmp
 
 
 def test_a_commented_out_scene_is_not_a_planned_cut(tmp_path):
-    (tmp_path / "index.html").write_text('<section data-start="0"></section><!-- <section data-start="1.0"></section> -->')
+    (tmp_path / "index.html").write_text(
+        '<section data-start="0"></section><!-- <section data-start="1.0"></section> -->'
+    )
     (tmp_path / "beats.json").write_text(json.dumps({"beats": [0.5], "downbeat_phase": 0}))
     assert finish.scene_starts((tmp_path / "index.html").read_text()) == ([0.0], [])
     r = checks(tmp_path, np.concatenate([texture(1, 30), texture(2, 30)]))
@@ -599,15 +719,20 @@ def test_a_beat_up_to_two_frames_before_a_cut_plans_it(tmp_path, frames_before, 
 
 def test_a_bad_data_start_skips_only_its_own_scene(tmp_path):
     marks(tmp_path, (0.0, "x", "1e999", 1.0))
-    assert finish.scene_starts((tmp_path / "index.html").read_text()) == ([0.0, 1.0], [
-        "index.html: data-start 'x' is not a finite number: that scene start is not compared with cuts",
-        "index.html: data-start '1e999' is not a finite number: that scene start is not compared with cuts"])
+    assert finish.scene_starts((tmp_path / "index.html").read_text()) == (
+        [0.0, 1.0],
+        [
+            "index.html: data-start 'x' is not a finite number: that scene start is not compared with cuts",
+            "index.html: data-start '1e999' is not a finite number: that scene start is not compared with cuts",
+        ],
+    )
     r = checks(tmp_path, np.concatenate([texture(1, 30), texture(2, 30)]))
     assert [(e["type"], e["time"], e["planned"]) for e in r["events"]] == [("cut", 1.0, True)]
     assert r["warnings"] == [STILL_1S]
     assert r["notes"] == [
         "index.html: data-start 'x' is not a finite number: that scene start is not compared with cuts",
-        "index.html: data-start '1e999' is not a finite number: that scene start is not compared with cuts"]
+        "index.html: data-start '1e999' is not a finite number: that scene start is not compared with cuts",
+    ]
 
 
 def test_frame_warnings_reach_stderr(tmp_path, proj, capsys):
@@ -638,21 +763,25 @@ def test_a_long_chain_of_cuts_is_not_one_planned_move(tmp_path):
     assert len(r["warnings"]) == len(r["events"]) - 1
 
 
-
 # --- poster frame --------------------------------------------------------------------------------
 
+
 def html_of(*scenes):
-    return "".join(f'<section id="s{i + 1}" class="clip scene" data-start="{a}" data-duration="{b}"></section>'
-                   for i, (a, b) in enumerate(scenes))
+    return "".join(
+        f'<section id="s{i + 1}" class="clip scene" data-start="{a}" data-duration="{b}"></section>'
+        for i, (a, b) in enumerate(scenes)
+    )
 
 
 def test_scene_spans_reads_live_sections_sorted_without_repeats():
-    html = ('<section id="b" data-start="5" data-duration="3"></section>'
-            '<!-- <section id="old" data-start="1" data-duration="9"></section> -->'
-            '<section id="a" data-start="0" data-duration="5.3"></section>'
-            '<section id="dup" data-start="5" data-duration="1"></section>'
-            '<section id="bad" data-start="x" data-duration="1"></section>'
-            "<section id='q' data-start='9'></section>")
+    html = (
+        '<section id="b" data-start="5" data-duration="3"></section>'
+        '<!-- <section id="old" data-start="1" data-duration="9"></section> -->'
+        '<section id="a" data-start="0" data-duration="5.3"></section>'
+        '<section id="dup" data-start="5" data-duration="1"></section>'
+        '<section id="bad" data-start="x" data-duration="1"></section>'
+        "<section id='q' data-start='9'></section>"
+    )
     assert finish.scene_spans(html) == [(0.0, 5.3), (5.0, 3.0), (9.0, None)]
 
 
@@ -762,6 +891,7 @@ def label_clip(tmp_path):
 
 def test_finish_writes_a_full_size_poster_with_the_label_and_reports_it(tmp_path, proj):
     from PIL import Image
+
     raw = label_clip(tmp_path)
     (proj / "index.html").write_text(html_of((0.0, 2.1), (2.0, 2.0)))
     realize(proj, [(t, True) for t in CLICKS])
@@ -785,15 +915,32 @@ def test_finish_writes_a_full_size_poster_with_the_label_and_reports_it(tmp_path
 
 def test_the_poster_is_a_second_encode_of_the_scored_frame_at_quality_90(tmp_path, proj):
     from PIL import Image
+
     raw = label_clip(tmp_path)
     (proj / "index.html").write_text(html_of((0.0, 2.1), (2.0, 2.0)))
     realize(proj, [(t, True) for t in CLICKS])
     assert finish.finish(proj, raw) == 0
     r = proj / "renders"
     png = tmp_path / "again.png"
-    subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-y", "-i", str(r / "demo-a-v1.mp4"),
-                    "-vf", f"select=eq(n\\,{MARKER_FRAME})", "-fps_mode", "passthrough", "-frames:v", "1", str(png)],
-                   check=True)
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-nostdin",
+            "-v",
+            "error",
+            "-y",
+            "-i",
+            str(r / "demo-a-v1.mp4"),
+            "-vf",
+            f"select=eq(n\\,{MARKER_FRAME})",
+            "-fps_mode",
+            "passthrough",
+            "-frames:v",
+            "1",
+            str(png),
+        ],
+        check=True,
+    )
     again = tmp_path / "again.jpg"
     Image.open(png).convert("RGB").save(again, quality=90)
     assert (r / "demo-a-v1-poster.jpg").read_bytes() == again.read_bytes()
@@ -815,6 +962,7 @@ def test_a_poster_that_cannot_be_written_fails_the_run_without_a_report(tmp_path
     def half(mp4, index, dest):
         Path(dest).write_bytes(b"half a jpeg")
         raise RuntimeError("disk full")
+
     monkeypatch.setattr(finish, "write_poster", half)
     with pytest.raises(RuntimeError):
         finish.finish(proj, raw)
@@ -890,7 +1038,7 @@ def test_a_slow_creep_is_motion():
     # a dark bar that moves 1 px every 3 frames
     bar = still(90)
     for i in range(90):
-        bar[i, :, 10 + i // 3:16 + i // 3] = 0
+        bar[i, :, 10 + i // 3 : 16 + i // 3] = 0
     assert max(end - first for first, end in finish.still_runs(bar)) == 3
     assert finish.dead_holds(np.concatenate([bar, moving(30)]), DT) == []
 
@@ -905,12 +1053,15 @@ def test_an_end_card_that_stops_a_frame_or_two_early_is_still_the_end_card(tail,
     assert finish.dead_holds(np.concatenate([moving(90), still(60), moving(tail)]), DT) == holds
 
 
-@pytest.mark.parametrize("pixels, level, holds", [
-    (10, 50, [{"time": 0.0, "length": 2.0}]),  # 10 of 5184 pixels: within HOLD_SHARE, still
-    (11, 50, []),                              # 11: over it, motion
-    (40, 8, [{"time": 0.0, "length": 2.0}]),   # a change of exactly HOLD_PIX is no change
-    (40, 9, []),
-])
+@pytest.mark.parametrize(
+    "pixels, level, holds",
+    [
+        (10, 50, [{"time": 0.0, "length": 2.0}]),  # 10 of 5184 pixels: within HOLD_SHARE, still
+        (11, 50, []),  # 11: over it, motion
+        (40, 8, [{"time": 0.0, "length": 2.0}]),  # a change of exactly HOLD_PIX is no change
+        (40, 9, []),
+    ],
+)
 def test_a_patch_moves_the_frame_only_over_both_thresholds(pixels, level, holds):
     f = still(60)
     f[1::2].reshape(30, -1)[:, :pixels] += level  # the patch blinks on every other frame

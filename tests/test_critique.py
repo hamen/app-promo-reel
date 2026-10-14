@@ -86,14 +86,17 @@ def test_a_9x16_file_with_loop_fails(proj):
     assert "missing score: sound" in r.stderr
 
 
-@pytest.mark.parametrize("line, msg", [
-    ("scores: hook=8 readability=7 motion=8 variety=8 composition=8 claims=9", "missing score: sound"),
-    (SCORES.replace("hook=8", "hook=0"), "hook: the score must be a whole number from 1 to 10, got '0'"),
-    (SCORES.replace("hook=8", "hook=11"), "hook: the score must be a whole number from 1 to 10, got '11'"),
-    (SCORES.replace("hook=8", "hook=8.5"), "got '8.5'"),
-    (SCORES.replace("hook=8", "hook=eight"), "got 'eight'"),
-    (SCORES + " hook=9", "'hook=9' is not a new name=score pair"),
-])
+@pytest.mark.parametrize(
+    "line, msg",
+    [
+        ("scores: hook=8 readability=7 motion=8 variety=8 composition=8 claims=9", "missing score: sound"),
+        (SCORES.replace("hook=8", "hook=0"), "hook: the score must be a whole number from 1 to 10, got '0'"),
+        (SCORES.replace("hook=8", "hook=11"), "hook: the score must be a whole number from 1 to 10, got '11'"),
+        (SCORES.replace("hook=8", "hook=8.5"), "got '8.5'"),
+        (SCORES.replace("hook=8", "hook=eight"), "got 'eight'"),
+        (SCORES + " hook=9", "'hook=9' is not a new name=score pair"),
+    ],
+)
 def test_bad_scores_are_reported(proj, line, msg):
     write(proj, line + "\n" + DEFECT + "\n")
     r = check(proj)
@@ -113,8 +116,20 @@ def test_four_defects_fail(proj):
     assert check(proj).returncode == 0
 
 
-@pytest.mark.parametrize("t, ok", [("0", True), ("3.96", True), ("3.9666", True), ("4", False), ("3.97", False),
-                                   ("-0.1", False), ("abc", False), ("nan", False), ("inf", False)])
+@pytest.mark.parametrize(
+    "t, ok",
+    [
+        ("0", True),
+        ("3.96", True),
+        ("3.9666", True),
+        ("4", False),
+        ("3.97", False),
+        ("-0.1", False),
+        ("abc", False),
+        ("nan", False),
+        ("inf", False),
+    ],
+)
 def test_t_must_have_a_frame(proj, t, ok):
     write(proj, SCORES + "\n" + DEFECT.replace("t=1.2", f"t={t}") + "\n")
     r = check(proj)
@@ -176,7 +191,7 @@ def test_a_malformed_defect_names_its_line(proj):
 
 def test_skill_step_6_runs_the_checker_and_the_format_doc_matches_it():
     skill = " ".join((SCRIPTS.parent / "SKILL.md").read_text().split())
-    step6 = skill[skill.index("6. **Critique"):skill.index("7. **Deliver")]
+    step6 = skill[skill.index("6. **Critique") : skill.index("7. **Deliver")]
     assert "critique_check.py" in step6 and "reviews/critique-<N>.md" in step6 and "references/critique.md" in step6
     assert "Judge only the rendered frames" in step6
     doc = (SCRIPTS.parent / "references" / "critique.md").read_text()

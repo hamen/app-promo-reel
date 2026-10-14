@@ -14,12 +14,22 @@ import sample_colors
 from conftest import SCRIPTS, run_script, tone_file
 
 
-@pytest.mark.parametrize("a, b, same", [
-    (30, "30/1", True), (29.97, "30000/1001", True), ("240000/1001", 29.97 * 8, True),
-    (30, 30 * (1 + 0.9e-4), True), (30, 30 * (1 + 1.1e-4), False),
-    (29.97, 30, False), (60, "60000/1001", False), (60, 30, False)])
+@pytest.mark.parametrize(
+    "a, b, same",
+    [
+        (30, "30/1", True),
+        (29.97, "30000/1001", True),
+        ("240000/1001", 29.97 * 8, True),
+        (30, 30 * (1 + 0.9e-4), True),
+        (30, 30 * (1 + 1.1e-4), False),
+        (29.97, 30, False),
+        (60, "60000/1001", False),
+        (60, 30, False),
+    ],
+)
 def test_same_rate_tells_ntsc_from_whole_rates(a, b, same):
     from common import same_rate
+
     assert same_rate(a, b) is same and same_rate(b, a) is same
 
 
@@ -74,8 +84,9 @@ def test_new_project_copies_sfx_and_works_without(tmp_path):
     assert copied.is_file() and not copied.is_symlink()
     assert not (dest / "assets" / "audio" / "notes.txt").exists()
     env.pop("SFX_DIR")
-    r = run_script("new_project.py", "--app", "x", "--variant", "b", "--out", tmp_path / "out",
-                   "--stores", "google_play", env=env)
+    r = run_script(
+        "new_project.py", "--app", "x", "--variant", "b", "--out", tmp_path / "out", "--stores", "google_play", env=env
+    )
     assert r.returncode == 0 and "no $SFX_DIR" in r.stdout
     assert json.loads((tmp_path / "out" / "x-b" / "project.json").read_text())["stores"] == ["google_play"]
     r = run_script("new_project.py", "--app", "x", "--variant", "b", "--out", tmp_path / "out", env=env)
@@ -121,23 +132,46 @@ def test_music_gen_removes_stale_seed_files_on_failure(tmp_path, monkeypatch):
 
 def test_music_gen_second_process_exits_2(tmp_path, monkeypatch):
     import fcntl
+
     lock = tmp_path / "lock"
     monkeypatch.setattr(music_gen, "LOCK", lock)
     with open(lock, "a") as held:
         fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        r = subprocess.run([sys.executable, "-c",
-                            "import sys, music_gen; from pathlib import Path; "
-                            f"music_gen.LOCK = Path({str(lock)!r}); "
-                            f"music_gen.main(['--prompt', 'x', '--duration', '30', '--seeds', '1', '--out', {str(tmp_path / 'o')!r}])"],
-                           capture_output=True, text=True, cwd=str(music_gen.__file__.rsplit('/', 1)[0]))
+        r = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "import sys, music_gen; from pathlib import Path; "
+                f"music_gen.LOCK = Path({str(lock)!r}); "
+                f"music_gen.main(['--prompt', 'x', '--duration', '30', '--seeds', '1', '--out', {str(tmp_path / 'o')!r}])",
+            ],
+            capture_output=True,
+            text=True,
+            cwd=str(music_gen.__file__.rsplit("/", 1)[0]),
+        )
     assert r.returncode == 2 and "another music generator is running" in r.stderr
 
 
 def test_repo_root_from_a_linked_worktree(tmp_path):
     main = tmp_path / "main"
     subprocess.run(["git", "init", "-q", str(main)], check=True)
-    subprocess.run(["git", "-C", str(main), "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q",
-                    "--allow-empty", "-m", "x"], check=True)
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(main),
+            "-c",
+            "user.name=t",
+            "-c",
+            "user.email=t@t",
+            "commit",
+            "-q",
+            "--allow-empty",
+            "-m",
+            "x",
+        ],
+        check=True,
+    )
     wt = main / ".claude" / "worktrees" / "w"
     subprocess.run(["git", "-C", str(main), "worktree", "add", "-q", str(wt)], check=True)
     assert new_project.repo_root(wt) == main.resolve()
@@ -174,8 +208,23 @@ def test_music_gen_bad_duration_still_removes_stale_files(tmp_path, monkeypatch)
 def test_linked_worktree_of_this_repo_is_refused_even_with_force(tmp_path, monkeypatch):
     main = tmp_path / "main"
     subprocess.run(["git", "init", "-q", str(main)], check=True)
-    subprocess.run(["git", "-C", str(main), "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q",
-                    "--allow-empty", "-m", "x"], check=True)
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(main),
+            "-c",
+            "user.name=t",
+            "-c",
+            "user.email=t@t",
+            "commit",
+            "-q",
+            "--allow-empty",
+            "-m",
+            "x",
+        ],
+        check=True,
+    )
     skill = main / "skills" / "app-promo-reel"
     skill.mkdir(parents=True)
     elsewhere = tmp_path / "elsewhere"
@@ -200,6 +249,7 @@ def test_sample_colors_point_that_is_not_a_pair_exits_2(tmp_path):
 
 def test_music_gen_second_process_leaves_the_first_ones_files(tmp_path, monkeypatch):
     import fcntl
+
     lock = tmp_path / "lock"
     out = tmp_path / "o"
     out.mkdir()
@@ -219,6 +269,7 @@ def test_new_project_refuses_a_short_duration(tmp_path):
 
 def test_partial_music_file_is_outside_the_rank_glob(tmp_path):
     import fnmatch
+
     assert not fnmatch.fnmatch(music_gen.partial_path(tmp_path, 5).name, "bgm_*.wav")
     assert music_gen.partial_path(tmp_path, 5).parent == tmp_path
 
@@ -227,26 +278,31 @@ def test_docs_scaffold_step_names_the_real_stores():
     # tripwire: the scaffold commands must make the agent choose the stores (the default, both,
     # puts a false badge on a single-store app's end card)
     skill = (SCRIPTS.parent / "SKILL.md").read_text()
-    step1 = skill[skill.index("1. **Scaffold.**"):skill.index("2. **Research")]
+    step1 = skill[skill.index("1. **Scaffold.**") : skill.index("2. **Research")]
     assert "--stores" in step1
     pipeline = (SCRIPTS.parent / "references" / "pipeline.md").read_text()
     assert "--stores <STORES>" in pipeline and "--stores app_store,google_play" not in pipeline
 
 
-def fake_musicgen(monkeypatch, seconds_for_seed=lambda seed: 31.0, load_error=None, convert_error=None,
-                  seed_error=None):
+def fake_musicgen(
+    monkeypatch, seconds_for_seed=lambda seed: 31.0, load_error=None, convert_error=None, seed_error=None
+):
     """Stand-ins for torch and transformers: a 'model' whose output length depends on the seed."""
     import types
     import numpy as np
+
     state = {}
     torch = types.ModuleType("torch")
     torch.float16 = "fp16"
-    torch.cuda = types.SimpleNamespace(is_available=lambda: True,
-                                       OutOfMemoryError=type("OutOfMemoryError", (Exception,), {}))
+    torch.cuda = types.SimpleNamespace(
+        is_available=lambda: True, OutOfMemoryError=type("OutOfMemoryError", (Exception,), {})
+    )
+
     def manual_seed(seed):
         if seed_error:
             raise seed_error
         state.update(seed=seed)
+
     torch.manual_seed = manual_seed
 
     class Tensor:
@@ -288,7 +344,7 @@ def fake_musicgen(monkeypatch, seconds_for_seed=lambda seed: 31.0, load_error=No
             return Tensor(np.zeros((1, 1, n), dtype=np.float32))
 
     tf = types.ModuleType("transformers")
-    tf.AutoProcessor = types.SimpleNamespace(from_pretrained=lambda *a, **k: (lambda **kw: Inputs()))
+    tf.AutoProcessor = types.SimpleNamespace(from_pretrained=lambda *a, **k: lambda **kw: Inputs())
     tf.MusicgenForConditionalGeneration = Model
     monkeypatch.setitem(sys.modules, "torch", torch)
     monkeypatch.setitem(sys.modules, "transformers", tf)
@@ -319,6 +375,7 @@ def test_music_gen_write_error_exits_2(tmp_path, monkeypatch, capsys):
 
     def no_space(*a, **k):
         raise TypeError("no space left on device")  # any error type, not only OSError
+
     monkeypatch.setattr(soundfile, "write", no_space)
     with pytest.raises(SystemExit) as e:
         music_gen.main(["--prompt", "x", "--duration", "30", "--seeds", "1", "--out", str(tmp_path / "o")])
@@ -353,10 +410,13 @@ def test_music_gen_seeding_error_exits_2(tmp_path, monkeypatch, capsys):
     assert e.value.code == 2 and "driver initialization failed" in capsys.readouterr().err
 
 
-@pytest.mark.parametrize("fmt, size", [(None, [1080, 1920]), ("9:16", [1080, 1920]), ("4:5", [1080, 1350]), ("16:9", [1920, 1080])])
+@pytest.mark.parametrize(
+    "fmt, size", [(None, [1080, 1920]), ("9:16", [1080, 1920]), ("4:5", [1080, 1350]), ("16:9", [1920, 1080])]
+)
 def test_new_project_writes_the_format(tmp_path, fmt, size):
-    r = run_script("new_project.py", "--app", "x", "--variant", "a", "--out", tmp_path / "out",
-                   *(["--format", fmt] if fmt else []))
+    r = run_script(
+        "new_project.py", "--app", "x", "--variant", "a", "--out", tmp_path / "out", *(["--format", fmt] if fmt else [])
+    )
     assert r.returncode == 0, r.stderr
     dest = tmp_path / "out" / "x-a"
     doc = json.loads((dest / "project.json").read_text())
@@ -376,7 +436,7 @@ def test_new_project_refuses_an_unknown_format(tmp_path):
 def test_docs_scaffold_step_names_the_format():
     # tripwire: a feed variant scaffolded without --format renders at 9:16
     skill = (SCRIPTS.parent / "SKILL.md").read_text()
-    assert "--format <9:16|4:5|16:9>" in skill[skill.index("1. **Scaffold.**"):skill.index("2. **Research")]
+    assert "--format <9:16|4:5|16:9>" in skill[skill.index("1. **Scaffold.**") : skill.index("2. **Research")]
     assert "--format 9:16" in (SCRIPTS.parent / "references" / "pipeline.md").read_text()
 
 
@@ -387,16 +447,27 @@ def test_every_design_md_keeps_the_reference_section_before_what_not_to_do(tmp_p
     design = (tmp_path / "out" / "x-a" / "DESIGN.md").read_text()
     heads = [l for l in design.splitlines() if l.startswith("## ")]
     assert "## Reference" in heads and heads.index("## Reference") == heads.index("## What NOT to do") - 1
-    ref = design[design.index("## Reference"):design.index("## What NOT to do")]
-    for word in ("Palette", "Typography", "Composition", "Pacing", "Motion", "Texture", "Do not copy", "product screen", "estimated", "sample_colors.py"):
+    ref = design[design.index("## Reference") : design.index("## What NOT to do")]
+    for word in (
+        "Palette",
+        "Typography",
+        "Composition",
+        "Pacing",
+        "Motion",
+        "Texture",
+        "Do not copy",
+        "product screen",
+        "estimated",
+        "sample_colors.py",
+    ):
         assert word in ref
-    music = design[design.index("## Music"):design.index("## Reference")]
+    music = design[design.index("## Music") : design.index("## Reference")]
     assert ("16:9 is silent: no music." in music) == (fmt == "16:9")
 
 
 def test_skill_step_2_points_at_the_reference_section():
     skill = " ".join((SCRIPTS.parent / "SKILL.md").read_text().split())
-    step2 = skill[skill.index("2. **Research"):skill.index("3. **Music first")]
+    step2 = skill[skill.index("2. **Research") : skill.index("3. **Music first")]
     assert "`## Reference`" in step2 and "sample_colors.py" in step2 and "estimated" in step2
     assert "no logo, text, music, claim or product screen comes from it" in step2
 
@@ -404,16 +475,21 @@ def test_skill_step_2_points_at_the_reference_section():
 def test_gated_run_is_opt_in_and_names_its_triggers_and_four_stops():
     skill = " ".join((SCRIPTS.parent / "SKILL.md").read_text().split())
     assert "\n## Gated run (opt-in)" in (SCRIPTS.parent / "SKILL.md").read_text()
-    sec = skill[skill.index("## Gated run (opt-in)"):skill.index("## Variants")]
+    sec = skill[skill.index("## Gated run (opt-in)") : skill.index("## Variants")]
     assert 'exact words "gated run" or "gated reel"' in sec and "in any letter case" in sec
     assert "No other wording turns it on" in sec and "without stopping" in sec
     assert "Never approve a gate yourself" in sec
-    for stop in ("1. After step 2", "2. After the storyboard", "3. After the first `finish.py`", "4. After the last critique round"):
+    for stop in (
+        "1. After step 2",
+        "2. After the storyboard",
+        "3. After the first `finish.py`",
+        "4. After the last critique round",
+    ):
         assert stop in sec
     for item in ("`## Reference`", "`shotlist.md`", "contact sheet", "poster", "final MP4"):
         assert item in sec
     # the default workflow above the section never mentions a gate
-    assert "gate" not in skill[:skill.index("## Gated run (opt-in)")].lower()
+    assert "gate" not in skill[: skill.index("## Gated run (opt-in)")].lower()
 
 
 def test_docs_pin_the_feed_safe_box_the_density_rule_and_the_punch_cap():
@@ -423,29 +499,35 @@ def test_docs_pin_the_feed_safe_box_the_density_rule_and_the_punch_cap():
 
     def doc(*parts):
         return " ".join(SCRIPTS.parent.joinpath(*parts).read_text().split())
+
     story = doc("references", "storyboard.md")
-    zones = story[story.index("## Feed safe zones"):story.index("## Density")]
+    zones = story[story.index("## Feed safe zones") : story.index("## Density")]
     for fmt, (x0, y0, x1, y1) in FEED_BOXES.items():
-        assert f"| {fmt} |" in zones and f"x {x0}-{x1}, y {y0}-{y1} | {build.AI_LABEL_PLACES[fmt][1]} px or more |" in zones
+        assert (
+            f"| {fmt} |" in zones
+            and f"x {x0}-{x1}, y {y0}-{y1} | {build.AI_LABEL_PLACES[fmt][1]} px or more |" in zones
+        )
     assert "bottom 672, right 192" in zones and "lower 40%" in zones and "scaled 0.79" in zones
-    density = story[story.index("## Density"):story.index("## Drop placement")]
+    density = story[story.index("## Density") : story.index("## Drop placement")]
     assert f"more than {finish.HOLD_MAX} s" in density and f"up to {finish.HOLD_END} s" in density
     assert "still for <length> s from <time> s: nothing on screen moves (look at it)" in density
     motion = doc("references", "motion.md")
     assert f"at most {build.PUNCH_CAP} shakes and {build.PUNCH_CAP} flashes per reel" in motion
-    assert "| `icon` | small objects that appear: icon, pop, CTA, chips, rows | spring, 10% overshoot | 0.32 s |" in motion
+    assert (
+        "| `icon` | small objects that appear: icon, pop, CTA, chips, rows | spring, 10% overshoot | 0.32 s |" in motion
+    )
     critique = doc("references", "critique.md")
     assert "caps readability at 6" in critique and "`still for …` warning" in critique
     # the agent runs the command build.py prints, not a plain check
     skill = doc("SKILL.md")
-    step5 = skill[skill.index("5. **Build, check"):skill.index("6. **Critique")]
+    step5 = skill[skill.index("5. **Build, check") : skill.index("6. **Critique")]
     assert "run the `check:` command it prints as its last line" in step5
     assert "The last line build.py prints is `check: <command>`. Run that command" in doc("references", "pipeline.md")
 
 
 def test_docs_state_the_limits_of_the_seekability_check():
     motion = " ".join(SCRIPTS.parent.joinpath("references", "motion.md").read_text().split())
-    sec = motion[motion.index("## Seekable frames"):motion.index("## Motion blur")]
+    sec = motion[motion.index("## Seekable frames") : motion.index("## Motion blur")]
     assert "A `<script>` inside an HTML comment is still read: delete it instead of commenting it out" in sec
     assert "The check is a guard, not a proof" in sec and "(also with `?.`)" in sec
     assert "write it as a constant (a seeded list in the file)" in sec
@@ -453,7 +535,7 @@ def test_docs_state_the_limits_of_the_seekability_check():
 
 def test_docs_name_the_fps_token_and_the_blur_rates():
     pipeline = " ".join(SCRIPTS.parent.joinpath("references", "pipeline.md").read_text().split())
-    tokens = pipeline[pipeline.index("- Template tokens:"):pipeline.index("- In the page script")]
+    tokens = pipeline[pipeline.index("- Template tokens:") : pipeline.index("- In the page script")]
     assert "`{{FPS}}` (the root's `data-fps`, from project.json)" in tokens
     # measured: HyperFrames 0.8.78 writes --fps 240000/1001 as 240/1, which blur.py refuses
     assert "(200 for 25 fps). Not for 23.976, 29.97 or 59.94 fps" in pipeline
@@ -466,9 +548,10 @@ def test_docs_pin_the_optional_motion_blur_step():
 
     def doc(*parts):
         return " ".join(SCRIPTS.parent.joinpath(*parts).read_text().split())
+
     skill = doc("SKILL.md")
-    step5 = skill[skill.index("5. **Build, check"):skill.index("6. **Critique")]
-    step6 = skill[skill.index("6. **Critique"):]
+    step5 = skill[skill.index("5. **Build, check") : skill.index("6. **Critique")]
+    step6 = skill[skill.index("6. **Critique") :]
     pipeline = doc("references", "pipeline.md")
     assert "render with `--fps 240` to `renders/sub240.mp4`" in step5
     assert "`scripts/blur.py <project> renders/sub240.mp4` writes `renders/raw.mp4`" in step5
@@ -476,7 +559,7 @@ def test_docs_pin_the_optional_motion_blur_step():
     assert "$PY $S/blur.py $P renders/sub240.mp4 $PY $S/finish.py $P renders/raw.mp4" in pipeline
     assert "`fastest:`" in step6 and "from the final MP4" in step6
     motion = doc("references", "motion.md")
-    blurred = motion[motion.index("## Motion blur"):]
+    blurred = motion[motion.index("## Motion blur") :]
     assert f"{2 * blur.reach(8) + 1} of 8 at 30 fps" in blurred and f"{2 * blur.reach(4) + 1} of 4 at 60 fps" in blurred
     assert "half-frame time, `(n + 0.5) / fps`" in blurred and "10 × K px per output frame" in blurred
     assert "`fastest:`" in doc("references", "critique.md")
@@ -484,13 +567,18 @@ def test_docs_pin_the_optional_motion_blur_step():
 
 def hyperframes_pins(root):
     # every "hyperframes@<version>", in any letter case, in the tracked files of root: {path: [(line, version), ...]}
-    names = subprocess.run(["git", "ls-files", "-z"], cwd=root, capture_output=True, text=True,
-                           check=True).stdout.split("\0")
+    names = subprocess.run(
+        ["git", "ls-files", "-z"], cwd=root, capture_output=True, text=True, check=True
+    ).stdout.split("\0")
     found = {}
     for name in filter(None, names):
         try:
             text = (root / name).read_text(encoding="utf-8")
-        except (UnicodeDecodeError, IsADirectoryError, FileNotFoundError):  # not text, a submodule, deleted, a broken link
+        except (
+            UnicodeDecodeError,
+            IsADirectoryError,
+            FileNotFoundError,
+        ):  # not text, a submodule, deleted, a broken link
             continue
         for n, line in enumerate(text.splitlines(), 1):
             for m in re.finditer(r"hyperframes@([\w.-]+)", line, re.IGNORECASE):
@@ -504,11 +592,16 @@ def wrong_pins(found, want):
 
 def test_every_hyperframes_pin_is_the_one_build_py_uses():
     import build
+
     want = build.HYPERFRAMES.split("@", 1)[1]
     found = hyperframes_pins(SCRIPTS.parents[2])
     # the scan reaches the files that run the CLI, so an empty scan cannot pass
-    assert {"skills/app-promo-reel/scripts/build.py", "skills/app-promo-reel/SKILL.md",
-            "skills/app-promo-reel/template/package.json", "README.md"} <= found.keys()
+    assert {
+        "skills/app-promo-reel/scripts/build.py",
+        "skills/app-promo-reel/SKILL.md",
+        "skills/app-promo-reel/template/package.json",
+        "README.md",
+    } <= found.keys()
     wrong = wrong_pins(found, want)
     assert not wrong, f"pin these to {build.HYPERFRAMES}:\n" + "\n".join(wrong)
 
@@ -524,8 +617,9 @@ def test_the_pin_scan_finds_a_version_that_differs(tmp_path):
     (tmp_path / "gone.md").write_text(f"{pin}7.7.7\n")
     subprocess.run(["git", "add", "a.md", "b.json", "c.dat", "c.md", "gone.md"], cwd=tmp_path, check=True)
     (tmp_path / "gone.md").unlink()  # tracked, deleted from disk: skipped
-    subprocess.run(["git", "update-index", "--add", "--cacheinfo", "160000," + "1" * 40 + ",sub"], cwd=tmp_path,
-                   check=True)
+    subprocess.run(
+        ["git", "update-index", "--add", "--cacheinfo", "160000," + "1" * 40 + ",sub"], cwd=tmp_path, check=True
+    )
     (tmp_path / "sub").mkdir()  # a submodule's folder: skipped
     found = hyperframes_pins(tmp_path)
     assert found == {"a.md": [(1, "1.2.3"), (2, "1.2.4")], "b.json": [(1, "latest")], "c.md": [(1, "1.2.5")]}

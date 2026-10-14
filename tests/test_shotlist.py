@@ -1,4 +1,5 @@
 """The shot-list contract: <project>/shotlist.md must match the scenes of the page while it exists."""
+
 import json
 import re
 
@@ -28,8 +29,11 @@ def row(text, scene):
 
 
 def ids(p):
-    return [line.split("|")[1].strip() for line in (p / "shotlist.md").read_text().splitlines()
-            if re.match(r"\| s\d+ \|", line)]
+    return [
+        line.split("|")[1].strip()
+        for line in (p / "shotlist.md").read_text().splitlines()
+        if re.match(r"\| s\d+ \|", line)
+    ]
 
 
 @pytest.mark.parametrize("fmt", ["9:16", "4:5", "16:9"])
@@ -79,6 +83,7 @@ def test_an_empty_or_todo_cell_stops_the_build(tmp_path, cell):
         cells = row(t, "s4").split("|")
         cells[3] = f" {cell} "
         return t.replace(row(t, "s4"), "|".join(cells))
+
     fails(tmp_path, edit, "scene s4: the entry state is empty or TODO")
 
 
@@ -87,29 +92,42 @@ def test_a_sentence_that_contains_todo_is_not_a_todo_cell(tmp_path):
         cells = row(t, "s4").split("|")
         cells[2] = " Three benefits, nothing left TODO "
         return t.replace(row(t, "s4"), "|".join(cells))
+
     scaffold_and_build(tmp_path, edit=edit)
 
 
 def test_a_scene_with_no_id_stops_the_build(tmp_path):
-    fails(tmp_path, lambda t: t, "a scene has no id",
-          edit_html=lambda h: h.replace('<section id="s2" ', "<section ", 1))
+    fails(
+        tmp_path, lambda t: t, "a scene has no id", edit_html=lambda h: h.replace('<section id="s2" ', "<section ", 1)
+    )
 
 
 def test_a_data_id_is_not_an_id(tmp_path):
-    fails(tmp_path, lambda t: t, "a scene has no id",
-          edit_html=lambda h: h.replace('<section id="s2" ', '<section data-id="s2" ', 1))
+    fails(
+        tmp_path,
+        lambda t: t,
+        "a scene has no id",
+        edit_html=lambda h: h.replace('<section id="s2" ', '<section data-id="s2" ', 1),
+    )
 
 
 def test_two_live_sections_with_one_id_stop_the_build(tmp_path):
     # one row would cover both of them
-    err = fails(tmp_path, lambda t: t, "scene s2: 2 live sections have this id; each scene needs its own id",
-                edit_html=lambda h: h.replace('<section id="s3" ', '<section id="s2" ', 1))
+    err = fails(
+        tmp_path,
+        lambda t: t,
+        "scene s2: 2 live sections have this id; each scene needs its own id",
+        edit_html=lambda h: h.replace('<section id="s3" ', '<section id="s2" ', 1),
+    )
     assert err.count("live sections have this id") == 1
 
 
 def test_a_shared_id_with_no_row_is_reported_once(tmp_path):
     def html(h):
-        return h.replace('<section id="s2" ', '<section id="s9" ', 1).replace('<section id="s3" ', '<section id="s9" ', 1)
+        return h.replace('<section id="s2" ', '<section id="s9" ', 1).replace(
+            '<section id="s3" ', '<section id="s9" ', 1
+        )
+
     err = fails(tmp_path, lambda t: t, "scene s9: 2 live sections have this id", "scene s9 has no row", edit_html=html)
     assert err.count("scene s9 has no row") == 1 and err.count("live sections have this id") == 1
 
@@ -117,26 +135,35 @@ def test_a_shared_id_with_no_row_is_reported_once(tmp_path):
 def test_every_problem_is_reported_in_one_message(tmp_path):
     def edit(t):
         return t.replace(row(t, "s3") + "\n", "").rstrip("\n") + "\n| s9 | a | b | c |\n"
+
     err = fails(tmp_path, edit, "scene s3 has no row", "row for s9")
     assert err.count("error:") == 1
 
 
 def test_a_commented_out_scene_needs_no_row(tmp_path):
-    scaffold_and_build(tmp_path, edit_html=lambda h: h.replace(
-        '<section id="s6" ', '<!-- <section id="s9" data-start="1"></section> -->\n<section id="s6" ', 1))
+    scaffold_and_build(
+        tmp_path,
+        edit_html=lambda h: h.replace(
+            '<section id="s6" ', '<!-- <section id="s9" data-start="1"></section> -->\n<section id="s6" ', 1
+        ),
+    )
 
 
 def test_a_title_before_the_table_is_fine_but_no_table_or_two_fail(tmp_path):
     scaffold_and_build(tmp_path / "ok", edit=lambda t: "# Another title\n\nSome prose.\n\n" + t)
-    fails(tmp_path / "none", lambda t: "# Shot list\n\nnothing here\n",
-          "whose header row is `| scene | purpose | entry state | exit state |`, found 0: every row of the "
-          "table starts with `|`")
+    fails(
+        tmp_path / "none",
+        lambda t: "# Shot list\n\nnothing here\n",
+        "whose header row is `| scene | purpose | entry state | exit state |`, found 0: every row of the "
+        "table starts with `|`",
+    )
     assert "starts with" not in fails(tmp_path / "two", lambda t: t + "\n" + t, "found 2")
 
 
 def test_rows_without_the_end_pipe_still_build(tmp_path):
     def edit(t):
         return "\n".join(x.rstrip().rstrip("|").rstrip() if x.startswith("|") else x for x in t.splitlines()) + "\n"
+
     scaffold_and_build(tmp_path, edit=edit)
 
 
@@ -148,12 +175,14 @@ def test_a_table_with_no_rows_stops_the_build(tmp_path):
     def edit(t):
         lines = t.splitlines()
         sep = next(i for i, x in enumerate(lines) if x.startswith("| --- "))
-        return "\n".join(lines[:sep + 1]) + "\n"
+        return "\n".join(lines[: sep + 1]) + "\n"
+
     fails(tmp_path, edit, "no rows")
 
 
 def test_the_docs_state_the_shotlist_rule():
     from conftest import SCRIPTS
+
     skill = (SCRIPTS.parent / "SKILL.md").read_text()
     story = (SCRIPTS.parent / "references" / "storyboard.md").read_text()
     for text in (" ".join(skill.split()), " ".join(story.split())):
@@ -193,4 +222,5 @@ def test_a_separator_with_alignment_colons_is_fine(tmp_path):
         lines = t.splitlines()
         lines[sep_index(lines)] = "| :--- | ---: | :---: | --- |"
         return "\n".join(lines) + "\n"
+
     scaffold_and_build(tmp_path, edit=edit)

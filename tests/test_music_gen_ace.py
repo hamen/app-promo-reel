@@ -5,6 +5,7 @@ The fake records every call in calls.jsonl and init.json next to it, and behaves
  "gen": {"<seed>": "ok" | "raise" | "oom-class" | "oom-runtime" | "oom-result" | "no-audio"},
  "seconds": {"<seed>": length of the WAV it writes (default: the duration it was asked for)}}
 """
+
 import fcntl
 import json
 import sys
@@ -14,7 +15,7 @@ import soundfile as sf
 
 import music_gen_ace
 
-INFERENCE = '''
+INFERENCE = """
 import json, wave
 from pathlib import Path
 from types import SimpleNamespace
@@ -61,9 +62,9 @@ def generate_music(dit_handler, llm_handler, params, config, save_dir=None):
         w.setframerate(8000)
         w.writeframes(int(seed).to_bytes(2, "little", signed=True) * int(seconds * 8000))
     return SimpleNamespace(success=True, error=None, audios=[{"path": str(path)}])
-'''
+"""
 
-HANDLER = '''
+HANDLER = """
 import json
 from .inference import CFG, ROOT, OutOfMemoryError
 
@@ -80,7 +81,7 @@ class AceStepHandler:
         if mode == "fail":
             return "no model files", False
         return "[OK] Model initialized", True
-'''
+"""
 
 
 @pytest.fixture
@@ -102,8 +103,21 @@ def ace(tmp_path, monkeypatch):
         (root / "fake.json").write_text(json.dumps(cfg or {}))
         for name in [m for m in sys.modules if m == "acestep" or m.startswith("acestep.")]:
             del sys.modules[name]
-        music_gen_ace.main(["--prompt", "bright synth pop", "--bpm", "120", "--duration", duration,
-                            "--seeds", seeds, "--out", str(out), *args])
+        music_gen_ace.main(
+            [
+                "--prompt",
+                "bright synth pop",
+                "--bpm",
+                "120",
+                "--duration",
+                duration,
+                "--seeds",
+                seeds,
+                "--out",
+                str(out),
+                *args,
+            ]
+        )
 
     run.root, run.out = root, out
     return run
@@ -121,8 +135,9 @@ def leftovers(out):
 def test_without_acestep_dir_it_says_how_to_install(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(music_gen_ace, "LOCK", tmp_path / "lock")
     with pytest.raises(SystemExit) as e:
-        music_gen_ace.main(["--prompt", "x", "--bpm", "120", "--duration", "30", "--seeds", "1",
-                            "--out", str(tmp_path / "o")])
+        music_gen_ace.main(
+            ["--prompt", "x", "--bpm", "120", "--duration", "30", "--seeds", "1", "--out", str(tmp_path / "o")]
+        )
     assert e.value.code == 2 and "ACESTEP_DIR is not set" in capsys.readouterr().err
 
 
@@ -137,12 +152,26 @@ def test_each_seed_gets_its_own_file_and_its_own_seed(ace, capsys):
     assert [c["config"]["seeds"] for c in got] == [[5], [17]]
     for c in got:
         assert c["llm"] is None
-        assert c["params"] == {**c["params"], "task_type": "text2music", "caption": "bright synth pop",
-                               "lyrics": "[Instrumental]", "instrumental": True, "bpm": 120, "duration": 40.0,
-                               "timesignature": "4", "thinking": False, "use_cot_caption": False,
-                               "use_cot_metas": False, "use_cot_language": False}
-        assert c["config"] == {"batch_size": 1, "audio_format": "wav", "use_random_seed": False,
-                               "seeds": c["config"]["seeds"]}
+        assert c["params"] == {
+            **c["params"],
+            "task_type": "text2music",
+            "caption": "bright synth pop",
+            "lyrics": "[Instrumental]",
+            "instrumental": True,
+            "bpm": 120,
+            "duration": 40.0,
+            "timesignature": "4",
+            "thinking": False,
+            "use_cot_caption": False,
+            "use_cot_metas": False,
+            "use_cot_language": False,
+        }
+        assert c["config"] == {
+            "batch_size": 1,
+            "audio_format": "wav",
+            "use_random_seed": False,
+            "seeds": c["config"]["seeds"],
+        }
     init = json.loads((ace.root / "init.json").read_text())
     assert init == {"project_root": str(ace.root), "config_path": "acestep-v15-turbo", "device": "auto"}
 
@@ -173,8 +202,16 @@ def test_a_failed_generation_exits_2_and_leaves_nothing(ace, capsys, mode):
     assert list(ace.out.iterdir()) == []
 
 
-@pytest.mark.parametrize("cfg", [{"gen": {"5": "oom-class"}}, {"gen": {"5": "oom-runtime"}},
-                                 {"gen": {"5": "oom-result"}}, {"init": "oom-raise"}, {"init": "oom-text"}])
+@pytest.mark.parametrize(
+    "cfg",
+    [
+        {"gen": {"5": "oom-class"}},
+        {"gen": {"5": "oom-runtime"}},
+        {"gen": {"5": "oom-result"}},
+        {"init": "oom-raise"},
+        {"init": "oom-text"},
+    ],
+)
 def test_gpu_out_of_memory_exits_3_with_the_cpu_hint(ace, capsys, cfg):
     with pytest.raises(SystemExit) as e:
         ace(cfg)
@@ -202,14 +239,17 @@ def test_a_second_generator_exits_2_and_touches_nothing(ace, capsys):
 
 def test_the_lock_is_music_gen_s_lock():
     import music_gen
+
     assert music_gen_ace.LOCK == music_gen.LOCK
 
 
-@pytest.mark.parametrize("args", [["--bpm", "29"], ["--bpm", "301"], ["--duration", "0"],
-                                  ["--duration", "nan"], ["--duration", "591"]])
+@pytest.mark.parametrize(
+    "args", [["--bpm", "29"], ["--bpm", "301"], ["--duration", "0"], ["--duration", "nan"], ["--duration", "591"]]
+)
 def test_values_acestep_cannot_make_exit_2(ace, args):
     argv = {"--bpm": "120", "--duration": "30", **dict(zip(args[::2], args[1::2]))}
     with pytest.raises(SystemExit) as e:
-        music_gen_ace.main(["--prompt", "x", "--seeds", "1", "--out", str(ace.out),
-                            *[x for kv in argv.items() for x in kv]])
+        music_gen_ace.main(
+            ["--prompt", "x", "--seeds", "1", "--out", str(ace.out), *[x for kv in argv.items() for x in kv]]
+        )
     assert e.value.code == 2 and calls(ace) == []

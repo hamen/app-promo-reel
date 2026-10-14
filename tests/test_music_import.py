@@ -15,12 +15,14 @@ def mp3(tmp_path, seconds=10.0, click_at=None, name="track.mp3"):
     y = 0.05 * np.sin(2 * np.pi * 220 * t)
     if click_at is not None:
         a = int(click_at * sr)
-        y[a:a + 40] = 0.9
+        y[a : a + 40] = 0.9
     wav = tmp_path / "src.wav"
     sf.write(wav, y, sr)
     out = tmp_path / name
-    subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-y", "-i", str(wav), "-c:a", "libmp3lame", "-b:a", "192k",
-                    str(out)], check=True)
+    subprocess.run(
+        ["ffmpeg", "-nostdin", "-v", "error", "-y", "-i", str(wav), "-c:a", "libmp3lame", "-b:a", "192k", str(out)],
+        check=True,
+    )
     return out
 
 
@@ -35,8 +37,9 @@ def test_a_track_becomes_a_48k_stereo_wav_with_its_source(tmp_path):
     music_import.main([str(src), "--out", str(out), "--source", "https://example.com/track  "])
     y, sr = sf.read(out / "bgm_user.wav")
     assert sr == 48000 and y.shape[1] == 2 and abs(len(y) / sr - 10.0) < 0.06
-    assert (out / "bgm_user.source.txt").read_text() == \
-        "file: track.mp3\nsource: https://example.com/track\nstart: 0 s\n"
+    assert (
+        out / "bgm_user.source.txt"
+    ).read_text() == "file: track.mp3\nsource: https://example.com/track\nstart: 0 s\n"
     assert sorted(p.name for p in out.iterdir()) == ["bgm_user.source.txt", "bgm_user.wav"]
 
 
@@ -52,8 +55,9 @@ def test_start_cuts_the_track_to_the_sample(tmp_path):
 
 @pytest.mark.parametrize("what", ["url", "dir", "missing"])
 def test_only_a_local_file_is_taken(tmp_path, capsys, what):
-    arg = {"url": "https://mixkit.co/free-stock-music/some-track/", "dir": tmp_path,
-           "missing": tmp_path / "nope.mp3"}[what]
+    arg = {"url": "https://mixkit.co/free-stock-music/some-track/", "dir": tmp_path, "missing": tmp_path / "nope.mp3"}[
+        what
+    ]
     assert run(arg, "--out", tmp_path / "work", "--source", "x") == 2
     err = capsys.readouterr().err
     assert ("never downloads music" if what == "url" else "is not a file") in err
@@ -81,8 +85,9 @@ def old_import(out):
     (out / "bgm_user.source.txt").write_text("file: old.mp3\n")
 
 
-@pytest.mark.parametrize("bad", ["url", "dir", "missing", "no-source", "blank-source", "start-negative",
-                                 "start-nan", "start-text"])
+@pytest.mark.parametrize(
+    "bad", ["url", "dir", "missing", "no-source", "blank-source", "start-negative", "start-nan", "start-text"]
+)
 def test_bad_input_also_clears_the_old_import(tmp_path, bad):
     out, src = tmp_path / "work", mp3(tmp_path)
     old_import(out)
@@ -127,6 +132,7 @@ def test_no_source_record_means_no_track(tmp_path, monkeypatch):
 
     def refuse(self, *a, **k):
         raise OSError("disk full")
+
     monkeypatch.setattr(Path, "write_text", refuse)
     assert run(src, "--out", out, "--source", "x") == 2
     assert list(out.iterdir()) == []
@@ -138,6 +144,7 @@ def test_ffmpeg_failing_mid_write_leaves_no_partial_file(tmp_path, monkeypatch):
     def half_written(cmd, **kw):
         Path(cmd[-1]).write_bytes(b"RIFF half a file")
         return subprocess.CompletedProcess(cmd, 1, "", "error while writing")
+
     monkeypatch.setattr(music_import.subprocess, "run", half_written)
     assert run(src, "--out", out, "--source", "x") == 2
     assert list(out.iterdir()) == []

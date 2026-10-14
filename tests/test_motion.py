@@ -1,4 +1,5 @@
 """The motion language (template/motion.js): the spring eases and the MOTION table."""
+
 import json
 import shutil
 import subprocess

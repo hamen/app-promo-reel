@@ -3,6 +3,7 @@ JSON and the output. A fake `npx` replays a real `hyperframes check --json` resu
 (fixtures/read_check.json: the stock template, 9:16, 120 BPM, with the pass's lines; the run token is
 `__TOKEN__` there and is put back by the fake). The pass itself runs in a browser only:
 test_read_check_browser.py (opt-in)."""
+
 import json
 import os
 import re
@@ -85,8 +86,13 @@ def fake(tmp_path, monkeypatch):
     scenario.write_text(json.dumps(fixture()))
     temp = tmp_path / "temp"
     temp.mkdir()
-    env = {**os.environ, "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}", "FAKE_LOG": str(tmp_path / "log"),
-           "FAKE_CHECK": str(scenario), "TMPDIR": str(temp)}
+    env = {
+        **os.environ,
+        "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
+        "FAKE_LOG": str(tmp_path / "log"),
+        "FAKE_CHECK": str(scenario),
+        "TMPDIR": str(temp),
+    }
     for k, v in env.items():
         monkeypatch.setenv(k, v)
 
@@ -101,10 +107,12 @@ def fake(tmp_path, monkeypatch):
 
         def run(self, **extra):
             return run_script("read_check.py", p, env={**env, **extra})
+
     return Fake()
 
 
 # 1. the rule
+
 
 @pytest.mark.parametrize("words,seconds", [(1, 0.8), (2, 0.8), (3, 0.9), (4, 1.2), (6, 1.8)])
 def test_the_rule_has_a_floor_and_a_slope(words, seconds):
@@ -119,7 +127,10 @@ def test_a_run_of_exactly_the_need_is_enough_and_one_frame_less_is_short(fps, wo
     listed = {"done": True, "captions": [["#a", words]]}
 
     def out(frames):
-        return rc.report([{"i": 0, "caption": "#a", "text": "x", "words": words, "runs": [[10, 10 + frames]]}, listed], fps)
+        return rc.report(
+            [{"i": 0, "caption": "#a", "text": "x", "words": words, "runs": [[10, 10 + frames]]}, listed], fps
+        )
+
     assert out(n) == ["read_check: 1 caption, 0 short"]
     assert out(n - 1)[0].startswith("warning: reading time: #a ")
 
@@ -136,6 +147,7 @@ def test_a_run_one_frame_short_never_shows_as_long_as_its_need(fps, words):
 
 # 2. runs
 
+
 def test_the_longest_run_wins_and_a_tie_goes_to_the_earlier_one():
     assert rc.longest_run([[0, 5], [10, 20], [30, 40]]) == (10, 10)
     assert rc.longest_run([[3, 4]]) == (1, 3)
@@ -144,9 +156,12 @@ def test_the_longest_run_wins_and_a_tie_goes_to_the_earlier_one():
 
 # 3. the folder
 
+
 def test_the_pass_goes_before_the_last_body_and_nothing_else_changes():
     page = rc.with_pass(PAGE, "abc", 30, 30.0)
-    script = page[page.index("<script data-read-check>"):page.index("</script>", page.index("<script data-read-check>")) + 10]
+    script = page[
+        page.index("<script data-read-check>") : page.index("</script>", page.index("<script data-read-check>")) + 10
+    ]
     end = PAGE.rfind("</body>")
     assert end > PAGE.index("an old </body>")
     assert page == PAGE[:end] + script + PAGE[end:]
@@ -179,6 +194,7 @@ def test_the_folder_is_removed_after_an_error_and_after_ctrl_c(fake, monkeypatch
     def interrupted(folder):
         assert Path(folder).is_dir() and (Path(folder) / "index.html").is_file()
         raise KeyboardInterrupt
+
     monkeypatch.setattr(rc, "run_check", interrupted)
     monkeypatch.setattr(rc.tempfile, "tempdir", str(fake.tmp))
     with pytest.raises(KeyboardInterrupt):
@@ -187,6 +203,7 @@ def test_the_folder_is_removed_after_an_error_and_after_ctrl_c(fake, monkeypatch
 
 
 # 4. the pass and the command
+
 
 def test_the_pass_uses_no_clock_and_no_random_value():
     page = rc.with_pass(PAGE, "abc", 30, 30.0)
@@ -205,6 +222,7 @@ def test_the_check_runs_the_pinned_hyperframes_with_json_and_no_contrast(fake):
 
 
 # 5. parsing
+
 
 def test_the_real_result_reads_as_seventeen_captions_none_short(fake):
     r = fake.run()
@@ -227,8 +245,10 @@ def test_a_check_that_exits_1_with_json_is_still_read(fake):
     assert (r.returncode, r.stdout) == (0, "read_check: 17 captions, 0 short\n")
 
 
-GUARD_ERROR = ("the AI-generated label sits in the composition root, which is animated by a GSAP tween: "
-               "animate a child of the composition root instead: it must stay on screen")
+GUARD_ERROR = (
+    "the AI-generated label sits in the composition root, which is animated by a GSAP tween: "
+    "animate a child of the composition root instead: it must stay on screen"
+)
 
 
 def test_a_page_the_label_guard_fails_exits_2_with_its_message(fake):
@@ -278,15 +298,22 @@ def drop(doc, pred):
     return doc
 
 
-@pytest.mark.parametrize("scenario,reason", [
-    (lambda d: "garbage", "gave no JSON"),
-    (lambda d: drop(d, lambda m: '"done"' in m), "did not report"),
-    (lambda d: drop(d, lambda m: '"done"' in m) | {"x": [line({"done": False, "error": "no timeline"})]},
-     "pass failed: no timeline"),
-    (lambda d: drop(d, lambda m: '"#fl-2"' in m and '"runs"' in m), "no result for #fl-2"),
-    (lambda d: {**d, "x": [{"code": "console_warning", "severity": "warning", "message": "__TOKEN__ {broken"}]},
-     "does not parse"),
-])
+@pytest.mark.parametrize(
+    "scenario,reason",
+    [
+        (lambda d: "garbage", "gave no JSON"),
+        (lambda d: drop(d, lambda m: '"done"' in m), "did not report"),
+        (
+            lambda d: drop(d, lambda m: '"done"' in m) | {"x": [line({"done": False, "error": "no timeline"})]},
+            "pass failed: no timeline",
+        ),
+        (lambda d: drop(d, lambda m: '"#fl-2"' in m and '"runs"' in m), "no result for #fl-2"),
+        (
+            lambda d: {**d, "x": [{"code": "console_warning", "severity": "warning", "message": "__TOKEN__ {broken"}]},
+            "does not parse",
+        ),
+    ],
+)
 def test_each_failure_of_the_pass_exits_2_with_its_reason(fake, scenario, reason):
     doc = scenario(fixture())
     fake.write(doc)
@@ -322,11 +349,12 @@ def test_a_check_that_hangs_exits_2(fake, monkeypatch, capsys):
 
 # 6. output
 
+
 def test_short_captions_are_warned_in_time_order_with_their_numbers(fake):
     doc = fixture()
-    set_caption(doc, "#val-sub", runs=[[695, 720]])           # 25 frames, needs 36
+    set_caption(doc, "#val-sub", runs=[[695, 720]])  # 25 frames, needs 36
     set_caption(doc, "#cap-b", runs=[[278, 290], [300, 310]])  # 12 frames, needs 24
-    set_caption(doc, "#fl-2", runs=[])                         # never readable
+    set_caption(doc, "#fl-2", runs=[])  # never readable
     fake.write(doc)
     r = fake.run()
     assert r.returncode == 0
@@ -369,13 +397,30 @@ def test_a_16_9_loop_is_not_checked(fake):
 
 # 7. the template
 
-READ = ["hook-words", "cap-a", "cap-b", "feat-title", "fl-0", "fl-1", "fl-2", "ben-0", "ben-1", "ben-2", "ben-line",
-        "val-a", "val-b", "val-sub", "wordmark", "tagline", "cta"]
+READ = [
+    "hook-words",
+    "cap-a",
+    "cap-b",
+    "feat-title",
+    "fl-0",
+    "fl-1",
+    "fl-2",
+    "ben-0",
+    "ben-1",
+    "ben-2",
+    "ben-line",
+    "val-a",
+    "val-b",
+    "val-sub",
+    "wordmark",
+    "tagline",
+    "cta",
+]
 
 
 def test_the_template_marks_exactly_the_texts_to_read_each_inside_a_scene():
     src = (TEMPLATE / "src.html.tmpl").read_text()
-    marked = re.findall(r'<[a-z0-9]+\b[^>]*\bdata-read\b[^>]*>', src)
+    marked = re.findall(r"<[a-z0-9]+\b[^>]*\bdata-read\b[^>]*>", src)
     assert [re.search(r'\bid="([^"]+)"', tag).group(1) for tag in marked] == READ
     for name in READ:
         at = src.index(f'id="{name}"')
@@ -384,22 +429,25 @@ def test_the_template_marks_exactly_the_texts_to_read_each_inside_a_scene():
 
 # the docs keep the one rule of the code, and show its real output
 
+
 def test_the_docs_keep_the_rule_and_the_format_of_the_code():
     def doc(*parts):
         return " ".join(TEMPLATE.parent.joinpath(*parts).read_text().split())
+
     story = doc("references", "storyboard.md")
-    reading = story[story.index("## Reading time"):story.index("## Drop placement")]
+    reading = story[story.index("## Reading time") : story.index("## Drop placement")]
     assert f"max({rc.MIN_READ} s, {rc.PER_WORD} s per word)" in reading
     assert "≥ 0.8 s" not in story  # the old copy of the rule is gone: one rule
     done = {"done": True, "captions": [["#cap-b", 2]]}
     line = {"i": 0, "caption": "#cap-b", "text": "Step two", "words": 2, "runs": [[279, 297]]}
     example = rc.report([line, done], 30)[0]
-    assert example == ('warning: reading time: #cap-b "Step two" (2 words) is readable for 0.60 s from 9.30 s; '
-                       "it needs 0.80 s")
+    assert example == (
+        'warning: reading time: #cap-b "Step two" (2 words) is readable for 0.60 s from 9.30 s; it needs 0.80 s'
+    )
     assert example in reading and example in doc("references", "pipeline.md")
     skill = doc("SKILL.md")
-    assert "`read_check.py <project>`" in skill[skill.index("5. **Build, check"):skill.index("6. **Critique")]
-    assert "`reading time:` warning" in skill[skill.index("6. **Critique"):]
+    assert "`read_check.py <project>`" in skill[skill.index("5. **Build, check") : skill.index("6. **Critique")]
+    assert "`reading time:` warning" in skill[skill.index("6. **Critique") :]
     assert "$PY $S/read_check.py $P" in doc("references", "pipeline.md")
     assert "`reading time:` warning" in doc("references", "critique.md")
     ranges = doc("references", "motion.md").split("## Ranges")[1].split("## ")[0]

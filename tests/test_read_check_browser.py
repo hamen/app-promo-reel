@@ -4,6 +4,7 @@ reports every caption with its word count.
 
 Opt-in: bin/ci runs with no network and no browser, so these run only with APR_BROWSER_TESTS=1
 (README, Development). The rule and the parsing are tested without a browser in test_read_check.py."""
+
 import json
 import os
 import re
@@ -18,7 +19,9 @@ from common import load_project
 from conftest import TEMPLATE, run_script, write_project
 from test_template import build
 
-pytestmark = pytest.mark.skipif(os.environ.get("APR_BROWSER_TESTS") != "1", reason="browser tests: set APR_BROWSER_TESTS=1")
+pytestmark = pytest.mark.skipif(
+    os.environ.get("APR_BROWSER_TESTS") != "1", reason="browser tests: set APR_BROWSER_TESTS=1"
+)
 FPS = 30
 GSAP = re.search(r'<script src="([^"]*gsap[^"]*)"></script>', (TEMPLATE / "src.html.tmpl").read_text()).group(1)
 
@@ -113,15 +116,32 @@ def test_what_counts_as_readable(cases):
     assert run["#later"] == (60, 120)  # only inside its scene's time
     assert run["#fading"] == (90, 0)  # until its scene fades out
     assert caps["#glued"]["words"] == 2 and caps["#staged"]["words"] == 2
-    assert [name for name, _ in done["captions"]] == ["#long", "#short", "#faded", "#blurred", "#clipped", "#reveal",
-                                                     "#hidden", "#cut", "#wide", "#staged", "#glued", "#away", "#share",
-                                                     "#later", "#fading"]
+    assert [name for name, _ in done["captions"]] == [
+        "#long",
+        "#short",
+        "#faded",
+        "#blurred",
+        "#clipped",
+        "#reveal",
+        "#hidden",
+        "#cut",
+        "#wide",
+        "#staged",
+        "#glued",
+        "#away",
+        "#share",
+        "#later",
+        "#fading",
+    ]
 
 
 def test_a_fade_of_the_whole_reel_ends_every_caption(tmp_path):
     p = write_project(tmp_path, duration=6)
-    (p / "index.html").write_text(CASES.replace("  window.__timelines", '  tl.to("#root", { opacity: 0, duration: 0.02 }, 2.99);\n'
-                                                "  window.__timelines", 1))
+    (p / "index.html").write_text(
+        CASES.replace(
+            "  window.__timelines", '  tl.to("#root", { opacity: 0, duration: 0.02 }, 2.99);\n  window.__timelines', 1
+        )
+    )
     caps, _ = measured(p)
     run = {name: rc.longest_run(c["runs"]) for name, c in caps.items()}
     assert run["#wide"] == (90, 0) and run["#long"] == (75, 15)
@@ -139,6 +159,7 @@ def test_a_page_that_fails_the_label_guard_is_not_timed(tmp_path):
         reg = "      window.__timelines = window.__timelines || {};\n"
         assert s.count(reg) == 1
         t.write_text(s.replace(reg, '      tl.set("#root", { clipPath: "inset(0 0 100% 0)" }, 25);\n' + reg))
+
     p, _ = build(tmp_path, fmt="9:16", edit=clip_root)
     sf.write(p / "assets" / "audio" / "bgm.wav", np.zeros((48000 * 30, 2), np.float32), 48000)
     r = run_script("read_check.py", p)
@@ -147,9 +168,25 @@ def test_a_page_that_fails_the_label_guard_is_not_timed(tmp_path):
     assert r.stdout == ""
 
 
-WORDS = {"#hook-words": 5, "#cap-a": 6, "#cap-b": 2, "#feat-title": 3, "#fl-0": 3, "#fl-1": 3, "#fl-2": 3, "#ben-0": 2,
-         "#ben-1": 2, "#ben-2": 2, "#ben-line": 3, "#val-a": 1, "#val-b": 1, "#val-sub": 4, "#wordmark": 2,
-         "#tagline": 5, "#cta": 1}
+WORDS = {
+    "#hook-words": 5,
+    "#cap-a": 6,
+    "#cap-b": 2,
+    "#feat-title": 3,
+    "#fl-0": 3,
+    "#fl-1": 3,
+    "#fl-2": 3,
+    "#ben-0": 2,
+    "#ben-1": 2,
+    "#ben-2": 2,
+    "#ben-line": 3,
+    "#val-a": 1,
+    "#val-b": 1,
+    "#val-sub": 4,
+    "#wordmark": 2,
+    "#tagline": 5,
+    "#cta": 1,
+}
 
 
 @pytest.mark.parametrize("fmt", ["9:16", "4:5"])

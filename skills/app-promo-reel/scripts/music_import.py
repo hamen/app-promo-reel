@@ -13,6 +13,7 @@ track's licence is yours to check; --source records where it came from.
 Every failure exits 2 and leaves no bgm_user.wav: the old import is deleted first, so it can never
 be ranked as the new one.
 """
+
 import argparse
 import math
 import os
@@ -63,9 +64,30 @@ def main(argv=None):
         fail(f"--start must be a number of seconds, 0 or more, got {a.start}")
     out.mkdir(parents=True, exist_ok=True)
     # -ss after -i: an output seek, exact to the sample on mp3 and m4a too
-    r = subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-i", str(src), "-ss", f"{start:.6f}", "-vn",
-                        "-ar", str(SR), "-ac", "2", "-c:a", "pcm_s16le", "-f", "wav", str(tmp)],
-                       capture_output=True, text=True)
+    r = subprocess.run(
+        [
+            "ffmpeg",
+            "-nostdin",
+            "-v",
+            "error",
+            "-i",
+            str(src),
+            "-ss",
+            f"{start:.6f}",
+            "-vn",
+            "-ar",
+            str(SR),
+            "-ac",
+            "2",
+            "-c:a",
+            "pcm_s16le",
+            "-f",
+            "wav",
+            str(tmp),
+        ],
+        capture_output=True,
+        text=True,
+    )
     if r.returncode:
         tmp.unlink(missing_ok=True)
         fail(f"ffmpeg could not decode {src}:\n{r.stderr[-600:]}")

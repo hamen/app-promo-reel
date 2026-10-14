@@ -29,6 +29,7 @@ decides (references/storyboard.md, "Reading time"). It exits 2 when it cannot me
 
 Usage: read_check.py <project_dir>
 """
+
 import argparse
 import json
 import math
@@ -44,8 +45,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from build import HYPERFRAMES  # noqa: E402
 from common import die, is_silent, load_project  # noqa: E402
 
-MIN_READ = 0.8   # seconds: the shortest time any text the viewer must read stays readable
-PER_WORD = 0.3   # seconds per word for a longer line (references/storyboard.md, "Reading time")
+MIN_READ = 0.8  # seconds: the shortest time any text the viewer must read stays readable
+PER_WORD = 0.3  # seconds per word for a longer line (references/storyboard.md, "Reading time")
 CHECK_TIMEOUT = 300
 LEFT_OUT = ("index.html", "renders", "snapshots", "reviews")
 
@@ -187,8 +188,11 @@ def with_pass(html, token, fps, duration):
     end = html.rfind("</body>")
     if end < 0:
         return None
-    script = (PASS.replace("__TOKEN__", token).replace("__FPS__", repr(float(fps)))
-              .replace("__DURATION__", repr(float(duration))))
+    script = (
+        PASS.replace("__TOKEN__", token)
+        .replace("__FPS__", repr(float(fps)))
+        .replace("__DURATION__", repr(float(duration)))
+    )
     return html[:end] + script + html[end:]
 
 
@@ -213,6 +217,7 @@ def findings(doc):
         elif isinstance(x, list):
             for v in x:
                 walk(v)
+
     walk(doc)
     return found
 
@@ -224,7 +229,7 @@ def pass_lines(doc, token):
         msg = f.get("message")
         if isinstance(msg, str) and msg.startswith(token + " "):
             try:
-                out.append(json.loads(msg[len(token) + 1:]))
+                out.append(json.loads(msg[len(token) + 1 :]))
             except ValueError:
                 die(f"a reading-time line of the check does not parse: {msg[:200]}")
     return out
@@ -269,9 +274,14 @@ def report(lines, fps):
         if frames < need_frames(words, fps):
             shown = math.floor(frames * 100 / fps) / 100  # rounded down: never shown as long as its need
             when = f" from {first / fps:.2f} s" if first is not None else " (never)"
-            short.append(((first if first is not None else math.inf), i,
-                          f'warning: reading time: {name} "{c["text"]}" ({words} word{"s" if words != 1 else ""}) '
-                          f"is readable for {shown:.2f} s{when}; it needs {need(words):.2f} s"))
+            short.append(
+                (
+                    (first if first is not None else math.inf),
+                    i,
+                    f'warning: reading time: {name} "{c["text"]}" ({words} word{"s" if words != 1 else ""}) '
+                    f"is readable for {shown:.2f} s{when}; it needs {need(words):.2f} s",
+                )
+            )
     out += [line for *_, line in sorted(short)]
     timed = sum(1 for _, words in listed if words)
     out.append(f"read_check: {timed} caption{'s' if timed != 1 else ''}, {len(short)} short")
