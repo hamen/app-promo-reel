@@ -31,8 +31,10 @@ Contents: [What's new](#whats-new) · [Samples](#samples) · [How to use](#how-t
 The skill shipped on 2026-09-27 as a 9:16 reel maker. Every merged pull request is listed here, newest
 first, in merge order:
 
-- 2026-10-14: a test fails when a copy of the HyperFrames version in the docs, the template or the
-  tests differs from the one in `build.py` ([#27](https://github.com/hamen/app-promo-reel/pull/27)).
+- 2026-10-14: this README, `SKILL.md` and the version test have the fixes that the reviews of #26
+  and #27 recorded ([#28](https://github.com/hamen/app-promo-reel/pull/28)). A test fails when a copy of
+  the HyperFrames version in the docs, the template or the tests differs from the one in `build.py`
+  ([#27](https://github.com/hamen/app-promo-reel/pull/27)).
   `SKILL.md`, this README and a template comment have the fixes that the reviews of #20, #21 and #25
   recorded ([#26](https://github.com/hamen/app-promo-reel/pull/26)). The template comments and two
   guard tests give the label's place since #21, the bottom-left corner of the frame
