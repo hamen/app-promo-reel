@@ -31,11 +31,11 @@ Contents: [What's new](#whats-new) · [Samples](#samples) · [How to use](#how-t
 The skill shipped on 2026-09-27 as a 9:16 reel maker. Every merged pull request is listed here, newest
 first, in merge order:
 
-- 2026-10-14: a test that fails when a copy of the HyperFrames version in the docs, the template or
-  the tests differs from the one in `build.py` ([#27](https://github.com/hamen/app-promo-reel/pull/27)),
-  fixes in `SKILL.md`, this README and a template comment that the reviews of #20, #21
-  and #25 recorded ([#26](https://github.com/hamen/app-promo-reel/pull/26)), and the template
-  comments and two guard tests give the label's place since #21, the bottom-left corner of the frame
+- 2026-10-14: a test fails when a copy of the HyperFrames version in the docs, the template or the
+  tests differs from the one in `build.py` ([#27](https://github.com/hamen/app-promo-reel/pull/27)).
+  `SKILL.md`, this README and a template comment have the fixes that the reviews of #20, #21 and #25
+  recorded ([#26](https://github.com/hamen/app-promo-reel/pull/26)). The template comments and two
+  guard tests give the label's place since #21, the bottom-left corner of the frame
   ([#25](https://github.com/hamen/app-promo-reel/pull/25)).
 - 2026-10-13: sample reels for Ebooks Gratis and Blackjack Trainer
   ([#24](https://github.com/hamen/app-promo-reel/pull/24)), the 9:16 and 4:5 samples rendered again
@@ -156,7 +156,7 @@ What you can give it:
 | Language of the copy | `en` | Can differ from the storefront country. |
 | Number of variants | 2 | Each variant is its own folder and renders on its own. |
 | Format per variant | `9:16` | `9:16`, `4:5` or `16:9`; see [Formats](#formats). |
-| Output folder | `~/app-promo-reels` | Not inside a git work tree (`new_project.py` refuses one unless you pass `--force`), and never inside this repo. |
+| Output folder | `~/app-promo-reels` | Not inside a git work tree (`new_project.py` refuses a folder inside one unless you pass `--force`), and never inside this repo, even with `--force`. |
 | App source repo | none | Optional, read-only: the agent reads the default branch with `git show`, never edits it. |
 | Sound effects | none | Optional: a folder of your own files in `SFX_DIR`. |
 | Brand notes | none | Optional: forbidden words, spelling, rules from your notes or memory system. |
