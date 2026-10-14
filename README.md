@@ -31,8 +31,11 @@ Contents: [What's new](#whats-new) · [Samples](#samples) · [How to use](#how-t
 The skill shipped on 2026-09-27 as a 9:16 reel maker. Every merged pull request is listed here, newest
 first, in merge order:
 
-- 2026-10-14: this README, `SKILL.md` and the version test have the fixes that the reviews of #26
-  and #27 recorded ([#28](https://github.com/hamen/app-promo-reel/pull/28)). A test fails when a copy of
+- 2026-10-14: `bin/ci` checks the Python files with ruff 0.17.0, for lint errors and format, before it
+  runs the tests ([#29](https://github.com/hamen/app-promo-reel/pull/29)). It stops when that ruff is
+  missing, so run `.venv/bin/pip install -r requirements.txt` again after you update. This README,
+  `SKILL.md` and the version test have the fixes that the reviews of #26 and #27 recorded
+  ([#28](https://github.com/hamen/app-promo-reel/pull/28)). A test fails when a copy of
   the HyperFrames version in the docs, the template or the tests differs from the one in `build.py`
   ([#27](https://github.com/hamen/app-promo-reel/pull/27)).
   `SKILL.md`, this README and a template comment have the fixes that the reviews of #20, #21 and #25
@@ -334,7 +337,7 @@ cd $P && npx --yes hyperframes@0.8.78 render -o renders/raw.mp4 -q delivery --qu
 
 ```bash
 python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt            # analysis, build, finish, tests
+.venv/bin/pip install -r requirements.txt            # analysis, build, finish, tests, the linter
 
 # ACE-Step 1.5 (needs uv, https://docs.astral.sh/uv/)
 git clone https://github.com/ace-step/ACE-Step-1.5 ~/ACE-Step-1.5
@@ -400,6 +403,6 @@ between letters) and the idea of a reading-time check follow the guides of
 
 ```bash
 git config core.hooksPath .githooks   # pre-push runs bin/ci
-bin/ci                                 # deps check, hygiene scan, pytest (no GPU, no network)
+bin/ci                                 # deps check, hygiene scan, ruff lint and format check, pytest (no GPU, no network)
 APR_BROWSER_TESTS=1 bin/ci             # also runs the printed check command in a browser (npx, ~1 min)
 ```

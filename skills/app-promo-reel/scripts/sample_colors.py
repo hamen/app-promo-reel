@@ -7,6 +7,7 @@ Each colour is the per-channel median of a small box around the point.
 Usage: sample_colors.py <image> <points.json> [--box 0.006]
 Prints {"screen_bg": "#F7FBF2", ...}.
 """
+
 import argparse
 import json
 import sys
@@ -21,14 +22,17 @@ def sample(img, points, box=0.006):
     r = max(1, int(round(box * w)))
     out = {}
     for name, xy in points.items():
-        if not (isinstance(xy, (list, tuple)) and len(xy) == 2
-                and all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in xy)):
+        if not (
+            isinstance(xy, (list, tuple))
+            and len(xy) == 2
+            and all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in xy)
+        ):
             raise ValueError(f"{name}: a point is [x, y] with two numbers 0-1, got {xy!r}")
         x, y = xy
         if not (0 <= x <= 1 and 0 <= y <= 1):
             raise ValueError(f"{name}: coordinates must be 0-1, got {x}, {y}")
         cx, cy = int(round(x * (w - 1))), int(round(y * (h - 1)))
-        patch = rgb[max(0, cy - r):cy + r + 1, max(0, cx - r):cx + r + 1].reshape(-1, 3)
+        patch = rgb[max(0, cy - r) : cy + r + 1, max(0, cx - r) : cx + r + 1].reshape(-1, 3)
         med = np.median(patch, axis=0).round().astype(int)
         out[name] = "#{:02X}{:02X}{:02X}".format(*med)
     return out

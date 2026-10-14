@@ -15,6 +15,7 @@ A failed run never touches an existing beats.json (build.py needs it to keep the
 
 Usage: beat_grid.py <audio.wav> <project_dir> [--bpm N]      (writes <project_dir>/beats.json)
 """
+
 import argparse
 import json
 import sys
@@ -29,12 +30,13 @@ from common import die, load_project  # noqa: E402
 SR = 32000
 HOP = 256
 REFINE_WINDOW = 0.040  # a refined beat never moves more than this from its input time
-BPM_TOLERANCE = 0.04   # --bpm: the heard grid must be within 4 % of it
+BPM_TOLERANCE = 0.04  # --bpm: the heard grid must be within 4 % of it
 
 
 def band_envelope(y, sr, lo, hi=None, hop=HOP):
     """Onset-strength envelope of one band (zero-phase filter). Returns (env, times)."""
     import librosa
+
     if hi:
         sos = ss.butter(4, [lo, hi], btype="band", fs=sr, output="sos")
     else:
@@ -120,8 +122,8 @@ def downbeat_phase(strengths, bpb=4):
 def loudness_at(y, sr, t, n=2000):
     """RMS of the n samples from time t (from 0 when t is negative); 0 past the end (never NaN)."""
     a = max(0, int(t * sr))
-    seg = y[a:a + n]
-    return float(np.sqrt(np.mean(seg ** 2))) if len(seg) else 0.0
+    seg = y[a : a + n]
+    return float(np.sqrt(np.mean(seg**2))) if len(seg) else 0.0
 
 
 def full_grid(heard, strengths, duration, bpb=4):
@@ -135,6 +137,7 @@ def full_grid(heard, strengths, duration, bpb=4):
 
 def analyse(y, sr, duration, bpb=4, bpm=None):
     import librosa
+
     _, beats = librosa.beat.beat_track(y=y, sr=sr, units="time", hop_length=HOP, bpm=bpm)
     if len(beats) < 8:
         die(f"beat_track found only {len(beats)} beats; pick another seed")
@@ -150,8 +153,10 @@ def analyse(y, sr, duration, bpb=4, bpm=None):
         if abs(got - bpm) > BPM_TOLERANCE * bpm:
             die(f"the grid came out at {got:.1f} BPM, not {bpm:g}: pick another seed")
     beats, phase = full_grid(heard, strengths, duration, bpb)
-    print(f"half-beat shift: {'yes' if shifted else 'no'}; interval {iv.mean():.4f}s sd {iv.std() * 1000:.2f}ms; "
-          f"first beat {beats[0]:.3f}; downbeat phase {phase}; {len(beats)} beats")
+    print(
+        f"half-beat shift: {'yes' if shifted else 'no'}; interval {iv.mean():.4f}s sd {iv.std() * 1000:.2f}ms; "
+        f"first beat {beats[0]:.3f}; downbeat phase {phase}; {len(beats)} beats"
+    )
     return beats, phase
 
 
@@ -166,6 +171,7 @@ def main(argv=None):
     audio, project_dir = a.audio, Path(a.project_dir)
     project = load_project(project_dir)
     import librosa
+
     try:
         # only the part the reel uses: make_bed cuts the same part, so an outro or a later section
         # of a long track never reaches the tracker
@@ -174,8 +180,11 @@ def main(argv=None):
         die(f"cannot read {audio}: {e}")
     bpb = project["beats_per_bar"]
     beats, phase = analyse(y, sr, project["duration"], bpb, a.bpm)
-    doc = {"beats": [round(float(b), 4) for b in beats], "downbeat_phase": phase,
-           "downbeats": [round(float(b), 3) for b in beats[phase::bpb]]}
+    doc = {
+        "beats": [round(float(b), 4) for b in beats],
+        "downbeat_phase": phase,
+        "downbeats": [round(float(b), 3) for b in beats[phase::bpb]],
+    }
     (project_dir / "beats.json").write_text(json.dumps(doc, indent=0) + "\n")
     print("downbeats:", [round(float(b), 2) for b in beats[phase::bpb]])
 

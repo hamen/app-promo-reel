@@ -16,6 +16,7 @@ show them (see references/copy-rules.md).
 Usage: store_assets.py --out DIR [--app-store-id ID | --bundle ID] [--play PACKAGE]
                        [--country us] [--lang en]
 """
+
 import argparse
 import html
 import json

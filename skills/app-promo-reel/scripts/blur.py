@@ -31,6 +31,7 @@ input frame apart; the critique looks at these times in the MP4. A fade or a fla
 
 Usage: blur.py <project_dir> <render_240fps.mp4> [-o renders/raw.mp4]
 """
+
 import argparse
 import json
 import math
@@ -46,22 +47,27 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from common import die, is_silent, load_project  # noqa: E402
 
-MIN_K = 4            # fewer input frames per output frame cannot blur and still leave a gap
-CUT_FLOOR = 1.0      # gray levels
-CUT_RATIO = 2.5      # measured 2026-10-07 on a 30 s reel: smooth motion up to 1.7 x its neighbours, a move that
-                     # starts or stops at rest 2 x (by construction), cuts 2.7-56 x (2.7 and 3.0 over a moving
-                     # background). A missed cut leaves a ghost of the old scene; an extra cut only less blur.
-STRIDE = 4           # steps and scores read every 4th pixel of Y in each direction
-CELL = 16            # fastest: cells of 16 x 16 sampled pixels (64 x 64 px); only full cells count
-FAST_MIN = 2.0       # gray levels: a frame below this did not move
+MIN_K = 4  # fewer input frames per output frame cannot blur and still leave a gap
+CUT_FLOOR = 1.0  # gray levels
+# CUT_RATIO, measured 2026-10-07 on a 30 s reel: smooth motion up to 1.7 x its neighbours, a move that starts or
+# stops at rest 2 x (by construction), cuts 2.7-56 x (2.7 and 3.0 over a moving background). A missed cut leaves a
+# ghost of the old scene; an extra cut only less blur.
+CUT_RATIO = 2.5
+STRIDE = 4  # steps and scores read every 4th pixel of Y in each direction
+CELL = 16  # fastest: cells of 16 x 16 sampled pixels (64 x 64 px); only full cells count
+FAST_MIN = 2.0  # gray levels: a frame below this did not move
 FAST_MAX, FAST_GAP = 6, 0.5
-RATE_TOL = 1e-4      # 240000/1001 over a project fps of 29.97 is 8.0000027
+RATE_TOL = 1e-4  # 240000/1001 over a project fps of 29.97 is 8.0000027
 NTSC_FPS = (23.976, 29.97, 59.94)  # the NTSC project rates of build.py's NTSC_FPS
 START_TOL = 0.001
 X264 = ["-c:v", "libx264", "-preset", "slow", "-crf", "15", "-profile:v", "high", "-pix_fmt", "yuv420p"]
 # ffprobe field -> ffmpeg option, for the four colour tags
-TAGS = {"color_range": "-color_range", "color_space": "-colorspace", "color_primaries": "-color_primaries",
-        "color_transfer": "-color_trc"}
+TAGS = {
+    "color_range": "-color_range",
+    "color_space": "-colorspace",
+    "color_primaries": "-color_primaries",
+    "color_transfer": "-color_trc",
+}
 
 
 def factor(rate, fps):
@@ -127,10 +133,22 @@ def pick_fastest(scores, rate):
 
 def probe(path):
     """The video stream of `path` (rate, timing, size, packets, colour tags) and whether it has audio."""
-    r = subprocess.run(["ffprobe", "-v", "error", "-count_packets", "-show_entries",
-                        "stream=codec_type,r_frame_rate,avg_frame_rate,start_time,duration,width,height,"
-                        "nb_read_packets," + ",".join(TAGS), "-of", "json", str(path)],
-                       capture_output=True, text=True)
+    r = subprocess.run(
+        [
+            "ffprobe",
+            "-v",
+            "error",
+            "-count_packets",
+            "-show_entries",
+            "stream=codec_type,r_frame_rate,avg_frame_rate,start_time,duration,width,height,"
+            "nb_read_packets," + ",".join(TAGS),
+            "-of",
+            "json",
+            str(path),
+        ],
+        capture_output=True,
+        text=True,
+    )
     if r.returncode:
         die(f"ffprobe cannot read {path}:\n{r.stderr[-800:]}")
     streams = json.loads(r.stdout).get("streams") or []
@@ -152,11 +170,17 @@ def probe(path):
             return None
         return v if v > 0 else None
 
-    return {"rate": ratio("r_frame_rate"), "avg_rate": ratio("avg_frame_rate"), "start": number("start_time"),
-            "duration": number("duration"), "width": video.get("width"), "height": video.get("height"),
-            "frames": int(video.get("nb_read_packets") or 0),
-            "tags": {k: video[k] for k in TAGS if video.get(k) not in (None, "", "unknown")},
-            "audio": any(s.get("codec_type") == "audio" for s in streams)}
+    return {
+        "rate": ratio("r_frame_rate"),
+        "avg_rate": ratio("avg_frame_rate"),
+        "start": number("start_time"),
+        "duration": number("duration"),
+        "width": video.get("width"),
+        "height": video.get("height"),
+        "frames": int(video.get("nb_read_packets") or 0),
+        "tags": {k: video[k] for k in TAGS if video.get(k) not in (None, "", "unknown")},
+        "audio": any(s.get("codec_type") == "audio" for s in streams),
+    }
 
 
 def decoder_cmd(src):
@@ -165,10 +189,36 @@ def decoder_cmd(src):
 
 def encoder_cmd(src, dst, width, height, rate, tags):
     tag_args = [a for k, v in tags.items() for a in (TAGS[k], v)]
-    return ["ffmpeg", "-v", "error", "-y",
-            "-f", "rawvideo", "-pix_fmt", "yuv420p", "-s", f"{width}x{height}", "-framerate", str(rate), *tag_args,
-            "-i", "-", "-i", str(src), "-map", "0:v:0", "-map", "1:a:0", *X264, *tag_args,
-            "-c:a", "copy", "-movflags", "+faststart", str(dst)]
+    return [
+        "ffmpeg",
+        "-v",
+        "error",
+        "-y",
+        "-f",
+        "rawvideo",
+        "-pix_fmt",
+        "yuv420p",
+        "-s",
+        f"{width}x{height}",
+        "-framerate",
+        str(rate),
+        *tag_args,
+        "-i",
+        "-",
+        "-i",
+        str(src),
+        "-map",
+        "0:v:0",
+        "-map",
+        "1:a:0",
+        *X264,
+        *tag_args,
+        "-c:a",
+        "copy",
+        "-movflags",
+        "+faststart",
+        str(dst),
+    ]
 
 
 def check_input(project, src):
@@ -182,26 +232,40 @@ def check_input(project, src):
     fps = project["fps"]
     k = factor(info["rate"], fps) if info["rate"] else None
     if k is None:
-        rule = (f"{src} runs at {info['rate']} fps: the input rate must be a whole multiple (4 or more) of the "
-                f"project fps ({fps:g})")
+        rule = (
+            f"{src} runs at {info['rate']} fps: the input rate must be a whole multiple (4 or more) of the "
+            f"project fps ({fps:g})"
+        )
         if fps in NTSC_FPS:  # their largest multiple up to 240 renders as 240/1, which is no multiple
-            die(f"{rule}. There is no motion blur at 23.976, 29.97 or 59.94 fps (references/pipeline.md, "
-                f"step 5): render without --fps and finish that file")
-        die(f"{rule}; render with --fps 240 for 30 fps, or with the largest multiple of the project fps up "
-            f"to 240 (200 for 25 fps)")
+            die(
+                f"{rule}. There is no motion blur at 23.976, 29.97 or 59.94 fps (references/pipeline.md, "
+                f"step 5): render without --fps and finish that file"
+            )
+        die(
+            f"{rule}; render with --fps 240 for 30 fps, or with the largest multiple of the project fps up "
+            f"to 240 (200 for 25 fps)"
+        )
     n = info["frames"]
-    if (info["avg_rate"] != info["rate"] or info["start"] is None or abs(info["start"]) > START_TOL
-            or info["duration"] is None or abs(info["duration"] - n / info["rate"]) > 1 / info["rate"]):
-        die(f"{src} is not a constant-rate video that starts at 0 (rate {info['rate']}, average "
+    if (
+        info["avg_rate"] != info["rate"]
+        or info["start"] is None
+        or abs(info["start"]) > START_TOL
+        or info["duration"] is None
+        or abs(info["duration"] - n / info["rate"]) > 1 / info["rate"]
+    ):
+        die(
+            f"{src} is not a constant-rate video that starts at 0 (rate {info['rate']}, average "
             f"{info['avg_rate']}, start {info['start']}, duration {info['duration']}, {n} frames): the "
-            f"copied audio would drift; use the HyperFrames render as it is")
+            f"copied audio would drift; use the HyperFrames render as it is"
+        )
     if n == 0 or n % k:
-        die(f"{src} has {n} frames, which is not a whole number of output frames ({k} input frames each): "
+        die(
+            f"{src} has {n} frames, which is not a whole number of output frames ({k} input frames each): "
             f"the project duration x fps is not a whole number of frames, or the render has a frame more "
-            f"or less than that")
+            f"or less than that"
+        )
     if (info["width"], info["height"]) != (project["width"], project["height"]):
-        die(f"{src} is {info['width']}x{info['height']}, but a {fmt} project is "
-            f"{project['width']}x{project['height']}")
+        die(f"{src} is {info['width']}x{info['height']}, but a {fmt} project is {project['width']}x{project['height']}")
     if not info["audio"]:
         die(f"{src} has no audio stream; finish.py needs the sound of a {fmt} reel")
     return k, info
@@ -229,10 +293,12 @@ def blur(project_dir, src, out=None):
             log.flush()
             log.seek(0)
             return log.read()[-800:]
+
         try:
             dec = subprocess.Popen(decoder_cmd(src), stdout=subprocess.PIPE, stderr=dec_log)
-            enc = subprocess.Popen(encoder_cmd(src, partial, w, h, rate, info["tags"]), stdin=subprocess.PIPE,
-                                   stderr=enc_log)
+            enc = subprocess.Popen(
+                encoder_cmd(src, partial, w, h, rate, info["tags"]), stdin=subprocess.PIPE, stderr=enc_log
+            )
             frames, small, steps, local = {}, None, {}, {}
             loaded = 0
 
@@ -242,7 +308,7 @@ def blur(project_dir, src, out=None):
                     f = read_frame(dec.stdout, size)
                     if f is None:
                         die(f"the decoder stopped after {loaded} of {n_in} frames:\n{tail(dec_log)}")
-                    y = f[:w * h].reshape(h, w)[::STRIDE, ::STRIDE].astype(np.float32)
+                    y = f[: w * h].reshape(h, w)[::STRIDE, ::STRIDE].astype(np.float32)
                     if small is not None:
                         steps[loaded - 1], local[loaded - 1] = step_scores(small, y)
                     frames[loaded], small = f, y
@@ -272,8 +338,10 @@ def blur(project_dir, src, out=None):
                 die(f"the encoder failed:\n{tail(enc_log)}")
             got = probe(partial)
             if got["frames"] != n_out or got["rate"] != rate or not got["audio"]:
-                die(f"the blurred video has {got['frames']} frames at {got['rate']} fps (audio: {got['audio']}), "
-                    f"expected {n_out} at {rate}")
+                die(
+                    f"the blurred video has {got['frames']} frames at {got['rate']} fps (audio: {got['audio']}), "
+                    f"expected {n_out} at {rate}"
+                )
             os.replace(partial, out)
         finally:
             for p in (dec, enc):
@@ -285,9 +353,11 @@ def blur(project_dir, src, out=None):
             partial.unlink(missing_ok=True)
 
     times = lambda ns: " ".join(f"{float(i / rate):.3f}" for i in ns) or "none"  # noqa: E731
-    print(f"blur: K={k}, {2 * r + 1} of {k} input frames per output frame "
-          f"(about {round(360 * (2 * r + 1) / k)} degrees), {n_out} frames, {len(cut_short)} "
-          f"{'window' if len(cut_short) == 1 else 'windows'} cut short")
+    print(
+        f"blur: K={k}, {2 * r + 1} of {k} input frames per output frame "
+        f"(about {round(360 * (2 * r + 1) / k)} degrees), {n_out} frames, {len(cut_short)} "
+        f"{'window' if len(cut_short) == 1 else 'windows'} cut short"
+    )
     print(f"cuts: {times(cut_short)}")
     print(f"fastest: {times(pick_fastest(scores, rate))}")
     print(f"wrote {out}")

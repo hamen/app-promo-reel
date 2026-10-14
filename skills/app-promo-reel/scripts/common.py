@@ -5,6 +5,7 @@ Beat addressing (one signature everywhere, see references/pipeline.md):
                   downbeat; negative bars are pickup beats before it.
   E(bar, beat=0)  the "and": halfway between D(bar, beat) and the next beat.
 """
+
 import json
 import math
 import re
@@ -107,15 +108,19 @@ def load_project(project_dir):
     if not isinstance(fmt, str) or fmt not in FORMATS:
         die(f"{path}: format must be one of {', '.join(FORMATS)}, got {fmt!r}")
     if is_silent(fmt) and data["duration"] < SILENT_MIN_DURATION:
-        die(f"{path}: a {fmt} loop needs a duration of at least {SILENT_MIN_DURATION:g} s "
-            f"(it starts from rest, moves and comes back to rest), got {data['duration']:g}")
+        die(
+            f"{path}: a {fmt} loop needs a duration of at least {SILENT_MIN_DURATION:g} s "
+            f"(it starts from rest, moves and comes back to rest), got {data['duration']:g}"
+        )
     size = dict(zip(("width", "height"), FORMATS[fmt]))
     # the file's own keys, not the merged defaults: a 4:5 file with no width/height takes 1080x1350
     wrong = {k: raw[k] for k in size if k in raw and raw[k] != size[k]}
     if wrong:
-        die(f"{path}: format {fmt} is {size['width']}x{size['height']}, but the file says "
+        die(
+            f"{path}: format {fmt} is {size['width']}x{size['height']}, but the file says "
             f"{', '.join(f'{k} {v!r}' for k, v in wrong.items())}; the size comes from the format: "
-            f"fix or remove width and height")
+            f"fix or remove width and height"
+        )
     data.update(size)
     stores = data["stores"]
     bad = [s for s in stores if s not in KNOWN_STORES] if isinstance(stores, list) else [stores]
@@ -136,8 +141,11 @@ class Grid:
         phase = g.get("downbeat_phase")
 
         def bad_phase(top):
-            die(f"{path}: downbeat_phase must be a whole number from 0 to {top} (below beats_per_bar "
-                f"and inside the beat list), got {phase!r}")
+            die(
+                f"{path}: downbeat_phase must be a whole number from 0 to {top} (below beats_per_bar "
+                f"and inside the beat list), got {phase!r}"
+            )
+
         # checked before Grid() converts it: int(inf) from a JSON 1e999 raises OverflowError
         if not isinstance(phase, int) or isinstance(phase, bool):
             bad_phase(int(beats_per_bar) - 1)
@@ -156,8 +164,10 @@ class Grid:
             raise ValueError(f"D({bar}, {beat}): beat must be 0-{self.bpb - 1} (beats_per_bar {self.bpb})")
         i = self.first + int(bar) * self.bpb + int(beat)
         if not 0 <= i < len(self.beats):
-            raise ValueError(f"D({bar}, {beat}) is outside the beat grid ({len(self.beats)} beats, "
-                             f"first downbeat at index {self.first})")
+            raise ValueError(
+                f"D({bar}, {beat}) is outside the beat grid ({len(self.beats)} beats, "
+                f"first downbeat at index {self.first})"
+            )
         return i
 
     def D(self, bar, beat=0):
@@ -172,8 +182,11 @@ class Grid:
 
 def media_duration(path):
     """Duration in seconds of an audio or video file, read with ffprobe."""
-    r = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "json", str(path)],
-                       capture_output=True, text=True)
+    r = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "json", str(path)],
+        capture_output=True,
+        text=True,
+    )
     if r.returncode:
         die(f"ffprobe could not read {path}:\n{r.stderr[-400:]}")
     try:
@@ -185,6 +198,7 @@ def media_duration(path):
 def decode_audio(path, sr, mono=True):
     """Decode any audio/video file to float32 numpy samples with ffmpeg."""
     import numpy as np
+
     cmd = ["ffmpeg", "-nostdin", "-v", "error", "-i", str(path), "-f", "f32le", "-acodec", "pcm_f32le", "-ar", str(sr)]
     if mono:
         cmd += ["-ac", "1"]
@@ -198,6 +212,7 @@ def decode_audio(path, sr, mono=True):
 def attack_index(snd, rel=0.05):
     """First sample louder than `rel` of the peak (about -26 dB): where the sound is heard."""
     import numpy as np
+
     peak = float(np.max(np.abs(snd))) if len(snd) else 0.0
     return int(np.argmax(np.abs(snd) > rel * peak)) if peak > 0 else 0
 

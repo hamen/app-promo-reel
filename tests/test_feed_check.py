@@ -4,6 +4,7 @@ a rendered page, not only that the command is spelled right.
 
 Opt-in: bin/ci runs with no network and no browser, so these run only with APR_BROWSER_TESTS=1
 (README, Development). The guard's bounds are tested without a browser in test_build.py."""
+
 import json
 import os
 import shlex
@@ -17,7 +18,9 @@ import soundfile as sf
 from conftest import run_script
 from test_template import build
 
-pytestmark = pytest.mark.skipif(os.environ.get("APR_BROWSER_TESTS") != "1", reason="browser tests: set APR_BROWSER_TESTS=1")
+pytestmark = pytest.mark.skipif(
+    os.environ.get("APR_BROWSER_TESTS") != "1", reason="browser tests: set APR_BROWSER_TESTS=1"
+)
 NPX = shutil.which("npx")
 
 
@@ -31,7 +34,7 @@ def check(tmp_path, fmt, edit=None):
         sf.write(p / "assets" / "audio" / "bgm.wav", np.zeros((48000 * 30, 2), np.float32), 48000)
     last = run_script("build.py", p).stdout.rstrip("\n").split("\n")[-1]
     assert last.startswith("check: ")
-    cmd = shlex.split(last[len("check: "):])
+    cmd = shlex.split(last[len("check: ") :])
     r = subprocess.run(cmd + ["--json"], capture_output=True, text=True, timeout=300)
     findings = []
 
@@ -44,6 +47,7 @@ def check(tmp_path, fmt, edit=None):
         elif isinstance(x, list):
             for v in x:
                 walk(v)
+
     try:
         walk(json.loads(r.stdout))
     except json.JSONDecodeError:
@@ -68,6 +72,7 @@ def test_a_caption_moved_into_the_bottom_band_fails_the_check(tmp_path):
         s = t.read_text()
         assert s.count("top: 280px;\n        left: 64px;") == 1
         t.write_text(s.replace("top: 280px;\n        left: 64px;", "top: 1560px;\n        left: 64px;"))
+
     _, r, findings = check(tmp_path, "9:16", low_caption)
     assert r.returncode != 0
     assert ("caption_zone_collision", "#cap-a") in errors(findings)
@@ -85,6 +90,7 @@ def test_a_label_too_long_for_the_frame_fails_the_check(tmp_path, fmt):
         s = t.read_text()
         assert s.count('"aiLabel": "AI-generated"') == 1
         t.write_text(s.replace('"aiLabel": "AI-generated"', f'"aiLabel": "{text}"'))
+
     _, r, _ = check(tmp_path, fmt, long_label)
     assert r.returncode != 0
     assert "AI-generated label is not fully inside the frame" in r.stdout + r.stderr
@@ -94,26 +100,38 @@ REGISTER = "      window.__timelines = window.__timelines || {};\n"
 ROOT_TWEEN = "sits in the composition root, which is animated by a GSAP tween"
 
 
-@pytest.mark.parametrize("script, style, result", [
-    ('tl.to("#root", { opacity: 0, duration: 0.5 }, 20);', "", ROOT_TWEEN),             # a fade of the whole reel
-    ('tl.set("#root", { clipPath: "inset(0 0 100% 0)" }, 25);', "", ROOT_TWEEN),        # a clip of it (PR #15)
-    ('tl.add(gsap.timeline().to("#root", { opacity: 0, duration: 0.5 }), 20);', "", ROOT_TWEEN),  # nested
-    # built in the page's own fonts.ready callback: seen by the guard's second read only
-    ('document.fonts.ready.then(() => tl.to("html", { filter: "blur(20px)", duration: 0.5 }, 20));', "",
-     "sits in html, which is animated by a GSAP tween"),
-    ('gsap.set("#root", { x: 4000 });', "", "sits in a transformed element"),          # a finished set moves it
-    ("", "[data-composition-id] { scale: 0.5; }", "sits in a transformed element"),     # it shrinks the label
-    ("", "[data-composition-id] { zoom: 0.8; }", "sits in a zoomed element"),           # so does zoom
-    ("", "@keyframes reel-out { to { opacity: 0 } } [data-composition-id] { animation: reel-out 0.5s 20s forwards; }",
-     "sits in the composition root, which is animated by a CSS animation or transition"),
-    ('tl.to("#s1", { opacity: 0.5, duration: 0.5 }, 2);', "", None),                    # a scene: allowed
-])
+@pytest.mark.parametrize(
+    "script, style, result",
+    [
+        ('tl.to("#root", { opacity: 0, duration: 0.5 }, 20);', "", ROOT_TWEEN),  # a fade of the whole reel
+        ('tl.set("#root", { clipPath: "inset(0 0 100% 0)" }, 25);', "", ROOT_TWEEN),  # a clip of it (PR #15)
+        ('tl.add(gsap.timeline().to("#root", { opacity: 0, duration: 0.5 }), 20);', "", ROOT_TWEEN),  # nested
+        # built in the page's own fonts.ready callback: seen by the guard's second read only
+        (
+            'document.fonts.ready.then(() => tl.to("html", { filter: "blur(20px)", duration: 0.5 }, 20));',
+            "",
+            "sits in html, which is animated by a GSAP tween",
+        ),
+        ('gsap.set("#root", { x: 4000 });', "", "sits in a transformed element"),  # a finished set moves it
+        ("", "[data-composition-id] { scale: 0.5; }", "sits in a transformed element"),  # it shrinks the label
+        ("", "[data-composition-id] { zoom: 0.8; }", "sits in a zoomed element"),  # so does zoom
+        (
+            "",
+            "@keyframes reel-out { to { opacity: 0 } } [data-composition-id] { animation: reel-out 0.5s 20s forwards; }",
+            "sits in the composition root, which is animated by a CSS animation or transition",
+        ),
+        ('tl.to("#s1", { opacity: 0.5, duration: 0.5 }, 2);', "", None),  # a scene: allowed
+    ],
+)
 def test_an_animated_ancestor_of_the_label_fails_the_check(tmp_path, script, style, result):
     def animate(p):
         t = p / "src.html.tmpl"
         s = t.read_text()
         assert s.count(REGISTER) == 1 and s.count("</head>") == 1
-        t.write_text(s.replace(REGISTER, f"      {script}\n" + REGISTER).replace("</head>", f"<style>{style}</style></head>"))
+        t.write_text(
+            s.replace(REGISTER, f"      {script}\n" + REGISTER).replace("</head>", f"<style>{style}</style></head>")
+        )
+
     _, r, findings = check(tmp_path, "9:16", animate)
     if result is None:
         assert r.returncode == 0 and errors(findings) == [], (r.stdout[-2000:], r.stderr[-2000:])

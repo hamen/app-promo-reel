@@ -14,6 +14,7 @@ Ranking of accepted files: lowest wobble, then lowest interval sd.
 
 Usage: music_rank.py --duration 30 [--json rank.json] bgm_5.wav bgm_17.wav ...
 """
+
 import argparse
 import json
 import math
@@ -25,16 +26,16 @@ from beat_grid import smooth
 from common import die
 
 SR = 32000
-DROPOUT_RATIO = 0.15   # a second quieter than this fraction of the median second
-DROPOUT_FLOOR = 1e-3   # or quieter than -60 dBFS RMS: catches a seed that is mostly silent (median 0)
-WOBBLE_MAX = 0.05      # 5 % tempo deviation
+DROPOUT_RATIO = 0.15  # a second quieter than this fraction of the median second
+DROPOUT_FLOOR = 1e-3  # or quieter than -60 dBFS RMS: catches a seed that is mostly silent (median 0)
+WOBBLE_MAX = 0.05  # 5 % tempo deviation
 TRACKER_ERROR = 2 * 512 / SR  # librosa beat times sit on 512-sample frames: +-1 frame each end
-LIFT_RATIO = 1.6       # percussive RMS after / before
+LIFT_RATIO = 1.6  # percussive RMS after / before
 
 
 def per_second_rms(y, sr):
     n = len(y) // sr
-    return np.array([np.sqrt(np.mean(y[i * sr:(i + 1) * sr] ** 2)) for i in range(n)])
+    return np.array([np.sqrt(np.mean(y[i * sr : (i + 1) * sr] ** 2)) for i in range(n)])
 
 
 def dropouts(y, sr):
@@ -54,22 +55,25 @@ def beat_stats(beats):
         return {"tempo": 0, "interval_sd_ms": 999, "wobble": 1.0}
     drift = np.max(np.abs(np.diff(smooth(beats)) - med))
     glitch = max(0.0, np.max(np.abs(iv - med)) - TRACKER_ERROR)
-    return {"tempo": round(60 / med, 1), "interval_sd_ms": round(float(iv.std()) * 1000, 2),
-            "wobble": round(float(max(drift, glitch)) / med, 4)}
+    return {
+        "tempo": round(60 / med, 1),
+        "interval_sd_ms": round(float(iv.std()) * 1000, 2),
+        "wobble": round(float(max(drift, glitch)) / med, 4),
+    }
 
 
 def lift_time(perc, sr, win=0.5, span=2.0, min_t=4.0):
     """Time of the strongest step up in percussive RMS (mean of the next `span` s over the
     previous `span` s). Returns (time, ratio) or (None, ratio) when below LIFT_RATIO."""
     hop = int(win * sr)
-    rms = np.array([np.sqrt(np.mean(perc[i:i + hop] ** 2)) for i in range(0, len(perc) - hop + 1, hop)])
+    rms = np.array([np.sqrt(np.mean(perc[i : i + hop] ** 2)) for i in range(0, len(perc) - hop + 1, hop)])
     k = int(span / win)
     best_t, best_r = None, 0.0
     for i in range(k, len(rms) - k + 1):
         t = i * win
         if t < min_t:
             continue
-        r = rms[i:i + k].mean() / (rms[i - k:i].mean() + 1e-9)
+        r = rms[i : i + k].mean() / (rms[i - k : i].mean() + 1e-9)
         if r > best_r:
             best_t, best_r = t, float(r)
     return (best_t if best_r >= LIFT_RATIO else None), round(best_r, 2)
@@ -77,6 +81,7 @@ def lift_time(perc, sr, win=0.5, span=2.0, min_t=4.0):
 
 def rank_file(path, duration):
     import librosa
+
     try:
         length = librosa.get_duration(path=str(path))
         # only the part the reel uses is decoded and judged: an outro or a later section of a long
@@ -96,8 +101,15 @@ def rank_file(path, duration):
         reasons.append(f"too short ({length:.1f} s < {duration:g} s)")
     if stats["wobble"] > WOBBLE_MAX:
         reasons.append(f"tempo wobble {stats['wobble'] * 100:.1f} %")
-    return {"file": str(path), "length": round(length, 2), **stats,
-            "lift_at": lt, "lift_ratio": lr, "rejected": bool(reasons), "reasons": reasons}
+    return {
+        "file": str(path),
+        "length": round(length, 2),
+        **stats,
+        "lift_at": lt,
+        "lift_ratio": lr,
+        "rejected": bool(reasons),
+        "reasons": reasons,
+    }
 
 
 def order(results):

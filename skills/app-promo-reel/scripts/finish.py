@@ -49,6 +49,7 @@ frames) is a problem too, never a pass.
 
 Usage: finish.py <project_dir> <raw_render.mp4> [--frames 1.0,5.2,...] [--poster-at 6.5]
 """
+
 import argparse
 import json
 import math
@@ -65,8 +66,20 @@ import numpy as np
 import scipy.signal as ss
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from common import (attack_index, decode_audio, die, is_number, is_silent, load_project, read_json,  # noqa: E402
-                    same_rate, SCENE_SETTLE, SCENE_SETTLE_END, scene_spans, scene_windows)
+from common import (
+    attack_index,
+    decode_audio,
+    die,
+    is_number,
+    is_silent,
+    load_project,
+    read_json,  # noqa: E402
+    same_rate,
+    SCENE_SETTLE,
+    SCENE_SETTLE_END,
+    scene_spans,
+    scene_windows,
+)
 
 SR = 48000
 TARGET_I, TARGET_TP, TARGET_LRA = -14.0, -2.0, 11.0
@@ -76,32 +89,32 @@ MAX_LU_OFF, MAX_FINAL_TP = 1.0, -1.0
 MAX_LAG = 0.005
 SYNC_WINDOW = 0.150
 TEMPLATE_LEN = 0.25  # seconds of each SFX used as the matched-filter template
-MIN_MATCH = 0.2      # normalised correlation below this = the sound is not in the window
+MIN_MATCH = 0.2  # normalised correlation below this = the sound is not in the window
 # frame checks, on frames decoded to FRAME_W px wide grayscale. Calibrated 2026-09-29 on three
 # delivered reels: an empty gradient opening measures 1.4-2.2 detail, frames with text or UI 2.8+;
 # scene cuts change 30-100 gray levels in one frame, a headline settling after its slam 4-10.
 FRAME_W = 54
-BLANK_DETAIL = 2.5   # mean neighbouring-pixel difference below this = nothing to read on the frame
-POP_MIN = 12.0       # a spike changes at least this many gray levels (mean) from the frame before
-POP_RATIO = 3.0      # ... and this many times the median change of the 3 frames on each side
-POP_GROUP = 3        # spikes at most this many frames apart are one fast move
-POP_MOVE_MAX = 0.3   # seconds: a fast move is never longer (the longest in the calibration reels: 0.07 s)
-FLASH_BACK = 3.0     # a flash: the frame after the odd one is this many times closer to the one before
-POP_LEAD = 0.15      # a fast move may start up to this long before the beat it lands on
-HOOK_BY = 1.0        # seconds: something readable must be on screen by then
-HOLD_PIX = 8         # a pixel has changed when it differs from the run's first frame by more than this
-HOLD_SHARE = 0.002   # ... and a frame has changed when more than this share of its pixels has
-HOLD_MAX = 0.8       # seconds: a longer still run is a dead hold (references/storyboard.md, "Density")
-HOLD_END = 2.5       # seconds: the end card may hold this long
-HOLD_END_SLACK = 2   # frames: a run that ends this close to the last frame is the end card
+BLANK_DETAIL = 2.5  # mean neighbouring-pixel difference below this = nothing to read on the frame
+POP_MIN = 12.0  # a spike changes at least this many gray levels (mean) from the frame before
+POP_RATIO = 3.0  # ... and this many times the median change of the 3 frames on each side
+POP_GROUP = 3  # spikes at most this many frames apart are one fast move
+POP_MOVE_MAX = 0.3  # seconds: a fast move is never longer (the longest in the calibration reels: 0.07 s)
+FLASH_BACK = 3.0  # a flash: the frame after the odd one is this many times closer to the one before
+POP_LEAD = 0.15  # a fast move may start up to this long before the beat it lands on
+HOOK_BY = 1.0  # seconds: something readable must be on screen by then
+HOLD_PIX = 8  # a pixel has changed when it differs from the run's first frame by more than this
+HOLD_SHARE = 0.002  # ... and a frame has changed when more than this share of its pixels has
+HOLD_MAX = 0.8  # seconds: a longer still run is a dead hold (references/storyboard.md, "Density")
+HOLD_END = 2.5  # seconds: the end card may hold this long
+HOLD_END_SLACK = 2  # frames: a run that ends this close to the last frame is the end card
 # the seam check of a silent loop, on frames decoded SEAM_W px wide: the 54 px frames of the frame
 # checks turn a 5 px shift of a phone into 0.14 px. A step is judged by two measures: `mad` (mean
 # gray-level change) and `moved` (the share of pixels that change by more than SEAM_PIX levels: a
 # shifted sharp edge changes few pixels a lot, which the mean hides). The seam is bad when either
 # is above max(its floor, SEAM_RATIO x the largest of the SEAM_REST steps on each side of the seam).
-POSTER_SETTLE = SCENE_SETTLE   # seconds after a scene start: its text and UI have landed (references/storyboard.md)
-POSTER_EDGE = 0.05    # a candidate stays this far inside the end of its window and of the video
-POSTER_LAST = SCENE_SETTLE_END     # the last scene: this long before the end of the video
+POSTER_SETTLE = SCENE_SETTLE  # seconds after a scene start: its text and UI have landed (references/storyboard.md)
+POSTER_EDGE = 0.05  # a candidate stays this far inside the end of its window and of the video
+POSTER_LAST = SCENE_SETTLE_END  # the last scene: this long before the end of the video
 POSTER_QUALITY = 90
 SEAM_W = 480
 SEAM_PIX = 16
@@ -127,9 +140,21 @@ def next_version_path(renders, stem):
 
 
 def video_info(path):
-    out = run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-count_packets", "-show_entries",
-               "stream=codec_name,width,height,nb_read_packets,duration,r_frame_rate:format=duration", "-of", "json",
-               str(path)]).stdout
+    out = run(
+        [
+            "ffprobe",
+            "-v",
+            "error",
+            "-select_streams",
+            "v:0",
+            "-count_packets",
+            "-show_entries",
+            "stream=codec_name,width,height,nb_read_packets,duration,r_frame_rate:format=duration",
+            "-of",
+            "json",
+            str(path),
+        ]
+    ).stdout
     doc = json.loads(out)
     streams = doc.get("streams") or []
     if not streams:
@@ -137,12 +162,20 @@ def video_info(path):
     s = streams[0]
     # some containers keep the duration on the format, not the stream; ffprobe writes "N/A" when
     # it has none
-    duration = next((d for d in (_seconds(s.get("duration")), _seconds(doc.get("format", {}).get("duration")))
-                     if d is not None), None)
+    duration = next(
+        (d for d in (_seconds(s.get("duration")), _seconds(doc.get("format", {}).get("duration"))) if d is not None),
+        None,
+    )
     if duration is None:
         die(f"ffprobe gives no duration for {path}")
-    return {"codec": s["codec_name"], "width": s["width"], "height": s["height"],
-            "frames": int(s["nb_read_packets"]), "duration": round(duration, 3), "rate": _rate(s.get("r_frame_rate"))}
+    return {
+        "codec": s["codec_name"],
+        "width": s["width"],
+        "height": s["height"],
+        "frames": int(s["nb_read_packets"]),
+        "duration": round(duration, 3),
+        "rate": _rate(s.get("r_frame_rate")),
+    }
 
 
 def _rate(v):
@@ -168,8 +201,23 @@ LOUDNORM = f"loudnorm=I={TARGET_I}:TP={TARGET_TP}:LRA={TARGET_LRA}"
 
 def measure(path):
     """loudnorm analysis pass: input_i, input_tp, input_lra, input_thresh, target_offset."""
-    p = subprocess.run(["ffmpeg", "-nostdin", "-hide_banner", "-nostats", "-i", str(path), "-af",
-                        LOUDNORM + ":print_format=json", "-f", "null", "-"], capture_output=True, text=True)
+    p = subprocess.run(
+        [
+            "ffmpeg",
+            "-nostdin",
+            "-hide_banner",
+            "-nostats",
+            "-i",
+            str(path),
+            "-af",
+            LOUDNORM + ":print_format=json",
+            "-f",
+            "null",
+            "-",
+        ],
+        capture_output=True,
+        text=True,
+    )
     m = re.search(r"\{[^{}]*\"input_i\"[^{}]*\}", p.stderr)
     if p.returncode or not m:
         die("loudnorm analysis failed:\n" + p.stderr[-800:])
@@ -179,10 +227,28 @@ def measure(path):
 def loudnorm(src_wav, dst_wav):
     base = LOUDNORM
     s = measure(src_wav)
-    af = (f"{base}:measured_I={s['input_i']}:measured_TP={s['input_tp']}:measured_LRA={s['input_lra']}"
-          f":measured_thresh={s['input_thresh']}:offset={s['target_offset']}:linear=true")
-    run(["ffmpeg", "-nostdin", "-v", "error", "-y", "-i", str(src_wav), "-af", af, "-ar", str(SR), "-c:a", "pcm_s16le",
-         str(dst_wav)])
+    af = (
+        f"{base}:measured_I={s['input_i']}:measured_TP={s['input_tp']}:measured_LRA={s['input_lra']}"
+        f":measured_thresh={s['input_thresh']}:offset={s['target_offset']}:linear=true"
+    )
+    run(
+        [
+            "ffmpeg",
+            "-nostdin",
+            "-v",
+            "error",
+            "-y",
+            "-i",
+            str(src_wav),
+            "-af",
+            af,
+            "-ar",
+            str(SR),
+            "-c:a",
+            "pcm_s16le",
+            str(dst_wav),
+        ]
+    )
     return s
 
 
@@ -193,7 +259,7 @@ def lag_seconds(a, b, sr=SR, max_lag=0.1):
     c = ss.correlate(b, a, mode="full", method="fft")
     mid = n - 1
     k = int(max_lag * sr)
-    seg = c[mid - k:mid + k + 1]
+    seg = c[mid - k : mid + k + 1]
     return (int(np.argmax(seg)) - k) / sr
 
 
@@ -209,7 +275,7 @@ def locate(y, tmpl, t, window=SYNC_WINDOW, sr=SR):
     waveform, so the peak marks the SFX even inside a full mix; the gain of loudnorm cancels."""
     n = len(tmpl)
     a = max(0, int(round((t - window) * sr)))
-    seg = y[a:int(round((t + window) * sr)) + n]
+    seg = y[a : int(round((t + window) * sr)) + n]
     if len(seg) < n:
         return None, 0.0
     num = ss.correlate(seg, tmpl, mode="valid", method="fft")
@@ -264,7 +330,7 @@ def sync_report(y, realized, fps, project_dir, sr=SR):
                 die(f"{path} (cue {cue['id']}) is gone since build.py ran; rebuild and render again")
             snd = decode_audio(path, sr)
             lead = attack_index(snd)
-            templates[cue["file"]] = (snd[lead:lead + int(TEMPLATE_LEN * sr)], lead / sr)
+            templates[cue["file"]] = (snd[lead : lead + int(TEMPLATE_LEN * sr)], lead / sr)
         tmpl, lead = templates[cue["file"]]
         expected = cue["time"] + lead  # where the audible attack should be
         found, score = locate(y, tmpl, expected, sr=sr)
@@ -273,13 +339,26 @@ def sync_report(y, realized, fps, project_dir, sr=SR):
             rows.append({**base, "found": None, "delta_ms": None, "flag": "masked"})
             continue
         delta = found - expected
-        rows.append({**base, "found": round(found, 4), "delta_ms": round(delta * 1000, 1),
-                     "flag": "off by more than one frame" if abs(delta) > frame else None})
-    problems = [f"cue {r['id']} at {r['time']:.3f}s: off by more than one frame ({r['delta_ms']:+.1f} ms)"
-                for r in rows if r["flag"] == "off by more than one frame"]
-    problems += [f"cue {r['id']} at {r['time']:.3f}s: not found in the final audio (masked by a louder sound, "
-                 f"or missing). If it is meant to sit under a louder sound, set \"sync\": false on it in "
-                 f"cues.json and rebuild" for r in rows if r["flag"] == "masked"]
+        rows.append(
+            {
+                **base,
+                "found": round(found, 4),
+                "delta_ms": round(delta * 1000, 1),
+                "flag": "off by more than one frame" if abs(delta) > frame else None,
+            }
+        )
+    problems = [
+        f"cue {r['id']} at {r['time']:.3f}s: off by more than one frame ({r['delta_ms']:+.1f} ms)"
+        for r in rows
+        if r["flag"] == "off by more than one frame"
+    ]
+    problems += [
+        f"cue {r['id']} at {r['time']:.3f}s: not found in the final audio (masked by a louder sound, "
+        f'or missing). If it is meant to sit under a louder sound, set "sync": false on it in '
+        f"cues.json and rebuild"
+        for r in rows
+        if r["flag"] == "masked"
+    ]
     return rows, problems
 
 
@@ -298,13 +377,30 @@ def late_starts(pdir, realized, fps, sr=SR):
 
 def contact_sheet(mp4, times, dest):
     from PIL import Image
+
     tmp = Path(tempfile.mkdtemp(prefix="reel-sheet-"))
     try:
         thumbs = []
         for i, t in enumerate(times):
             f = tmp / f"{i:03d}.png"
-            run(["ffmpeg", "-nostdin", "-v", "error", "-y", "-ss", f"{t:.3f}", "-i", str(mp4), "-frames:v", "1",
-                 "-vf", "scale=270:-2", str(f)])
+            run(
+                [
+                    "ffmpeg",
+                    "-nostdin",
+                    "-v",
+                    "error",
+                    "-y",
+                    "-ss",
+                    f"{t:.3f}",
+                    "-i",
+                    str(mp4),
+                    "-frames:v",
+                    "1",
+                    "-vf",
+                    "scale=270:-2",
+                    str(f),
+                ]
+            )
             thumbs.append(Image.open(f).convert("RGB"))
         tw, th = thumbs[0].size
         cols = min(len(thumbs), 6)
@@ -321,18 +417,31 @@ def decode_gray(mp4, width, height, frame_w=FRAME_W, dtype=np.float32):
     """Every frame of mp4 as grayscale (float32, or `dtype`), frame_w px wide, height kept in
     proportion. Raises (never die()): the frame checks must not end the run."""
     h = max(2, round(frame_w * height / width / 2) * 2)
-    r = subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-i", str(mp4), "-vf", f"scale={frame_w}:{h},format=gray",
-                        "-f", "rawvideo", "-"], capture_output=True)
+    r = subprocess.run(
+        [
+            "ffmpeg",
+            "-nostdin",
+            "-v",
+            "error",
+            "-i",
+            str(mp4),
+            "-vf",
+            f"scale={frame_w}:{h},format=gray",
+            "-f",
+            "rawvideo",
+            "-",
+        ],
+        capture_output=True,
+    )
     if r.returncode:
         raise RuntimeError(f"ffmpeg could not decode the frames: {r.stderr.decode(errors='replace')[-300:]}")
     n = len(r.stdout) // (frame_w * h)
-    return np.frombuffer(r.stdout[:n * frame_w * h], np.uint8).reshape(n, h, frame_w).astype(dtype, copy=False)
+    return np.frombuffer(r.stdout[: n * frame_w * h], np.uint8).reshape(n, h, frame_w).astype(dtype, copy=False)
 
 
 def frame_detail(frames):
     """Mean absolute difference between neighbouring pixels, per frame: ~0 on a flat colour."""
-    return (np.abs(np.diff(frames, axis=2)).mean(axis=(1, 2))
-            + np.abs(np.diff(frames, axis=1)).mean(axis=(1, 2)))
+    return np.abs(np.diff(frames, axis=2)).mean(axis=(1, 2)) + np.abs(np.diff(frames, axis=1)).mean(axis=(1, 2))
 
 
 def pop_events(frames, dt):
@@ -345,7 +454,7 @@ def pop_events(frames, dt):
     d[1:] = np.abs(np.diff(frames, axis=0)).mean(axis=(1, 2))
     spikes = []
     for i in range(1, n):
-        around = np.concatenate([d[max(1, i - 3):i], d[i + 1:i + 4]])  # d[0] is not a change
+        around = np.concatenate([d[max(1, i - 3) : i], d[i + 1 : i + 4]])  # d[0] is not a change
         if d[i] > POP_MIN and (not len(around) or d[i] > POP_RATIO * np.median(around)):
             spikes.append(i)
     # flashes first: grouped into a fast move, a glitch frame next to a cut would go unreported
@@ -365,8 +474,14 @@ def pop_events(frames, dt):
         while i + 1 < len(cuts) and cuts[i + 1] - run_[-1] <= POP_GROUP and cuts[i + 1] - run_[0] <= longest:
             i += 1
             run_.append(cuts[i])
-        events.append({"type": "cut", "time": round(run_[0] * dt, 3), "end": round(run_[-1] * dt, 3),
-                       "frames": run_[-1] - run_[0] + 1})
+        events.append(
+            {
+                "type": "cut",
+                "time": round(run_[0] * dt, 3),
+                "end": round(run_[-1] * dt, 3),
+                "frames": run_[-1] - run_[0] + 1,
+            }
+        )
         i += 1
     return sorted(events, key=lambda e: e["time"])
 
@@ -386,8 +501,10 @@ def scene_starts(html):
         except ValueError:
             t = None
         if not is_number(t):
-            notes.append(f"index.html: data-start {m.group(2)!r} is not a finite number: that scene start is "
-                         f"not compared with cuts")
+            notes.append(
+                f"index.html: data-start {m.group(2)!r} is not a finite number: that scene start is "
+                f"not compared with cuts"
+            )
             continue
         starts.append(t)
     return starts, notes
@@ -440,11 +557,28 @@ def pick_poster(frames, fps, spans, duration, silent=False, forced_t=None):
 def write_poster(mp4, index, dest):
     """The decoded frame number `index` of mp4, at full size, as a JPEG at `dest`."""
     from PIL import Image
+
     tmp = Path(tempfile.mkdtemp(prefix="reel-poster-"))
     try:
         png = tmp / "frame.png"
-        run(["ffmpeg", "-nostdin", "-v", "error", "-y", "-i", str(mp4), "-vf", f"select=eq(n\\,{index})",
-             "-fps_mode", "passthrough", "-frames:v", "1", str(png)])
+        run(
+            [
+                "ffmpeg",
+                "-nostdin",
+                "-v",
+                "error",
+                "-y",
+                "-i",
+                str(mp4),
+                "-vf",
+                f"select=eq(n\\,{index})",
+                "-fps_mode",
+                "passthrough",
+                "-frames:v",
+                "1",
+                str(png),
+            ]
+        )
         if not png.exists():
             raise RuntimeError(f"frame {index} was not decoded")
         Image.open(png).convert("RGB").save(dest, quality=POSTER_QUALITY)
@@ -481,15 +615,22 @@ def seam_check(frames):
     if n < SEAM_MIN_FRAMES:
         return {"ok": False, "frames": n, "error": f"only {n} frames, at least {SEAM_MIN_FRAMES} are needed"}
     mad, moved = _step(frames[n - 1], frames[0])
-    rest = ([_step(frames[i], frames[i + 1]) for i in range(n - 1 - SEAM_REST, n - 1)]
-            + [_step(frames[i], frames[i + 1]) for i in range(SEAM_REST)])
+    rest = [_step(frames[i], frames[i + 1]) for i in range(n - 1 - SEAM_REST, n - 1)] + [
+        _step(frames[i], frames[i + 1]) for i in range(SEAM_REST)
+    ]
     rest_mad, rest_moved = max(r[0] for r in rest), max(r[1] for r in rest)
     limit_mad = max(SEAM_MIN_MAD, SEAM_RATIO * rest_mad)
     limit_moved = max(SEAM_MIN_MOVED, SEAM_RATIO * rest_moved)
-    return {"ok": bool(mad <= limit_mad and moved <= limit_moved), "frames": n,
-            "mad": round(mad, 4), "moved": round(moved, 5), "rest_mad": round(rest_mad, 4),
-            "rest_moved": round(rest_moved, 5), "limit_mad": round(limit_mad, 4),
-            "limit_moved": round(limit_moved, 5)}
+    return {
+        "ok": bool(mad <= limit_mad and moved <= limit_moved),
+        "frames": n,
+        "mad": round(mad, 4),
+        "moved": round(moved, 5),
+        "rest_mad": round(rest_mad, 4),
+        "rest_moved": round(rest_moved, 5),
+        "limit_mad": round(limit_mad, 4),
+        "limit_moved": round(limit_moved, 5),
+    }
 
 
 def expected_frames(project):
@@ -512,22 +653,39 @@ def silent_loop_problems(mp4, project, vi):
     problems = []
     want, tol = expected_frames(project)
     if abs(len(frames) - want) > tol:
-        problems.append(f"{len(frames)} frames, a {project['duration']:g} s loop at {project['fps']:g} fps "
-                        f"is {want}{f' (+-{tol})' if tol else ''}: one frame more or less is a hitch at the seam")
+        problems.append(
+            f"{len(frames)} frames, a {project['duration']:g} s loop at {project['fps']:g} fps "
+            f"is {want}{f' (+-{tol})' if tol else ''}: one frame more or less is a hitch at the seam"
+        )
     if "error" in seam:
         problems.append(f"seam: could not be checked ({seam['error']})")
     elif not seam["ok"]:
         problems.append(
             f"seam: the loop jumps from its last frame to its first (mean change {seam['mad']:.2f} gray levels, "
             f"limit {seam['limit_mad']:.2f}; {seam['moved'] * 100:.2f}% of pixels changed, limit "
-            f"{seam['limit_moved'] * 100:.2f}%): every animated property must end at its value at t = 0")
+            f"{seam['limit_moved'] * 100:.2f}%): every animated property must end at its value at t = 0"
+        )
     seam["frames_expected"] = want
     return problems, seam
 
 
 def has_audio_stream(path):
-    return bool(run(["ffprobe", "-v", "error", "-select_streams", "a", "-show_entries", "stream=index",
-                     "-of", "csv=p=0", str(path)]).stdout.strip())
+    return bool(
+        run(
+            [
+                "ffprobe",
+                "-v",
+                "error",
+                "-select_streams",
+                "a",
+                "-show_entries",
+                "stream=index",
+                "-of",
+                "csv=p=0",
+                str(path),
+            ]
+        ).stdout.strip()
+    )
 
 
 def still_runs(frames):
@@ -577,8 +735,7 @@ def frame_checks(pdir, mp4, vi, silent=False):
         warnings.append("no frame has anything to read on it: the video looks empty")
     else:
         if detail[0] < BLANK_DETAIL:
-            warnings.append("frame 0 is blank, and feeds show frame 0 as the thumbnail: start on the hook "
-                            "text or UI")
+            warnings.append("frame 0 is blank, and feeds show frame 0 as the thumbnail: start on the hook text or UI")
         if first > HOOK_BY:
             warnings.append(f"nothing to read until {first:.2f} s: the hook must show within {HOOK_BY:g} s")
 
@@ -588,8 +745,10 @@ def frame_checks(pdir, mp4, vi, silent=False):
         return starts
 
     marks = []
-    sources = (("index.html", html_starts),
-               ("beats.json", lambda: [float(b) for b in json.loads((pdir / "beats.json").read_text())["beats"]]))
+    sources = (
+        ("index.html", html_starts),
+        ("beats.json", lambda: [float(b) for b in json.loads((pdir / "beats.json").read_text())["beats"]]),
+    )
     if silent:
         sources = sources[:1]
     for name, load in sources:
@@ -608,8 +767,14 @@ def frame_checks(pdir, mp4, vi, silent=False):
     holds = [] if silent else dead_holds(frames, dt)
     for h in holds:
         warnings.append(f"still for {h['length']:.2f} s from {h['time']:.2f} s: nothing on screen moves (look at it)")
-    return {"frame0_blank": bool(detail[0] < BLANK_DETAIL), "first_detail_time": first,
-            "events": events, "holds": holds, "warnings": warnings, "notes": notes}
+    return {
+        "frame0_blank": bool(detail[0] < BLANK_DETAIL),
+        "first_detail_time": first,
+        "events": events,
+        "holds": holds,
+        "warnings": warnings,
+        "notes": notes,
+    }
 
 
 def picture_problems(project, vi_raw, vi_out):
@@ -619,17 +784,23 @@ def picture_problems(project, vi_raw, vi_out):
     if vi_raw != vi_out:
         problems.append(f"video stream changed: {vi_raw} -> {vi_out}")
     if (vi_out["width"], vi_out["height"]) != (project["width"], project["height"]):
-        problems.append(f"video is {vi_out['width']}x{vi_out['height']}, project.json says "
-                        f"{project['width']}x{project['height']} (format {project['format']}): build and render again")
+        problems.append(
+            f"video is {vi_out['width']}x{vi_out['height']}, project.json says "
+            f"{project['width']}x{project['height']} (format {project['format']}): build and render again"
+        )
     if vi_out["rate"] is None:
-        problems.append("ffprobe gives no frame rate for the video: it is not a HyperFrames render, or it is "
-                        "damaged; render it again (references/pipeline.md, step 5)")
+        problems.append(
+            "ffprobe gives no frame rate for the video: it is not a HyperFrames render, or it is "
+            "damaged; render it again (references/pipeline.md, step 5)"
+        )
     elif not same_rate(vi_out["rate"], project["fps"]):
-        problems.append(f"video runs at {vi_out['rate']} fps, project.json says {project['fps']:g} fps: the "
-                        "composition root sets the render rate. Check that #root in the project's src.html.tmpl "
-                        'has data-fps="{{FPS}}" (a project made before that token does not: add it next to '
-                        "data-duration), then build and render again. For motion blur, render at the rate that "
-                        "the blur step of references/pipeline.md gives for this fps")
+        problems.append(
+            f"video runs at {vi_out['rate']} fps, project.json says {project['fps']:g} fps: the "
+            "composition root sets the render rate. Check that #root in the project's src.html.tmpl "
+            'has data-fps="{{FPS}}" (a project made before that token does not: add it next to '
+            "data-duration), then build and render again. For motion blur, render at the rate that "
+            "the blur step of references/pipeline.md gives for this fps"
+        )
     frame = 1.0 / project["fps"]
     if abs(vi_out["duration"] - project["duration"]) > frame + 1e-6:
         problems.append(f"video is {vi_out['duration']}s, project.json says {project['duration']:g}s")
@@ -650,8 +821,25 @@ def _checks_silent(pdir, project, raw_mp4, checking, sheet, frames):
     problems = []
     vi_out = None
     try:
-        run(["ffmpeg", "-nostdin", "-v", "error", "-n", "-i", str(raw_mp4), "-map", "0:v:0", "-c:v", "copy", "-an",
-             "-movflags", "+faststart", str(checking)])
+        run(
+            [
+                "ffmpeg",
+                "-nostdin",
+                "-v",
+                "error",
+                "-n",
+                "-i",
+                str(raw_mp4),
+                "-map",
+                "0:v:0",
+                "-c:v",
+                "copy",
+                "-an",
+                "-movflags",
+                "+faststart",
+                str(checking),
+            ]
+        )
         vi_raw, vi_out = video_info(raw_mp4), video_info(checking)
         problems += picture_problems(project, vi_raw, vi_out)
         if has_audio_stream(checking):
@@ -662,8 +850,13 @@ def _checks_silent(pdir, project, raw_mp4, checking, sheet, frames):
         if not checking.exists():
             shutil.copyfile(raw_mp4, checking)  # keep the raw clip as the -failed file, to look at
     if vi_out is None:
-        return problems, {"silent": True, "video": None, "seam": {"ok": False, "error": "clip not readable"},
-                          "frames": {"warnings": [], "holds": [], "notes": []}, "problems": problems}
+        return problems, {
+            "silent": True,
+            "video": None,
+            "seam": {"ok": False, "error": "clip not readable"},
+            "frames": {"warnings": [], "holds": [], "notes": []},
+            "problems": problems,
+        }
     try:
         contact_sheet(checking, contact_sheet_times(project, vi_out, frames), sheet)
     except (Exception, SystemExit) as e:  # a sheet that cannot be made is a note: the seam still decides
@@ -678,8 +871,7 @@ def _checks_silent(pdir, project, raw_mp4, checking, sheet, frames):
         frame_report["notes"].append(sheet_note)
     loop_problems, seam = silent_loop_problems(checking, project, vi_out)
     problems += loop_problems
-    return problems, {"silent": True, "video": vi_out, "seam": seam, "frames": frame_report,
-                      "problems": problems}
+    return problems, {"silent": True, "video": vi_out, "seam": seam, "frames": frame_report, "problems": problems}
 
 
 def _checks(pdir, project, raw_mp4, realized, checking, sheet, frames):
@@ -689,15 +881,55 @@ def _checks(pdir, project, raw_mp4, realized, checking, sheet, frames):
     problems = []
     try:
         raw_wav, norm_wav = work / "raw.wav", work / "norm.wav"
-        run(["ffmpeg", "-nostdin", "-v", "error", "-y", "-i", str(raw_mp4), "-vn", "-ar", str(SR), "-ac", "2",
-             "-c:a", "pcm_s16le", str(raw_wav)])
+        run(
+            [
+                "ffmpeg",
+                "-nostdin",
+                "-v",
+                "error",
+                "-y",
+                "-i",
+                str(raw_mp4),
+                "-vn",
+                "-ar",
+                str(SR),
+                "-ac",
+                "2",
+                "-c:a",
+                "pcm_s16le",
+                str(raw_wav),
+            ]
+        )
         meas = loudnorm(raw_wav, norm_wav)
         lag = lag_seconds(decode_audio(raw_wav, SR), decode_audio(norm_wav, SR))
         if abs(lag) >= MAX_LAG:
             problems.append(f"loudnorm moved audio by {lag * 1000:.1f} ms")
-        run(["ffmpeg", "-nostdin", "-v", "error", "-n", "-i", str(raw_mp4), "-i", str(norm_wav), "-map", "0:v:0",
-             "-map", "1:a:0", "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart",
-             str(checking)])
+        run(
+            [
+                "ffmpeg",
+                "-nostdin",
+                "-v",
+                "error",
+                "-n",
+                "-i",
+                str(raw_mp4),
+                "-i",
+                str(norm_wav),
+                "-map",
+                "0:v:0",
+                "-map",
+                "1:a:0",
+                "-c:v",
+                "copy",
+                "-c:a",
+                "aac",
+                "-b:a",
+                "192k",
+                "-movflags",
+                "+faststart",
+                str(checking),
+            ]
+        )
     finally:
         shutil.rmtree(work, ignore_errors=True)
 
@@ -715,9 +947,16 @@ def _checks(pdir, project, raw_mp4, realized, checking, sheet, frames):
 
     final = measure(checking)
     problems += loudness_problems(final)
-    return problems, {"loudnorm_input": meas, "final_lufs": final["input_i"], "final_tp": final["input_tp"],
-                      "lag_ms": round(lag * 1000, 2), "video": vi_out, "sync": rows, "frames": frame_report,
-                      "problems": problems}
+    return problems, {
+        "loudnorm_input": meas,
+        "final_lufs": final["input_i"],
+        "final_tp": final["input_tp"],
+        "lag_ms": round(lag * 1000, 2),
+        "video": vi_out,
+        "sync": rows,
+        "frames": frame_report,
+        "problems": problems,
+    }
 
 
 def finish(project_dir, raw_mp4, frames=None, poster_at=None):
@@ -734,14 +973,21 @@ def finish(project_dir, raw_mp4, frames=None, poster_at=None):
             die(f"{realized_path} not found: run build.py before finish.py")
         realized = read_json(realized_path, list)
     for cue in realized:
-        if not (isinstance(cue, dict) and isinstance(cue.get("id"), str) and isinstance(cue.get("file"), str)
-                and isinstance(cue.get("time"), (int, float)) and not isinstance(cue.get("time"), bool)):
+        if not (
+            isinstance(cue, dict)
+            and isinstance(cue.get("id"), str)
+            and isinstance(cue.get("file"), str)
+            and isinstance(cue.get("time"), (int, float))
+            and not isinstance(cue.get("time"), bool)
+        ):
             die(f"{realized_path}: every entry needs id, file and time (it is written by build.py: rebuild)")
     if poster_at is not None:  # a bad value exits 2 before any file is written
         vi_raw = video_info(raw_mp4)
         if not (math.isfinite(poster_at) and 0 <= poster_at and round(poster_at * project["fps"]) < vi_raw["frames"]):
-            die(f"--poster-at {poster_at:g}: the video has {vi_raw['frames']} frames at {project['fps']:g} fps, "
-                f"so the time must be from 0 to {(vi_raw['frames'] - 1) / project['fps']:.3f} s")
+            die(
+                f"--poster-at {poster_at:g}: the video has {vi_raw['frames']} frames at {project['fps']:g} fps, "
+                f"so the time must be from 0 to {(vi_raw['frames'] - 1) / project['fps']:.3f} s"
+            )
     renders = pdir / "renders"
     renders.mkdir(exist_ok=True)
     stem = f"{project['app']}-{project['variant']}"
@@ -769,8 +1015,12 @@ def finish(project_dir, raw_mp4, frames=None, poster_at=None):
             final_sheet = None
         else:
             sheet.rename(final_sheet)
-        report = {"output": str(final_mp4), "sheet": str(final_sheet) if final_sheet else None, "poster": poster,
-                  **report}
+        report = {
+            "output": str(final_mp4),
+            "sheet": str(final_sheet) if final_sheet else None,
+            "poster": poster,
+            **report,
+        }
         partial.write_text(json.dumps(report, indent=1) + "\n")
         os.replace(partial, report_path)
     except BaseException:
@@ -790,8 +1040,10 @@ def finish(project_dir, raw_mp4, frames=None, poster_at=None):
         found = [r for r in rows if r["delta_ms"] is not None]
         worst = max((abs(r["delta_ms"]) for r in found), default=0)
         masked = [r["id"] for r in rows if r["delta_ms"] is None]
-        print(f"sync: {len(found)} of {len(rows)} checked cues found, worst {worst:.1f} ms"
-              + (f"; not found: {', '.join(masked)}" if masked else ""))
+        print(
+            f"sync: {len(found)} of {len(rows)} checked cues found, worst {worst:.1f} ms"
+            + (f"; not found: {', '.join(masked)}" if masked else "")
+        )
     else:
         print("sync: no cues (no SFX mixed)")
     for w in report["frames"]["warnings"]:
@@ -799,15 +1051,22 @@ def finish(project_dir, raw_mp4, frames=None, poster_at=None):
     for note in report["frames"]["notes"]:
         print(f"note: {note}", file=sys.stderr)
     for f, ms in late.items():
-        print(f"warning: {f} starts with {ms:.0f} ms of silence and its cues use align \"start\", so it "
-              f"sounds {ms:.0f} ms after the cue time; use align \"attack\" or trim the file", file=sys.stderr)
+        print(
+            f'warning: {f} starts with {ms:.0f} ms of silence and its cues use align "start", so it '
+            f'sounds {ms:.0f} ms after the cue time; use align "attack" or trim the file',
+            file=sys.stderr,
+        )
     if silent:
         seam = report["seam"]
-        print(f"silent: no audio; seam {seam.get('mad', 'n/a')} gray levels (limit {seam.get('limit_mad', 'n/a')}); "
-              f"video {vi_out}")
+        print(
+            f"silent: no audio; seam {seam.get('mad', 'n/a')} gray levels (limit {seam.get('limit_mad', 'n/a')}); "
+            f"video {vi_out}"
+        )
     else:
-        print(f"loudness {report['final_lufs']} LUFS, true peak {report['final_tp']} dBTP; loudnorm lag "
-              f"{report['lag_ms']:.2f} ms; video {vi_out}")
+        print(
+            f"loudness {report['final_lufs']} LUFS, true peak {report['final_tp']} dBTP; loudnorm lag "
+            f"{report['lag_ms']:.2f} ms; video {vi_out}"
+        )
     if problems:
         print("FAILED:\n  " + "\n  ".join(problems), file=sys.stderr)
         print(f"output kept as {final_mp4}", file=sys.stderr)

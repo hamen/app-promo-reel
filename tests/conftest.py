@@ -22,8 +22,18 @@ def click(sr, dur=0.004, freq=3000.0, amp=0.8):
 def write_project(tmp_path, duration=30, stores=("app_store", "google_play"), bpb=4, fps=30):
     p = tmp_path / "proj"
     p.mkdir(exist_ok=True)
-    (p / "project.json").write_text(json.dumps({"app": "demo", "variant": "a", "duration": duration, "fps": fps,
-                                                "beats_per_bar": bpb, "stores": list(stores)}))
+    (p / "project.json").write_text(
+        json.dumps(
+            {
+                "app": "demo",
+                "variant": "a",
+                "duration": duration,
+                "fps": fps,
+                "beats_per_bar": bpb,
+                "stores": list(stores),
+            }
+        )
+    )
     return p
 
 
@@ -61,8 +71,9 @@ def project(tmp_path):
 
 
 def run_script(name, *args, env=None):
-    return subprocess.run([sys.executable, str(SCRIPTS / name), *map(str, args)], capture_output=True, text=True,
-                          env=env)
+    return subprocess.run(
+        [sys.executable, str(SCRIPTS / name), *map(str, args)], capture_output=True, text=True, env=env
+    )
 
 
 def tone_file(path, seconds=0.3, sr=44100):

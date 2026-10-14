@@ -7,6 +7,7 @@ Exit 2: the file cannot be read, or the project's project.json is missing or not
 It checks form, not quality: that each defect has a time that has a frame, a file that exists as
 evidence and a file to fix. Whether the scores are right is for the reader of the frames.
 """
+
 import argparse
 import math
 import re
@@ -32,7 +33,9 @@ def inside(path, root):
 
 
 def latest_round(reviews):
-    rounds = [int(m.group(1)) for p in reviews.glob("critique-*.md") if (m := re.fullmatch(r"critique-(\d+)\.md", p.name))]
+    rounds = [
+        int(m.group(1)) for p in reviews.glob("critique-*.md") if (m := re.fullmatch(r"critique-(\d+)\.md", p.name))
+    ]
     return max(rounds, default=None)
 
 
@@ -52,7 +55,7 @@ def check(project_dir, text):
                 problems.append((n, "a second scores: line"))
                 continue
             scores = {}
-            for part in s[len("scores:"):].split():
+            for part in s[len("scores:") :].split():
                 name, eq, val = part.partition("=")
                 if not eq or name in scores:
                     problems.append((n, f"{part!r} is not a new name=score pair"))
@@ -69,15 +72,22 @@ def check(project_dir, text):
     else:
         for name in scores:
             if name not in wanted:
-                hint = " (a silent 16:9 project scores loop, not sound)" if name == "sound" and seventh == "loop" else \
-                       " (this project scores sound, not loop)" if name == "loop" else ""
+                hint = (
+                    " (a silent 16:9 project scores loop, not sound)"
+                    if name == "sound" and seventh == "loop"
+                    else " (this project scores sound, not loop)"
+                    if name == "loop"
+                    else ""
+                )
                 problems.append((None, f"unknown score {name!r}{hint}"))
         for name in wanted:
             if name not in scores:
                 problems.append((None, f"missing score: {name}"))
         low = [k for k, v in scores.items() if v is not None and v < STOP_SCORE]
         if not defects and low:
-            problems.append((None, f"no defects, but {', '.join(low)} below {STOP_SCORE}: name what is wrong, or raise the score"))
+            problems.append(
+                (None, f"no defects, but {', '.join(low)} below {STOP_SCORE}: name what is wrong, or raise the score")
+            )
 
     if len(defects) > MAX_DEFECTS:
         problems.append((None, f"{len(defects)} defects: at most {MAX_DEFECTS}, the worst ones"))
@@ -101,7 +111,10 @@ def check(project_dir, text):
         elif not ev.is_file():
             problems.append((n, f"evidence {evidence} is not a file in the project"))
         in_project, in_scripts = pdir / fix, SCRIPTS / fix
-        if not ((inside(in_project, pdir) and in_project.is_file()) or (inside(in_scripts, SCRIPTS) and in_scripts.is_file())):
+        if not (
+            (inside(in_project, pdir) and in_project.is_file())
+            or (inside(in_scripts, SCRIPTS) and in_scripts.is_file())
+        ):
             problems.append((n, f"fix file {fix} is neither a file in the project nor a script of the skill"))
     return problems, scores, defects
 
@@ -115,8 +128,11 @@ def main():
     n = a.round if a.round is not None else latest_round(reviews)
     path = reviews / f"critique-{n}.md"
     if n is None or not path.is_file():
-        print(f"error: no {path if n is not None else reviews / 'critique-N.md'}: write the critique first "
-              f"(format in references/critique.md)", file=sys.stderr)
+        print(
+            f"error: no {path if n is not None else reviews / 'critique-N.md'}: write the critique first "
+            f"(format in references/critique.md)",
+            file=sys.stderr,
+        )
         sys.exit(1)
     try:
         text = path.read_text()

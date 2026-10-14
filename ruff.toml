@@ -1,0 +1,8 @@
+# bin/ci runs `ruff check` and `ruff format --check` on skills/ and tests/ with this file.
+# ruff is pinned in requirements.txt: a new version can change the format.
+line-length = 120
+target-version = "py311"  # README, Requirements: Python 3.11+
+
+[lint]
+# the rules that find defects; the wider 0.17.0 default set (style rules) is not applied
+select = ["E4", "E7", "E9", "F"]

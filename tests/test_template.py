@@ -1,4 +1,5 @@
 """Template smoke: scaffold -> build with a fixture grid, no browser."""
+
 import json
 import math
 import re
@@ -12,8 +13,20 @@ from conftest import TEMPLATE, run_script, steady_grid
 
 def build(tmp_path, stores="app_store,google_play", edit=None, grid=None, expect=0, fmt="9:16"):
     out = tmp_path / "out"
-    r = run_script("new_project.py", "--app", "demo", "--variant", "a", "--out", out, "--force", "--stores", stores,
-                   "--format", fmt)
+    r = run_script(
+        "new_project.py",
+        "--app",
+        "demo",
+        "--variant",
+        "a",
+        "--out",
+        out,
+        "--force",
+        "--stores",
+        stores,
+        "--format",
+        fmt,
+    )
     assert r.returncode == 0, r.stderr
     p = out / "demo-a"
     (p / "beats.json").write_text(json.dumps(grid or steady_grid(first=0.7, iv=0.5, n=64, phase=1)))
@@ -60,6 +73,7 @@ def test_app_text_lives_only_in_config(tmp_path):
     def rename(p):
         t = p / "src.html.tmpl"
         t.write_text(t.read_text().replace('"name": "App Name"', '"name": "Zebra Notes"'))
+
     _, html = build(tmp_path, edit=rename)
     cfg = config_of(html)
     assert cfg["end"]["name"] == "Zebra Notes"
@@ -78,6 +92,7 @@ def test_stores_come_from_project(tmp_path, stores):
 def grid_from_beat_grid(bpm, first_downbeat):
     """A grid built with beat_grid's own extend(), as beat_grid.py writes it."""
     import beat_grid as bg
+
     iv = 60 / bpm
     beats = bg.extend(np.arange(first_downbeat, 20, iv), 30.0, beats_past_end=4 * 4)
     phase = int(np.argmin(np.abs(beats - first_downbeat)))
@@ -100,44 +115,61 @@ def test_slow_tempo_fails_the_build_with_the_re_map_message(tmp_path, bpm, first
     assert "D(13, 3)" in err and "1.1s before" in err and "re-map" in err
 
 
-@pytest.mark.parametrize("edit", [
-    lambda s: s.replace('"aiLabel": "AI-generated"', '"aiLabel": ""'),
-    lambda s: s.replace('"aiLabel": "AI-generated"', '"aiLabel": "   "'),
-    lambda s: s.replace('"aiLabel": "AI-generated"', '"aiText": "AI-generated"'),
-    # characters that draw nothing: escaped or literal zero-width, BOM, word joiner, escaped space
-    lambda s: s.replace('"aiLabel": "AI-generated"', '"aiLabel": "\\u200b"'),
-    lambda s: s.replace('"aiLabel": "AI-generated"', '"aiLabel": "\u200b\u2060\ufeff"'),
-    lambda s: s.replace('"aiLabel": "AI-generated"', '"aiLabel": "\\u0020"'),
-])
+@pytest.mark.parametrize(
+    "edit",
+    [
+        lambda s: s.replace('"aiLabel": "AI-generated"', '"aiLabel": ""'),
+        lambda s: s.replace('"aiLabel": "AI-generated"', '"aiLabel": "   "'),
+        lambda s: s.replace('"aiLabel": "AI-generated"', '"aiText": "AI-generated"'),
+        # characters that draw nothing: escaped or literal zero-width, BOM, word joiner, escaped space
+        lambda s: s.replace('"aiLabel": "AI-generated"', '"aiLabel": "\\u200b"'),
+        lambda s: s.replace('"aiLabel": "AI-generated"', '"aiLabel": "\u200b\u2060\ufeff"'),
+        lambda s: s.replace('"aiLabel": "AI-generated"', '"aiLabel": "\\u0020"'),
+    ],
+)
 def test_ai_label_cannot_be_removed(tmp_path, edit):
     def change(p):
         t = p / "src.html.tmpl"
         new = edit(t.read_text())
         assert new != t.read_text()
         t.write_text(new)
+
     _, err = build(tmp_path, edit=change, expect=2)
     assert "AI-generated label" in err
 
 
 def test_build_puts_the_label_guard_last_in_the_page(tmp_path):
     _, html = build(tmp_path)
-    guard = html[html.index("<script data-ai-label-guard>"):]
-    assert guard.index("</script>") < guard.index("</body>") and "<script" not in guard[8:guard.index("</body>")]
-    for check in ('[...text.replace(/[\\p{Z}\\p{C}\\p{M}\\u115F\\u1160\\u3164\\uFFA0\\u2800]/gu, "")].length', 'el.id = "ai-label-',
-                  'el.style.setProperty(k, v, "important")', '"z-index": "2147483647"', 'visibility: "visible"',
-                  "root.appendChild(el)", 'cs.display === "none"', 'cs.clipPath !== "none"',
-                  "opacity *= parseFloat(cs.opacity)", 'cs.maskImage !== "none"', 'cs.filter !== "none" || cs.mixBlendMode !== "normal"', "opacity < 0.5", "box.right > frame.right",
-                  # template CSS must not reach the label or its words (text-indent, text fill, ::first-line ...)
-                  'all: "initial", display: "block"', 'attachShadow({ mode: "closed" })',
-                  ":host::before, :host::after { content: none !important",
-                  "alpha(own.webkitTextFillColor) < 0.5", "ink.width < Math.max(12, 6 * visible)"):
+    guard = html[html.index("<script data-ai-label-guard>") :]
+    assert guard.index("</script>") < guard.index("</body>") and "<script" not in guard[8 : guard.index("</body>")]
+    for check in (
+        '[...text.replace(/[\\p{Z}\\p{C}\\p{M}\\u115F\\u1160\\u3164\\uFFA0\\u2800]/gu, "")].length',
+        'el.id = "ai-label-',
+        'el.style.setProperty(k, v, "important")',
+        '"z-index": "2147483647"',
+        'visibility: "visible"',
+        "root.appendChild(el)",
+        'cs.display === "none"',
+        'cs.clipPath !== "none"',
+        "opacity *= parseFloat(cs.opacity)",
+        'cs.maskImage !== "none"',
+        'cs.filter !== "none" || cs.mixBlendMode !== "normal"',
+        "opacity < 0.5",
+        "box.right > frame.right",
+        # template CSS must not reach the label or its words (text-indent, text fill, ::first-line ...)
+        'all: "initial", display: "block"',
+        'attachShadow({ mode: "closed" })',
+        ":host::before, :host::after { content: none !important",
+        "alpha(own.webkitTextFillColor) < 0.5",
+        "ink.width < Math.max(12, 6 * visible)",
+    ):
         assert check in guard, check
 
 
 def test_the_template_does_not_own_the_label(tmp_path):
     # a template element or CSS rule for the label could hide it: the page script makes it
     _, html = build(tmp_path)
-    body = html[:html.index("<script data-ai-label-guard>")]
+    body = html[: html.index("<script data-ai-label-guard>")]
     assert 'id="ai-label' not in body and "#ai-label" not in body
 
 
@@ -146,6 +178,7 @@ def test_template_cannot_disable_the_guard(tmp_path):
     def change(p):
         t = p / "src.html.tmpl"
         t.write_text(t.read_text().replace("</body>", "<script>/* no guard here */</script>\n</body>"))
+
     _, html = build(tmp_path, edit=change)
     assert html.rindex("<script data-ai-label-guard>") > html.rindex("/* no guard here */")
 
@@ -154,12 +187,14 @@ def test_page_without_body_end_fails_the_build(tmp_path):
     def change(p):
         t = p / "src.html.tmpl"
         t.write_text(t.read_text().replace("</body>", ""))
+
     _, err = build(tmp_path, edit=change, expect=2)
     assert "</body>" in err
 
 
 def test_label_id_changes_with_every_build(tmp_path):
     import re as _re
+
     ids = set()
     for i in range(2):
         _, html = build(tmp_path / str(i))
@@ -216,7 +251,7 @@ def test_hook_is_static_from_frame_zero(tmp_path):
 
 def test_shake_and_flash_only_on_the_drop_and_the_end_card(tmp_path):
     _, html = build(tmp_path)
-    timeline = html[html.index("// ===== S1 hook"):]
+    timeline = html[html.index("// ===== S1 hook") :]
     scenes = {part.split()[0]: part for part in timeline.split("// ===== ")[1:]}
     assert sorted(scenes) == ["S1", "S2", "S3", "S4", "S5", "S6"]
     for name, part in scenes.items():
@@ -232,6 +267,7 @@ def test_a_third_shake_is_a_build_warning_and_the_shipped_template_has_none(tmp_
     def third(p):
         t = p / "src.html.tmpl"
         t.write_text(t.read_text().replace("// ===== S4", 'shake("#s4", D(7), 10);\n      // ===== S4', 1))
+
     p, _ = build(tmp_path / "b", edit=third)
     assert "warning: 3 shake() calls in the page (at most 2" in run_script("build.py", p).stderr
 
@@ -258,6 +294,7 @@ def set_fps(fps):
     def edit(p):
         doc = json.loads((p / "project.json").read_text())
         (p / "project.json").write_text(json.dumps({**doc, "fps": fps}))
+
     return edit
 
 
@@ -319,6 +356,7 @@ def label_top(fmt):
     # the guard's pill: a px/1.25 line, 10 px padding and a 1 px border on each side (y 1826 on a 9:16
     # frame, as references/storyboard.md says)
     from build import AI_LABEL_PLACES
+
     place, size = AI_LABEL_PLACES[fmt]
     bottom = float(re.search(r'bottom: "([\d.]+)px"', place).group(1))
     return FORMATS[fmt][1] - bottom - (size * 1.25 + 2 * 10 + 2 * 1)
@@ -326,8 +364,12 @@ def label_top(fmt):
 
 def test_9x16_text_is_32px_or_more(tmp_path):
     _, html = build(tmp_path)
-    sizes = [(sel, v) for sel, body in css_rules(html) if not sel.startswith(FOUR5)
-             for v in re.findall(r"font-size:\s*([^;]+);", body)]
+    sizes = [
+        (sel, v)
+        for sel, body in css_rules(html)
+        if not sel.startswith(FOUR5)
+        for v in re.findall(r"font-size:\s*([^;]+);", body)
+    ]
     assert len(sizes) > 15
     for sel, v in sizes:
         assert v.endswith("px") and float(v[:-2]) >= 32, (sel, v)
@@ -338,8 +380,13 @@ def test_4x5_phone_text_renders_at_30px_or_more(tmp_path):
     rules = css_rules(html)
     k = float(re.search(r"scale\(([\d.]+)\)", dict(rules)[FOUR5 + " .phone-fit"]).group(1))
     # the phone's own rule, else the shared one it inherits (the hero card shares .card and .chip)
-    for own, shared in ((".scr h5", None), (".scr .card h6", ".card h6"), (".scr .card .sub", ".card .sub"),
-                        (".scr .chip", ".chip"), (".scr .btn", None)):
+    for own, shared in (
+        (".scr h5", None),
+        (".scr .card h6", ".card h6"),
+        (".scr .card .sub", ".card .sub"),
+        (".scr .chip", ".chip"),
+        (".scr .btn", None),
+    ):
         size = px(rules, own, "font-size") or px(rules, shared, "font-size")
         assert size * k >= 30, (own, size, k)
     for sel, body in rules:
@@ -362,8 +409,12 @@ def test_caption_hero_tap_and_button_sit_inside_the_safe_box_and_above_the_label
     def inside(box, what):
         assert x0 <= box[0] and y0 <= box[1] and box[2] <= x1 and box[3] <= min(y1, top), (what, box)
 
-    cap = (get("#caption", "left"), get("#caption", "top"), w - get("#caption", "right"),
-           get("#caption", "top") + get("#caption", "height"))
+    cap = (
+        get("#caption", "left"),
+        get("#caption", "top"),
+        w - get("#caption", "right"),
+        get("#caption", "top") + get("#caption", "height"),
+    )
     inside(cap, "caption")
     # the hero card rests turned: a corner drops up to half its width x sin(angle)
     turn = float(re.search(r'fromTo\("#hero", \{[^}]*\}, \{[^}]*rotation: (-?[\d.]+)', html).group(1))
@@ -381,8 +432,12 @@ def test_caption_hero_tap_and_button_sit_inside_the_safe_box_and_above_the_label
     ph_l, ph_t, ph_pad = px(rules, "#phone", "left"), px(rules, "#phone", "top"), px(rules, "#phone", "padding")
     ph_r, ph_b = ph_l + px(rules, "#phone", "width"), ph_t + px(rules, "#phone", "height")
     btn_b = ph_b - ph_pad - px(rules, ".scr .btn", "bottom")
-    btn = (fx(ph_l + ph_pad + px(rules, ".scr .btn", "left")), fy(btn_b - px(rules, ".scr .btn", "height")),
-           fx(ph_r - ph_pad - px(rules, ".scr .btn", "right")), fy(btn_b))
+    btn = (
+        fx(ph_l + ph_pad + px(rules, ".scr .btn", "left")),
+        fy(btn_b - px(rules, ".scr .btn", "height")),
+        fx(ph_r - ph_pad - px(rules, ".scr .btn", "right")),
+        fy(btn_b),
+    )
     inside(btn, "button")
     assert y0 <= fy(ph_t) and cap[3] <= fy(ph_t), "the phone starts under the caption"
     # the tap dot, all of it
@@ -396,6 +451,7 @@ def test_caption_hero_tap_and_button_sit_inside_the_safe_box_and_above_the_label
 def test_the_label_sits_in_the_frame_corner_below_the_safe_box(fmt):
     # bottom-left of the frame: under the box, so no settled text (it stays in the box) is under the label
     from build import AI_LABEL_PLACES
+
     place = AI_LABEL_PLACES[fmt][0]
     left, bottom = (float(re.search(rf'{k}: "([\d.]+)px"', place).group(1)) for k in ("left", "bottom"))
     assert 0 < left < FEED_BOXES[fmt][0] and bottom > 0
@@ -403,6 +459,7 @@ def test_the_label_sits_in_the_frame_corner_below_the_safe_box(fmt):
 
 
 # --- the motion language in the shipped templates ---------------------------------------------
+
 
 @pytest.mark.parametrize("fmt", ["9:16", "4:5", "16:9"])
 def test_the_shipped_templates_pass_the_seekability_check(tmp_path, fmt):
@@ -449,7 +506,12 @@ def test_each_converted_entrance_keeps_its_class_duration_and_start(site, spec):
 def test_a_random_value_added_to_the_template_fails_the_build(tmp_path):
     def edit(p):
         t = p / "src.html.tmpl"
-        t.write_text(t.read_text().replace("const tl = gsap.timeline", "const jitter = Math.random();\n      const tl = gsap.timeline", 1))
+        t.write_text(
+            t.read_text().replace(
+                "const tl = gsap.timeline", "const jitter = Math.random();\n      const tl = gsap.timeline", 1
+            )
+        )
+
     _, err = build(tmp_path, edit=edit, expect=2)
     assert "Math.random" in err and "const jitter = Math.random();" in err
 

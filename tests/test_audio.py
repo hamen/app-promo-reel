@@ -26,7 +26,7 @@ def kick_track(times, seconds, accent_every=4, sr=SR, seed=0):
     for i, t in enumerate(times):
         a = int(t * sr)
         amp = 1.0 if i % accent_every == 0 else 0.45
-        y[a:a + len(k)] += amp * k[:len(y) - a]
+        y[a : a + len(k)] += amp * k[: len(y) - a]
     return y.astype(np.float32)
 
 
@@ -38,6 +38,7 @@ def gauss_env(times, t_env, width=0.006):
 
 
 # ---------------- beat_grid ----------------
+
 
 def test_offbeat_kick_shifts_half_beat():
     t_env = np.arange(0, 20, 0.008)
@@ -91,10 +92,11 @@ def test_extend_covers_duration_plus_extra_beats():
 
 # ---------------- music_rank ----------------
 
+
 def test_silent_second_is_a_dropout(tmp_path):
     true = np.arange(0.5, 30.0, 0.5)
     y = kick_track(true, 31.0)
-    y[12 * SR:13 * SR] = 0
+    y[12 * SR : 13 * SR] = 0
     assert mr.dropouts(y, SR) == [12]
     f = tmp_path / "s.wav"
     sf.write(f, y, SR)
@@ -132,7 +134,7 @@ def test_frame_jitter_is_not_wobble():
 def test_lift_found_at_percussion_step():
     rng = np.random.default_rng(2)
     perc = rng.standard_normal(30 * SR) * 0.05
-    perc[13 * SR:] *= 6
+    perc[13 * SR :] *= 6
     t, ratio = mr.lift_time(perc, SR)
     assert t is not None and abs(t - 13.0) <= 0.5 and ratio > mr.LIFT_RATIO
     flat_t, _ = mr.lift_time(rng.standard_normal(30 * SR) * 0.05, SR)
@@ -140,6 +142,7 @@ def test_lift_found_at_percussion_step():
 
 
 # ---------------- make_bed ----------------
+
 
 def band_db(x, sr, lo, hi):
     spec = np.abs(np.fft.rfft(x)) ** 2
@@ -162,7 +165,7 @@ def test_lift_window_high_passes_and_has_no_clicks():
     # edges: sample-to-sample jumps stay within the range of the source signal
     typical = np.percentile(np.abs(np.diff(y)), 99.9)
     for edge in (a, b):
-        seg = out[edge - 600:edge + 600]
+        seg = out[edge - 600 : edge + 600]
         assert np.max(np.abs(np.diff(seg))) <= typical * 1.2
 
 
@@ -174,7 +177,7 @@ def test_lift_edges_are_ramped_on_low_frequency_material():
     out = mb.apply_lift(y, sr, a, b)
     step = np.max(np.abs(np.diff(y)))
     for edge in (a, b):
-        assert np.max(np.abs(np.diff(out[edge - 50:edge + 50]))) < 3 * step
+        assert np.max(np.abs(np.diff(out[edge - 50 : edge + 50]))) < 3 * step
 
 
 def test_lift_window_outside_bed_is_refused(tmp_path):
@@ -213,7 +216,7 @@ def test_beat_grid_main_writes_beats_json(tmp_path):
     assert r.returncode == 0, r.stderr
     g = json.loads((p / "beats.json").read_text())
     assert set(g) == {"beats", "downbeat_phase", "downbeats"}
-    assert g["downbeats"] == [round(b, 3) for b in g["beats"][g["downbeat_phase"]::4]]
+    assert g["downbeats"] == [round(b, 3) for b in g["beats"][g["downbeat_phase"] :: 4]]
     assert g["beats"][-1] >= 20 + 16 * 0.49  # four bars past the end
     assert abs(np.median(np.diff(g["beats"])) - 0.5) < 0.005
     assert min(abs(d - 2.5) for d in g["downbeats"]) < 0.1  # the accented kicks: 0.5, 2.5, 4.5 ...
@@ -224,7 +227,7 @@ def test_music_rank_main_orders_and_exits_1_when_all_rejected(tmp_path):
     sf.write(good, kick_track(np.arange(0.5, 21.0, 0.5), 21.0), SR)
     bad = tmp_path / "bad.wav"
     y = kick_track(np.arange(0.5, 21.0, 0.5), 21.0)
-    y[5 * SR:6 * SR] = 0
+    y[5 * SR : 6 * SR] = 0
     sf.write(bad, y, SR)
     out = tmp_path / "rank.json"
     r = run_script("music_rank.py", "--duration", "20", "--json", out, bad, good)
@@ -301,13 +304,13 @@ def test_music_rank_unwritable_json_exits_2(tmp_path):
 def test_a_mostly_silent_seed_is_rejected():
     # 20 s of silence then 10 s of sound: the median second is 0, so a ratio alone finds nothing
     y = np.zeros(30 * SR, dtype=np.float32)
-    y[20 * SR:] = 0.3 * np.sin(2 * np.pi * 220 * np.arange(10 * SR) / SR)
+    y[20 * SR :] = 0.3 * np.sin(2 * np.pi * 220 * np.arange(10 * SR) / SR)
     assert mr.dropouts(y, SR) == list(range(20))
 
 
 def test_a_mostly_silent_seed_is_rejected_by_rank(tmp_path):
     y = kick_track(np.arange(20.5, 30.5, 0.5), 31.0)
-    y[:20 * SR] = 0
+    y[: 20 * SR] = 0
     f = tmp_path / "quiet.wav"
     sf.write(f, y, SR)
     r = mr.rank_file(f, 30)
@@ -327,6 +330,7 @@ def test_loudness_at_before_zero_reads_from_the_start():
 
 def test_grid_load_checks_the_downbeat_phase(tmp_path):
     from common import Grid
+
     for phase in (4, -1, 1.5, True, 99):
         f = tmp_path / "b.json"
         f.write_text(json.dumps({"beats": [0.5, 1.0, 1.5, 2.0, 2.5, 3.0], "downbeat_phase": phase}))
@@ -336,16 +340,20 @@ def test_grid_load_checks_the_downbeat_phase(tmp_path):
     assert Grid.load(f, 4).first == 3
 
 
-@pytest.mark.parametrize("text, message", [
-    ('{"beats": [0.5, 1.0, 1.5, 2.0], "downbeat_phase": 1e999}', "downbeat_phase must be"),
-    ('{"beats": [0.5, 1.0, 1.5, 2.0], "downbeat_phase": 1' + "0" * 400 + "}", "downbeat_phase must be"),
-    ('{"beats": [0.5, 1.0, 1.5, 2.0]}', "downbeat_phase must be"),
-    ('{"beats": [1' + "0" * 400 + ', 1.0], "downbeat_phase": 0}', "is not a beat grid"),
-    ('{"beats": "1234", "downbeat_phase": 0}', "beats must be a JSON array"),
-    ('{"downbeat_phase": 0}', "beats must be a JSON array"),
-])
+@pytest.mark.parametrize(
+    "text, message",
+    [
+        ('{"beats": [0.5, 1.0, 1.5, 2.0], "downbeat_phase": 1e999}', "downbeat_phase must be"),
+        ('{"beats": [0.5, 1.0, 1.5, 2.0], "downbeat_phase": 1' + "0" * 400 + "}", "downbeat_phase must be"),
+        ('{"beats": [0.5, 1.0, 1.5, 2.0]}', "downbeat_phase must be"),
+        ('{"beats": [1' + "0" * 400 + ', 1.0], "downbeat_phase": 0}', "is not a beat grid"),
+        ('{"beats": "1234", "downbeat_phase": 0}', "beats must be a JSON array"),
+        ('{"downbeat_phase": 0}', "beats must be a JSON array"),
+    ],
+)
 def test_grid_load_dies_with_a_message_on_unusable_values(tmp_path, capsys, text, message):
     from common import Grid
+
     f = tmp_path / "b.json"
     f.write_text(text)
     with pytest.raises(SystemExit):
@@ -370,6 +378,7 @@ def test_riser_cli_ends_on_the_drop(tmp_path):
 
 # ---------------- the reel window: only the first `duration` seconds are judged ----------------
 
+
 def two_tempo_track(tmp_path):
     """30 s at 117.2 bpm, then 60 s at 89.3 bpm: a long track whose later part has another beat.
     Both intervals are whole analysis frames (16 ms), so the tracker's frame rounding adds no wobble."""
@@ -382,7 +391,7 @@ def two_tempo_track(tmp_path):
 def test_music_rank_ignores_what_comes_after_the_reel(tmp_path):
     f = tmp_path / "outro.wav"
     y = kick_track(np.arange(0.5, 30.0, 0.512), 40.0)
-    y[30 * SR:] = 0  # a silent outro after the reel's 30 s
+    y[30 * SR :] = 0  # a silent outro after the reel's 30 s
     sf.write(f, y, SR)
     r = mr.rank_file(f, 30)
     assert (r["rejected"], r["reasons"], r["length"]) == (False, [], 40.0)
@@ -407,6 +416,7 @@ def test_music_rank_refuses_a_duration_that_is_not_a_length(tmp_path, duration):
 
 
 # ---------------- beat_grid --bpm ----------------
+
 
 def tresillo_track(tmp_path, seconds=30.0):
     """Kicks on eighths 1, 4 and 7 of every bar (3+3+2) at 117.2 bpm and nothing on the other

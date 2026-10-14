@@ -10,6 +10,7 @@ Usage: make_bed.py <seed.wav> <project_dir> [--drop-bar k] [--riser riser.mp3] [
 Writes <project_dir>/assets/audio/bgm.wav. The old bed is deleted first, so a failed run leaves
 no bed rather than the previous seed's.
 """
+
 import argparse
 import os
 import sys
@@ -44,8 +45,8 @@ def apply_lift(y, sr, a, b, hp=LIFT_HP, ramp=RAMP):
     w = np.zeros(len(y))
     w[a:b] = 1.0
     n = int(ramp * sr)
-    w[a:a + n] = np.linspace(0, 1, n)
-    w[b - n:b] = np.linspace(1, 0, n)
+    w[a : a + n] = np.linspace(0, 1, n)
+    w[b - n : b] = np.linspace(1, 0, n)
     if y.ndim == 2:
         w = w[:, None]
     return (1 - w) * y + w * filt
@@ -65,15 +66,15 @@ def add_riser(y, sr, riser, end_t, gain, ramp=0.012):
     bed never writes past it."""
     end = min(int(round(end_t * sr)), len(y))
     start = end - len(riser)
-    r = riser[max(0, -start):] * gain
-    r = r[:end - max(0, start)].astype(np.float64)
+    r = riser[max(0, -start) :] * gain
+    r = r[: end - max(0, start)].astype(np.float64)
     if start < 0:
         n = min(int(ramp * sr), len(r))
         r[:n] *= np.linspace(0, 1, n)
     start = max(0, start)
     if y.ndim == 2:
         r = r[:, None]
-    y[start:start + len(r)] += r
+    y[start : start + len(r)] += r
     return y
 
 

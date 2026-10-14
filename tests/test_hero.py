@@ -1,4 +1,5 @@
 """The 16:9 hero: a silent, seamless loop. Scaffold, build, template and finish (seam check)."""
+
 import json
 import re
 import shutil
@@ -11,13 +12,14 @@ import common
 import finish
 from conftest import run_script
 
-DEMO_HTML = "<section id=\"s1\" data-start=\"0\"></section>"
+DEMO_HTML = '<section id="s1" data-start="0"></section>'
 
 
 def scaffold(tmp_path, *extra):
     out = tmp_path / "out"
-    r = run_script("new_project.py", "--app", "demo", "--variant", "a", "--out", out, "--force", "--format", "16:9",
-                   *extra)
+    r = run_script(
+        "new_project.py", "--app", "demo", "--variant", "a", "--out", out, "--force", "--format", "16:9", *extra
+    )
     return r, out / "demo-a"
 
 
@@ -32,6 +34,7 @@ def built(tmp_path, edit=None, expect=0, *extra):
 
 
 # --- scaffold -------------------------------------------------------------------------------
+
 
 def test_a_16x9_scaffold_has_no_sound_files(tmp_path):
     r, p = scaffold(tmp_path)
@@ -83,6 +86,7 @@ def test_a_16x9_project_file_with_a_duration_under_four_seconds_is_refused(tmp_p
 
 # --- build ----------------------------------------------------------------------------------
 
+
 def test_a_16x9_build_needs_no_beats_and_writes_no_sound(tmp_path):
     p, r = built(tmp_path)
     html = (p / "index.html").read_text()
@@ -101,6 +105,7 @@ def test_the_hero_root_carries_the_project_fps(tmp_path, fps, want):
     def edit(p):
         doc = json.loads((p / "project.json").read_text())
         (p / "project.json").write_text(json.dumps({**doc, "fps": fps}))
+
     p, _ = built(tmp_path, edit)
     assert re.search(rf'id="root"[^>]*data-fps="{want}"', (p / "index.html").read_text())
 
@@ -115,16 +120,21 @@ def test_the_built_hero_registers_its_timeline_as_main(tmp_path):
 def test_only_the_third_headline_line_is_optional(tmp_path):
     p, _ = built(tmp_path)
     html = (p / "index.html").read_text()
-    assert re.findall(r'data-cfg="headline\.(\d)"( data-optional)?', html) == [("0", ""), ("1", ""), ("2", " data-optional")]
+    assert re.findall(r'data-cfg="headline\.(\d)"( data-optional)?', html) == [
+        ("0", ""),
+        ("1", ""),
+        ("2", " data-optional"),
+    ]
     assert "const cfgOpt" in html
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="needs node")
 @pytest.mark.parametrize("headline, shown", [(["A", "B", "C"], ["A", "B", "C"]), (["A", "B"], ["A", "B", ""])])
 def test_the_config_fill_accepts_a_headline_of_two_lines_and_still_rejects_a_missing_required_key(
-        tmp_path, headline, shown):
+    tmp_path, headline, shown
+):
     html = built(tmp_path)[0].joinpath("index.html").read_text()
-    fill = html[html.index("const cfgGet"):html.index("const css")]
+    fill = html[html.index("const cfgGet") : html.index("const css")]
     prog = f"""
       const CONFIG = {{ headline: {json.dumps(headline)}, sub: "s" }};
       const mk = (cfg, optional) => ({{ dataset: {{ cfg }}, style: {{}}, textContent: null,
@@ -140,12 +150,26 @@ def test_the_config_fill_accepts_a_headline_of_two_lines_and_still_rejects_a_mis
     assert r.stdout.split("\n")[:2] == [json.dumps(shown, separators=(",", ":")), "throws"]
 
 
-@pytest.mark.parametrize("token", ["{{D 1}}", "{{E 0}}", "{{LEN 1 2}}", "{{TO_END 1}}", "{{BEFORE_END 1 2}}", "{{BEATS}}",
-                                   "{{BEATS_PER_BAR}}", "{{DOWNBEAT_INDEX}}", "{{calc D(1)+1}}", "{{calc E(0,1)}}"])
+@pytest.mark.parametrize(
+    "token",
+    [
+        "{{D 1}}",
+        "{{E 0}}",
+        "{{LEN 1 2}}",
+        "{{TO_END 1}}",
+        "{{BEFORE_END 1 2}}",
+        "{{BEATS}}",
+        "{{BEATS_PER_BAR}}",
+        "{{DOWNBEAT_INDEX}}",
+        "{{calc D(1)+1}}",
+        "{{calc E(0,1)}}",
+    ],
+)
 def test_a_beat_token_in_a_silent_page_exits_2(tmp_path, token):
     def edit(p):
         t = p / "src.html.tmpl"
         t.write_text(t.read_text().replace("<body>", f"<body><!-- x --><p>{token}</p>", 1))
+
     p, r = built(tmp_path, edit, expect=2)
     assert "silent and has no beat grid" in r.stderr and "Traceback" not in r.stderr
     assert not (p / "index.html").exists()
@@ -154,6 +178,7 @@ def test_a_beat_token_in_a_silent_page_exits_2(tmp_path, token):
 def test_cues_in_a_silent_project_exit_2(tmp_path):
     def edit(p):
         (p / "cues.json").write_text(json.dumps({"sfx": {"a": "a.wav"}, "cues": [{"id": "c", "sfx": "a", "at": "1"}]}))
+
     p, r = built(tmp_path, edit, expect=2)
     assert "silent: cues.json has cues" in r.stderr and not (p / "index.html").exists()
 
@@ -163,6 +188,7 @@ def test_an_audio_or_video_tag_in_a_silent_page_exits_2(tmp_path, tag):
     def edit(p):
         t = p / "src.html.tmpl"
         t.write_text(t.read_text().replace("</body>", f"{tag}</body>", 1))
+
     p, r = built(tmp_path, edit, expect=2)
     assert "is silent: the page has a <" in r.stderr and not (p / "index.html").exists()
 
@@ -171,6 +197,7 @@ def test_a_commented_out_audio_tag_is_not_a_sound(tmp_path):
     def edit(p):
         t = p / "src.html.tmpl"
         t.write_text(t.read_text().replace("</body>", '<!-- <audio src="a.wav"></audio> --></body>', 1))
+
     built(tmp_path, edit)
 
 
@@ -183,6 +210,7 @@ def test_a_9x16_build_still_needs_beats(tmp_path):
 
 # --- the template ---------------------------------------------------------------------------
 
+
 @pytest.mark.parametrize("duration", [4, 8, 20])
 def test_the_hero_slides_end_before_the_rest_window(tmp_path, duration):
     p, _ = built(tmp_path, None, 0, "--duration", str(duration))
@@ -191,12 +219,13 @@ def test_the_hero_slides_end_before_the_rest_window(tmp_path, duration):
     to_b = float(re.search(r"const toB = ([\d.]+);", html).group(1))
     rest = min(0.4, duration * 0.05)
     assert 0 < to_b < to_a and to_a + 0.45 <= duration - rest
-    assert f"data-duration=\"{duration}\"" in html or f'data-duration="{float(duration):g}"' in html
+    assert f'data-duration="{duration}"' in html or f'data-duration="{float(duration):g}"' in html
 
 
 def test_every_hero_from_pose_that_differs_from_rest_is_not_painted_at_t0():
-    html = (common.Path(__file__).resolve().parent.parent / "skills" / "app-promo-reel" / "template"
-            / "hero.html.tmpl").read_text()
+    html = (
+        common.Path(__file__).resolve().parent.parent / "skills" / "app-promo-reel" / "template" / "hero.html.tmpl"
+    ).read_text()
     script = html.split("<script>")[-1]
     for line in script.splitlines():
         if "tl.fromTo(" in line:
@@ -206,8 +235,9 @@ def test_every_hero_from_pose_that_differs_from_rest_is_not_painted_at_t0():
 def test_the_hero_hides_a_screen_that_is_off_the_page():
     # `hyperframes check` measures the text of a clipped, off-page screen against the page behind
     # it, and fails the contrast gate: an off-page screen must have opacity 0
-    html = (common.Path(__file__).resolve().parent.parent / "skills" / "app-promo-reel" / "template"
-            / "hero.html.tmpl").read_text()
+    html = (
+        common.Path(__file__).resolve().parent.parent / "skills" / "app-promo-reel" / "template" / "hero.html.tmpl"
+    ).read_text()
     assert 'gsap.set("#scr-b", { x: 760, opacity: 0 })' in html
     assert 'tl.to("#scr-a", { opacity: 0' in html and 'tl.to("#scr-b", { opacity: 0' in html
 
@@ -229,7 +259,7 @@ def loop_frames(pose):
     out = np.repeat(bg[None], N, axis=0)
     for i in range(N):
         x = int(round(pose(i)))
-        out[i, 30:70, 20 + x:60 + x] = 255
+        out[i, 30:70, 20 + x : 60 + x] = 255
     return out
 
 
@@ -239,8 +269,22 @@ def eased(i):  # 0 at both ends of the loop, with zero speed there
 
 def encode(path, frames, audio=False, rate="30"):
     n, h, w = frames.shape
-    cmd = ["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "gray", "-s", f"{w}x{h}", "-framerate", rate,
-           "-i", "-"]
+    cmd = [
+        "ffmpeg",
+        "-v",
+        "error",
+        "-y",
+        "-f",
+        "rawvideo",
+        "-pix_fmt",
+        "gray",
+        "-s",
+        f"{w}x{h}",
+        "-framerate",
+        rate,
+        "-i",
+        "-",
+    ]
     if audio:
         cmd += ["-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo", "-shortest", "-c:a", "aac"]
     cmd += ["-c:v", "libx264", "-qp", "0", "-pix_fmt", "yuv420p", str(path)]
@@ -342,6 +386,7 @@ def test_a_clip_of_five_frames_is_reported_not_a_crash(tmp_path, hero, capsys):
 def test_a_contact_sheet_that_cannot_be_made_does_not_fail_a_good_loop(tmp_path, hero, monkeypatch):
     def broken(*a, **k):
         raise RuntimeError("no sheet")
+
     monkeypatch.setattr(finish, "contact_sheet", broken)
     raw = encode(tmp_path / "raw.mp4", loop_frames(eased))
     assert finish.finish(hero, raw) == 0
@@ -352,15 +397,21 @@ def test_a_contact_sheet_that_cannot_be_made_does_not_fail_a_good_loop(tmp_path,
 def test_frame_checks_that_cannot_run_leave_an_empty_report_on_a_good_loop(tmp_path, hero, monkeypatch):
     def broken(*a, **k):
         raise RuntimeError("decoder gone")
+
     monkeypatch.setattr(finish, "frame_checks", broken)
     raw = encode(tmp_path / "raw.mp4", loop_frames(eased))
     assert finish.finish(hero, raw) == 0
     rep = json.loads((hero / "renders" / "demo-a-v1-report.json").read_text())
-    assert rep["frames"] == {"error": "RuntimeError('decoder gone')", "warnings": [], "holds": [],
-                             "notes": ["frame checks did not run: RuntimeError('decoder gone')"]}
+    assert rep["frames"] == {
+        "error": "RuntimeError('decoder gone')",
+        "warnings": [],
+        "holds": [],
+        "notes": ["frame checks did not run: RuntimeError('decoder gone')"],
+    }
 
 
 # --- seam_check -----------------------------------------------------------------------------
+
 
 def test_seam_check_refuses_a_clip_it_cannot_measure():
     r = finish.seam_check(np.zeros((finish.SEAM_MIN_FRAMES - 1, 8, 8), np.uint8))
@@ -368,8 +419,9 @@ def test_seam_check_refuses_a_clip_it_cannot_measure():
 
 
 def test_a_decode_failure_is_a_problem_not_a_pass(tmp_path):
-    problems, seam = finish.silent_loop_problems(tmp_path / "missing.mp4",
-                                                 {"duration": 4, "fps": 30}, {"width": W, "height": H})
+    problems, seam = finish.silent_loop_problems(
+        tmp_path / "missing.mp4", {"duration": 4, "fps": 30}, {"width": W, "height": H}
+    )
     assert seam["ok"] is False and len(problems) == 1 and problems[0].startswith("seam: could not be checked")
 
 
@@ -397,9 +449,17 @@ def test_a_small_bright_change_at_the_seam_fails_on_the_share_of_pixels():
     assert r["mad"] < finish.SEAM_MIN_MAD and r["moved"] > finish.SEAM_MIN_MOVED and not r["ok"]
 
 
-@pytest.mark.parametrize("fps, duration, frames, ok", [(30, 8, 240, True), (30, 8, 239, False), (30, 8, 241, False),
-                                                       (29.97, 8, 240, True), (29.97, 8, 239, True),
-                                                       (29.97, 8, 238, False)])
+@pytest.mark.parametrize(
+    "fps, duration, frames, ok",
+    [
+        (30, 8, 240, True),
+        (30, 8, 239, False),
+        (30, 8, 241, False),
+        (29.97, 8, 240, True),
+        (29.97, 8, 239, True),
+        (29.97, 8, 238, False),
+    ],
+)
 def test_the_expected_frame_count(fps, duration, frames, ok):
     want, tol = finish.expected_frames({"fps": fps, "duration": duration})
     assert (abs(frames - want) <= tol) is ok

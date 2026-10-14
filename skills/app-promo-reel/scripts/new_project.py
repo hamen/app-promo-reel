@@ -15,6 +15,7 @@ a feed post) or 16:9 (1920x1080, a silent web hero that loops, 8 s by default: i
 template, no cues.json, no assets/audio and no SFX). It sets format, width and height in
 project.json and the DESIGN.md header.
 """
+
 import argparse
 import json
 import os
@@ -25,8 +26,15 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from common import (FORMATS, HERO_DURATION, KNOWN_STORES, PROJECT_DEFAULTS,  # noqa: E402
-                    SILENT_MIN_DURATION, die, is_silent)
+from common import (
+    FORMATS,
+    HERO_DURATION,
+    KNOWN_STORES,
+    PROJECT_DEFAULTS,  # noqa: E402
+    SILENT_MIN_DURATION,
+    die,
+    is_silent,
+)
 
 SKILL_DIR = Path(__file__).resolve().parent.parent
 TEMPLATE = SKILL_DIR / "template"
@@ -68,12 +76,13 @@ def check_out_dir(out, force):
         die(f"{out} is inside the app-promo-reel repo ({repo}); pick a folder outside it")
     top = git_toplevel(out)
     if top and not force:
-        die(f"{out} is inside the git work tree {top}; generated media must not land in a repo "
-            f"(use --force if you are sure)")
+        die(
+            f"{out} is inside the git work tree {top}; generated media must not land in a repo "
+            f"(use --force if you are sure)"
+        )
 
 
-def scaffold(app, variant, out, lang="en", stores=None, duration=None, force=False, sfx_dir=None,
-             fmt="9:16"):
+def scaffold(app, variant, out, lang="en", stores=None, duration=None, force=False, sfx_dir=None, fmt="9:16"):
     if not re.fullmatch(r"[a-z0-9][a-z0-9-]*", app) or not re.fullmatch(r"[a-z0-9][a-z0-9-]*", variant):
         die("--app and --variant must be lowercase slugs (a-z, 0-9, -)")
     stores = stores or list(PROJECT_DEFAULTS["stores"])
@@ -85,8 +94,10 @@ def scaffold(app, variant, out, lang="en", stores=None, duration=None, force=Fal
     if duration is not None and duration <= 1:
         die("--duration must be above 1 second")
     if silent and duration is not None and duration < SILENT_MIN_DURATION:
-        die(f"--duration for a {fmt} loop must be at least {SILENT_MIN_DURATION:g} s "
-            f"(it starts from rest, moves and comes back to rest)")
+        die(
+            f"--duration for a {fmt} loop must be at least {SILENT_MIN_DURATION:g} s "
+            f"(it starts from rest, moves and comes back to rest)"
+        )
     out = Path(out).expanduser()
     check_out_dir(out, force)
     dest = out / f"{app}-{variant}"
@@ -106,15 +117,27 @@ def scaffold(app, variant, out, lang="en", stores=None, duration=None, force=Fal
     (dest / "package.json").write_text(json.dumps(pkg, indent=2) + "\n")
     project = json.loads((TEMPLATE / "project.json").read_text())
     width, height = FORMATS[fmt]
-    project.update({"app": app, "variant": variant, "lang": lang, "format": fmt, "width": width,
-                    "height": height, "stores": stores})
+    project.update(
+        {
+            "app": app,
+            "variant": variant,
+            "lang": lang,
+            "format": fmt,
+            "width": width,
+            "height": height,
+            "stores": stores,
+        }
+    )
     if silent:
         project["duration"] = HERO_DURATION
     if duration is not None:
         project["duration"] = duration
     (dest / "project.json").write_text(json.dumps(project, indent=2) + "\n")
-    for sub in ("assets/img", "assets/fonts", "renders", "work") if silent else \
-            ("assets/audio", "assets/img", "assets/fonts", "renders", "work"):
+    for sub in (
+        ("assets/img", "assets/fonts", "renders", "work")
+        if silent
+        else ("assets/audio", "assets/img", "assets/fonts", "renders", "work")
+    ):
         (dest / sub).mkdir(parents=True, exist_ok=True)
     copied = 0
     if sfx_dir and not silent:
@@ -139,14 +162,16 @@ def main():
     sfx = os.environ.get("SFX_DIR")
     if sfx and not is_silent(a.format) and not Path(sfx).expanduser().is_dir():
         die(f"SFX_DIR={sfx} is not a folder")
-    dest, copied = scaffold(a.app, a.variant, a.out, a.lang, a.stores.split(","), a.duration, a.force, sfx,
-                            a.format)
+    dest, copied = scaffold(a.app, a.variant, a.out, a.lang, a.stores.split(","), a.duration, a.force, sfx, a.format)
     print(f"created {dest}")
     if is_silent(a.format):
         print(f"{a.format} is silent: no SFX copied")
         return
-    print(f"copied {copied} SFX files from $SFX_DIR" if sfx else
-          "no $SFX_DIR: the reel builds without SFX (cues are skipped with a warning)")
+    print(
+        f"copied {copied} SFX files from $SFX_DIR"
+        if sfx
+        else "no $SFX_DIR: the reel builds without SFX (cues are skipped with a warning)"
+    )
 
 
 if __name__ == "__main__":
