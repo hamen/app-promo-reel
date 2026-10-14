@@ -152,7 +152,7 @@ What you can give it:
 | Language of the copy | `en` | Can differ from the storefront country. |
 | Number of variants | 2 | Each variant is its own folder and renders on its own. |
 | Format per variant | `9:16` | `9:16`, `4:5` or `16:9`; see [Formats](#formats). |
-| Output folder | `~/app-promo-reels` | Never inside a git work tree. |
+| Output folder | `~/app-promo-reels` | Not inside a git work tree (`new_project.py` refuses one unless you pass `--force`), and never inside this repo. |
 | App source repo | none | Optional, read-only: the agent reads the default branch with `git show`, never edits it. |
 | Sound effects | none | Optional: a folder of your own files in `SFX_DIR`. |
 | Brand notes | none | Optional: forbidden words, spelling, rules from your notes or memory system. |
@@ -186,12 +186,14 @@ variant, the agent:
    tokens (`D(bar, beat)`), and places the sound effects in `cues.json`. `shotlist.md` has one row
    for each scene: a scene with no reason to exist is cut.
 5. **Builds, checks, renders and finishes.** `build.py`, then the check command it prints, until 0 errors:
-   the check fails a page whose AI label is hidden, a text in the platform's UI zones, or two texts
-   that stay on top of each other for 0.5 s or more (a shorter overlap is only an `info` line, so the
-   agent also looks at the frames). `read_check.py` times each caption against a reading rule. It
-   renders the MP4, and `finish.py` normalises the loudness, checks the sync of every checked cue, and
-   writes the versioned MP4, the contact sheet and the poster. For a 16:9 hero, `read_check.py` times
-   nothing, and `finish.py` checks the seam and the frame count instead of the loudness and the sync.
+   the check fails a page whose AI label is hidden, a text in the platform's UI zones, a font with no
+   `@font-face`, or two texts that stay on top of each other for 0.5 s or more (a shorter overlap is
+   only an `info` line, so the agent also looks at the frames). `read_check.py` times each caption
+   against a reading rule. It renders the MP4, and `finish.py` normalises the loudness, checks the
+   sync of every checked cue, and writes the next version of the MP4 (one more than the highest in
+   `renders/`), the contact sheet and the poster (`--poster-at <s>` chooses its time). For a 16:9
+   hero, `read_check.py` times nothing, and `finish.py` checks the seam and the frame count instead
+   of the loudness and the sync.
 6. **Critiques the real frames**, at most three rounds. It scores seven things from 1 to 10 (hook,
    readability, motion, variety, composition, claims, and sound, or loop for the hero), writes the
    worst problems with a still as evidence in `reviews/critique-N.md`, fixes each one in the file
@@ -218,17 +220,19 @@ placeholder and tells you.
 
 ## What you get
 
-One folder for each variant, `<output>/<app>-<variant>/`:
+One folder for each variant, `<output>/<app>-<variant>/` (a 16:9 hero has no `cues.json`, no
+`beats.json` and no audio):
 
 ```text
 bedtime-stories-a/
 ├── renders/
-│   ├── bedtime-stories-a-v2.mp4          the video: one new version for each finish
+│   ├── bedtime-stories-a-v2.mp4          the video: each finish adds a version, the earlier ones stay
 │   ├── bedtime-stories-a-v2-sheet.jpg    contact sheet, frames from the real MP4
 │   ├── bedtime-stories-a-v2-poster.jpg   poster frame (--poster-at <s> chooses it)
 │   ├── bedtime-stories-a-v2-report.json  loudness, sync and frame checks (the seam, for a hero)
 │   └── raw.mp4                           the last render, before finish.py
 ├── reviews/critique-1.md …               the scores and problems of each critique round
+├── reviews/still-1.2.jpg …               the stills from the MP4 that a critique names as evidence
 ├── DESIGN.md                             angle, sources, colours, allowed claims
 ├── shotlist.md                           one row for each scene: purpose, entry, exit
 ├── src.html.tmpl                         the composition: CONFIG at the top, then scenes and timeline
@@ -248,9 +252,12 @@ bedtime-stories-a/
 | `4:5` | 1080×1350 | 30 s | music and sound effects | a feed post, which starts muted |
 | `16:9` | 1920×1080 | 8 s | none: no audio stream at all | a web-hero loop behind a headline |
 
-In 9:16 and 4:5, every text and tap stays inside the feed safe box at the format's minimum size (the
-AI-generated label sits below it, at the frame's bottom-left corner), and
-something moves at all times: nothing holds still for more than 0.8 s, except the end card. The 16:9
+In 9:16 and 4:5, every text and tap stays inside the
+[feed safe box](skills/app-promo-reel/references/storyboard.md#feed-safe-zones) at the format's
+minimum size, 32 px in 9:16 and 30 px in 4:5 (the AI-generated label sits below the box, at the
+frame's bottom-left corner), and something moves at all times: nothing holds still for more than
+0.8 s, except the end card. The 0.8 s is a target for the critique: `finish.py` warns, and never
+fails a reel for it. The 16:9
 hero has no music, no beat grid and no cues; its contract is the loop, and `finish.py` fails a
 clip whose last frame does not flow into its first. To use the hero on a page:
 
@@ -284,7 +291,7 @@ $PY $S/build.py $P                      # its last line is "check: <command>"
 Run the command after `check:` exactly as `build.py` prints it, until it reports 0 errors. Do not
 replace it with a plain `hyperframes check`: for 9:16 and 4:5 the printed command also carries the
 feed safe box (`--caption-zone`). Never render a page whose check fails: the render does not stop
-on the error. Then:
+on the error. Then, in the same shell (the first block sets `S`, `P` and `PY`):
 
 ```bash
 $PY $S/read_check.py $P                 # 9:16 and 4:5: the reading time of each caption
