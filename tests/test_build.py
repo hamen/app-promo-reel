@@ -727,7 +727,7 @@ def expected(result):
 @pytest.mark.skipif(shutil.which("node") is None, reason="needs node")
 @pytest.mark.parametrize("setup, result", ANIMATED)
 def test_the_guard_fails_on_anything_that_animates_the_label_or_its_ancestors(setup, result):
-    assert run_guard("9:16", (64, 1430, 300, 1492), setup) == expected(result)  # where build.py puts the label
+    assert run_guard("9:16", (40, 1826, 300, 1888), setup) == expected(result)  # where build.py puts the label
 
 
 # control mutations: each part of the guard is needed, so removing it changes the result of a case above
@@ -761,7 +761,7 @@ def test_each_part_of_the_guard_is_needed(name):
             guard = guard.replace(old, new, 1)
         return guard
     changed = [setup for setup, result in ANIMATED
-               if run_guard("9:16", (64, 1430, 300, 1492), setup, mutate) != expected(result)]
+               if run_guard("9:16", (40, 1826, 300, 1888), setup, mutate) != expected(result)]
     assert changed, f"no case sees the mutation: {name}"
 
 
