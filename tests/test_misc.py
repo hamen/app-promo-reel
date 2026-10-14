@@ -483,17 +483,17 @@ def test_docs_pin_the_optional_motion_blur_step():
 
 
 def hyperframes_pins(root):
-    # every "hyperframes@<version>" in the tracked files of root: {path: [(line, version), ...]}
+    # every "hyperframes@<version>", in any letter case, in the tracked files of root: {path: [(line, version), ...]}
     names = subprocess.run(["git", "ls-files", "-z"], cwd=root, capture_output=True, text=True,
                            check=True).stdout.split("\0")
     found = {}
     for name in filter(None, names):
         try:
             text = (root / name).read_text(encoding="utf-8")
-        except UnicodeDecodeError:
+        except (UnicodeDecodeError, IsADirectoryError, FileNotFoundError):  # not text, a submodule, deleted, a broken link
             continue
         for n, line in enumerate(text.splitlines(), 1):
-            for m in re.finditer(r"hyperframes@([\w.-]+)", line):
+            for m in re.finditer(r"hyperframes@([\w.-]+)", line, re.IGNORECASE):
                 found.setdefault(name, []).append((n, m.group(1).rstrip(".")))
     return found
 
@@ -509,7 +509,8 @@ def test_every_hyperframes_pin_is_the_one_build_py_uses():
     # the scan reaches the files that run the CLI, so an empty scan cannot pass
     assert {"skills/app-promo-reel/scripts/build.py", "skills/app-promo-reel/SKILL.md",
             "skills/app-promo-reel/template/package.json", "README.md"} <= found.keys()
-    assert not wrong_pins(found, want), f"pin these to {build.HYPERFRAMES}:\n" + "\n".join(wrong_pins(found, want))
+    wrong = wrong_pins(found, want)
+    assert not wrong, f"pin these to {build.HYPERFRAMES}:\n" + "\n".join(wrong)
 
 
 def test_the_pin_scan_finds_a_version_that_differs(tmp_path):
@@ -519,7 +520,13 @@ def test_the_pin_scan_finds_a_version_that_differs(tmp_path):
     (tmp_path / "b.json").write_text(f'{{"check": "npx {pin}latest check"}}\n')
     (tmp_path / "untracked.md").write_text(f"{pin}9.9.9\n")
     (tmp_path / "c.dat").write_bytes(b"\xff\xfe" + f"{pin}8.8.8\n".encode())  # not UTF-8: skipped
-    subprocess.run(["git", "add", "a.md", "b.json", "c.dat"], cwd=tmp_path, check=True)
+    (tmp_path / "c.md").write_text(f"{pin.capitalize()}1.2.5 starts the sentence.\n")
+    (tmp_path / "gone.md").write_text(f"{pin}7.7.7\n")
+    subprocess.run(["git", "add", "a.md", "b.json", "c.dat", "c.md", "gone.md"], cwd=tmp_path, check=True)
+    (tmp_path / "gone.md").unlink()  # tracked, deleted from disk: skipped
+    subprocess.run(["git", "update-index", "--add", "--cacheinfo", "160000," + "1" * 40 + ",sub"], cwd=tmp_path,
+                   check=True)
+    (tmp_path / "sub").mkdir()  # a submodule's folder: skipped
     found = hyperframes_pins(tmp_path)
-    assert found == {"a.md": [(1, "1.2.3"), (2, "1.2.4")], "b.json": [(1, "latest")]}
-    assert wrong_pins(found, "1.2.3") == [f"a.md:2: {pin}1.2.4", f"b.json:1: {pin}latest"]
+    assert found == {"a.md": [(1, "1.2.3"), (2, "1.2.4")], "b.json": [(1, "latest")], "c.md": [(1, "1.2.5")]}
+    assert wrong_pins(found, "1.2.3") == [f"a.md:2: {pin}1.2.4", f"b.json:1: {pin}latest", f"c.md:1: {pin}1.2.5"]
