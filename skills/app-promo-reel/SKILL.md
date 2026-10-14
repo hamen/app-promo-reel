@@ -175,8 +175,10 @@ The AI-generated label rule (truthfulness 7) applies to the hero too.
 
 A gated run applies only when the user's request contains the exact words "gated run" or
 "gated reel", in any letter case. No other wording turns it on. Without those words, run the
-workflow above without stopping: an unattended run (a scheduled job, for example) never waits on
-a person.
+workflow above without stopping between steps. You still ask for an input that is missing
+(Inputs) and, once, for the music source when ACE-Step is not set up (step 3). An unattended run
+(a scheduled job, for example) gives the inputs and the music source in the request, so it never
+waits on a person.
 
 In a gated run, stop at each of these four points. Show the listed items, then wait for the user
 to say go. Never approve a gate yourself.
