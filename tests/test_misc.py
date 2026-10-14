@@ -4,6 +4,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tomllib
 
 import pytest
 from PIL import Image
@@ -638,5 +639,10 @@ def test_bin_ci_runs_the_pinned_ruff_before_the_tests():
     assert all(s in live for s in steps), steps
     assert [live.index(s) for s in steps] == sorted(live.index(s) for s in steps)
     assert "sed -n 's/^ruff==//p' requirements.txt" in live and '"$PY" -m ruff --version' in live
+    # a missing or a different ruff stops bin/ci before the checks
+    guard = '[ -n "$want" ] && [ "$have" = "$want" ] \\\n  || fail "ruff $want missing'
+    assert guard in live and live.index(guard) < live.index(steps[0])
     pins = [s for s in (root / "requirements.txt").read_text().splitlines() if s.startswith("ruff==")]
     assert len(pins) == 1 and re.fullmatch(r"ruff==\d+\.\d+\.\d+", pins[0]), pins
+    lint = tomllib.loads((root / "ruff.toml").read_text())["lint"]
+    assert lint == {"select": ["E4", "E7", "E9", "F"]}, lint
