@@ -639,10 +639,34 @@ def test_bin_ci_runs_the_pinned_ruff_before_the_tests():
     assert all(s in live for s in steps), steps
     assert [live.index(s) for s in steps] == sorted(live.index(s) for s in steps)
     assert "sed -n 's/^ruff==//p' requirements.txt" in live and '"$PY" -m ruff --version' in live
-    # a missing or a different ruff stops bin/ci before the checks
-    guard = '[ -n "$want" ] && [ "$have" = "$want" ] \\\n  || fail "ruff $want missing'
-    assert guard in live and live.index(guard) < live.index(steps[0])
     pins = [s for s in (root / "requirements.txt").read_text().splitlines() if s.startswith("ruff==")]
     assert len(pins) == 1 and re.fullmatch(r"ruff==\d+\.\d+\.\d+", pins[0]), pins
     lint = tomllib.loads((root / "ruff.toml").read_text())["lint"]
     assert lint == {"select": ["E4", "E7", "E9", "F"]}, lint
+
+
+@pytest.mark.parametrize("installed, found", [(None, "none"), ("0.16.0", "0.16.0"), ("pin", None)])
+def test_bin_ci_stops_on_a_missing_or_different_ruff(tmp_path, installed, found):
+    # a copy of bin/ci with a stand-in .venv/bin/python: the deps import passes, `-m ruff --version`
+    # gives the version under test, and any other ruff call exits 3, so pytest never runs
+    root = SCRIPTS.parents[2]
+    want = re.search(r"^ruff==(\S+)$", (root / "requirements.txt").read_text(), re.M).group(1)
+    have = want if installed == "pin" else installed
+    (tmp_path / "bin").mkdir()
+    shutil.copy(root / "bin" / "ci", tmp_path / "bin" / "ci")
+    shutil.copy(root / "requirements.txt", tmp_path)
+    py = tmp_path / ".venv" / "bin" / "python"
+    py.parent.mkdir(parents=True)
+    version = f'echo "ruff {have}"' if have else "echo 'No module named ruff' >&2; exit 1"
+    py.write_text(
+        "#!/bin/sh\n"
+        '[ "$1 $2" = "-m ruff" ] || exit 0\n'
+        f'if [ "$3" = "--version" ]; then {version}; else echo "ruff $3 ran"; exit 3; fi\n'
+    )
+    py.chmod(0o755)
+    r = subprocess.run(["bash", str(tmp_path / "bin" / "ci")], capture_output=True, text=True, timeout=60)
+    if found is None:
+        assert r.returncode == 3 and "ruff check ran" in r.stdout, (r.stdout, r.stderr)
+    else:
+        assert r.returncode == 1 and "ran" not in r.stdout, (r.stdout, r.stderr)
+        assert f"bin/ci: ruff {want} missing for .venv/bin/python (found: {found})" in r.stderr, r.stderr
