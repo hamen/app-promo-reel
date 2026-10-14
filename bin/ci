@@ -28,7 +28,8 @@ secrets=$(git grep -nIE 'bot[0-9]{6,}:|sk-[A-Za-z0-9]{20,}|ghp_[A-Za-z0-9]{20,}|
 [ -z "$secrets" ] || fail "possible secret in tracked files:"$'\n'"$secrets"
 
 # Lint and format check (ruff.toml). ruff reads the files on disk, so an untracked (not gitignored)
-# .py file under skills/ or tests/ that fails them also stops the push.
+# file under skills/ or tests/ that fails them also stops the push: a .py file, or a .md file with
+# a Python code block that is not formatted.
 "$PY" -m ruff check skills tests
 "$PY" -m ruff format --check skills tests
 

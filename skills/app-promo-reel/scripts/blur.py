@@ -49,9 +49,10 @@ from common import die, is_silent, load_project  # noqa: E402
 
 MIN_K = 4  # fewer input frames per output frame cannot blur and still leave a gap
 CUT_FLOOR = 1.0  # gray levels
-CUT_RATIO = 2.5  # measured 2026-10-07 on a 30 s reel: smooth motion up to 1.7 x its neighbours, a move that
-# starts or stops at rest 2 x (by construction), cuts 2.7-56 x (2.7 and 3.0 over a moving
-# background). A missed cut leaves a ghost of the old scene; an extra cut only less blur.
+# CUT_RATIO, measured 2026-10-07 on a 30 s reel: smooth motion up to 1.7 x its neighbours, a move that starts or
+# stops at rest 2 x (by construction), cuts 2.7-56 x (2.7 and 3.0 over a moving background). A missed cut leaves a
+# ghost of the old scene; an extra cut only less blur.
+CUT_RATIO = 2.5
 STRIDE = 4  # steps and scores read every 4th pixel of Y in each direction
 CELL = 16  # fastest: cells of 16 x 16 sampled pixels (64 x 64 px); only full cells count
 FAST_MIN = 2.0  # gray levels: a frame below this did not move
