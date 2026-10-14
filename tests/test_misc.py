@@ -445,7 +445,7 @@ def test_every_design_md_keeps_the_reference_section_before_what_not_to_do(tmp_p
     r = run_script("new_project.py", "--app", "x", "--variant", "a", "--out", tmp_path / "out", "--format", fmt)
     assert r.returncode == 0, r.stderr
     design = (tmp_path / "out" / "x-a" / "DESIGN.md").read_text()
-    heads = [l for l in design.splitlines() if l.startswith("## ")]
+    heads = [row for row in design.splitlines() if row.startswith("## ")]
     assert "## Reference" in heads and heads.index("## Reference") == heads.index("## What NOT to do") - 1
     ref = design[design.index("## Reference") : design.index("## What NOT to do")]
     for word in (

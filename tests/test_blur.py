@@ -162,7 +162,7 @@ def audio_md5(path):
 
 
 def line(stdout, name):
-    return next(l for l in stdout.splitlines() if l.startswith(name + ":")).split(":", 1)[1].split()
+    return next(row for row in stdout.splitlines() if row.startswith(name + ":")).split(":", 1)[1].split()
 
 
 # ---------------------------------------------------------------- the rules, as pure functions
