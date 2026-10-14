@@ -31,6 +31,8 @@ Contents: [What's new](#whats-new) · [Samples](#samples) · [How to use](#how-t
 The skill shipped on 2026-09-27 as a 9:16 reel maker. Every merged pull request is listed here, newest
 first, in merge order:
 
+- 2026-10-14: the template comments and two guard tests give the label's place since #21, the
+  bottom-left corner of the frame ([#25](https://github.com/hamen/app-promo-reel/pull/25)).
 - 2026-10-13: sample reels for Ebooks Gratis and Blackjack Trainer
   ([#24](https://github.com/hamen/app-promo-reel/pull/24)), the 9:16 and 4:5 samples rendered again
   with the label in the corner ([#23](https://github.com/hamen/app-promo-reel/pull/23)), this list

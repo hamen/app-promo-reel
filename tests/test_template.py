@@ -316,8 +316,8 @@ def px(rules, sel, name):
 
 
 def label_top(fmt):
-    # the guard's pill: a px/1.25 line, 10 px padding and a 1 px border on each side (y 1430 measured
-    # on a 9:16 render)
+    # the guard's pill: a px/1.25 line, 10 px padding and a 1 px border on each side (y 1826 on a 9:16
+    # frame, as references/storyboard.md says)
     from build import AI_LABEL_PLACES
     place, size = AI_LABEL_PLACES[fmt]
     bottom = float(re.search(r'bottom: "([\d.]+)px"', place).group(1))
