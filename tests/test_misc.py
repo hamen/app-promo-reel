@@ -489,7 +489,7 @@ def hyperframes_pins(root):
     found = {}
     for name in filter(None, names):
         try:
-            text = (root / name).read_text()
+            text = (root / name).read_text(encoding="utf-8")
         except UnicodeDecodeError:
             continue
         for n, line in enumerate(text.splitlines(), 1):
@@ -518,7 +518,8 @@ def test_the_pin_scan_finds_a_version_that_differs(tmp_path):
     (tmp_path / "a.md").write_text(f"Render with {pin}1.2.3.\n`{pin}1.2.4`\n")  # a sentence's dot is not the version's
     (tmp_path / "b.json").write_text(f'{{"check": "npx {pin}latest check"}}\n')
     (tmp_path / "untracked.md").write_text(f"{pin}9.9.9\n")
-    subprocess.run(["git", "add", "a.md", "b.json"], cwd=tmp_path, check=True)
+    (tmp_path / "c.dat").write_bytes(b"\xff\xfe" + f"{pin}8.8.8\n".encode())  # not UTF-8: skipped
+    subprocess.run(["git", "add", "a.md", "b.json", "c.dat"], cwd=tmp_path, check=True)
     found = hyperframes_pins(tmp_path)
     assert found == {"a.md": [(1, "1.2.3"), (2, "1.2.4")], "b.json": [(1, "latest")]}
     assert wrong_pins(found, "1.2.3") == [f"a.md:2: {pin}1.2.4", f"b.json:1: {pin}latest"]
