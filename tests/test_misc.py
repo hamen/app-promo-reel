@@ -624,3 +624,19 @@ def test_the_pin_scan_finds_a_version_that_differs(tmp_path):
     found = hyperframes_pins(tmp_path)
     assert found == {"a.md": [(1, "1.2.3"), (2, "1.2.4")], "b.json": [(1, "latest")], "c.md": [(1, "1.2.5")]}
     assert wrong_pins(found, "1.2.3") == [f"a.md:2: {pin}1.2.4", f"b.json:1: {pin}latest", f"c.md:1: {pin}1.2.5"]
+
+
+def test_bin_ci_runs_the_pinned_ruff_before_the_tests():
+    # a text test: running bin/ci here would run pytest again
+    root = SCRIPTS.parents[2]
+    live = "\n".join(s for s in (root / "bin" / "ci").read_text().splitlines() if not s.lstrip().startswith("#"))
+    steps = [
+        '"$PY" -m ruff check skills tests',
+        '"$PY" -m ruff format --check skills tests',
+        '"$PY" -m pytest -q tests',
+    ]
+    assert all(s in live for s in steps), steps
+    assert [live.index(s) for s in steps] == sorted(live.index(s) for s in steps)
+    assert "sed -n 's/^ruff==//p' requirements.txt" in live and '"$PY" -m ruff --version' in live
+    pins = [s for s in (root / "requirements.txt").read_text().splitlines() if s.startswith("ruff==")]
+    assert len(pins) == 1 and re.fullmatch(r"ruff==\d+\.\d+\.\d+", pins[0]), pins
