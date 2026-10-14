@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -479,3 +480,45 @@ def test_docs_pin_the_optional_motion_blur_step():
     assert f"{2 * blur.reach(8) + 1} of 8 at 30 fps" in blurred and f"{2 * blur.reach(4) + 1} of 4 at 60 fps" in blurred
     assert "half-frame time, `(n + 0.5) / fps`" in blurred and "10 × K px per output frame" in blurred
     assert "`fastest:`" in doc("references", "critique.md")
+
+
+def hyperframes_pins(root):
+    # every "hyperframes@<version>" in the tracked files of root: {path: [(line, version), ...]}
+    names = subprocess.run(["git", "ls-files", "-z"], cwd=root, capture_output=True, text=True,
+                           check=True).stdout.split("\0")
+    found = {}
+    for name in filter(None, names):
+        try:
+            text = (root / name).read_text()
+        except UnicodeDecodeError:
+            continue
+        for n, line in enumerate(text.splitlines(), 1):
+            for m in re.finditer(r"hyperframes@([\w.-]+)", line):
+                found.setdefault(name, []).append((n, m.group(1).rstrip(".")))
+    return found
+
+
+def wrong_pins(found, want):
+    return [f"{name}:{n}: hyperframes@{v}" for name, pins in found.items() for n, v in pins if v != want]
+
+
+def test_every_hyperframes_pin_is_the_one_build_py_uses():
+    import build
+    want = build.HYPERFRAMES.split("@", 1)[1]
+    found = hyperframes_pins(SCRIPTS.parents[2])
+    # the scan reaches the files that run the CLI, so an empty scan cannot pass
+    assert {"skills/app-promo-reel/scripts/build.py", "skills/app-promo-reel/SKILL.md",
+            "skills/app-promo-reel/template/package.json", "README.md"} <= found.keys()
+    assert not wrong_pins(found, want), f"pin these to {build.HYPERFRAMES}:\n" + "\n".join(wrong_pins(found, want))
+
+
+def test_the_pin_scan_finds_a_version_that_differs(tmp_path):
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    pin = "hyperframes" + "@"  # split, so the scan of this repo does not find these lines
+    (tmp_path / "a.md").write_text(f"Render with {pin}1.2.3.\n`{pin}1.2.4`\n")  # a sentence's dot is not the version's
+    (tmp_path / "b.json").write_text(f'{{"check": "npx {pin}latest check"}}\n')
+    (tmp_path / "untracked.md").write_text(f"{pin}9.9.9\n")
+    subprocess.run(["git", "add", "a.md", "b.json"], cwd=tmp_path, check=True)
+    found = hyperframes_pins(tmp_path)
+    assert found == {"a.md": [(1, "1.2.3"), (2, "1.2.4")], "b.json": [(1, "latest")]}
+    assert wrong_pins(found, "1.2.3") == [f"a.md:2: {pin}1.2.4", f"b.json:1: {pin}latest"]
