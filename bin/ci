@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Local gate: dependency check, repo hygiene scan, pytest (incl. the template smoke build).
+# Local gate: dependency check, repo hygiene scan, ruff lint and format check, pytest (incl. the
+# template smoke build).
 # No network, no GPU, no browser. Run by .githooks/pre-push.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -14,12 +15,22 @@ for bin in ffmpeg ffprobe git; do
 done
 "$PY" -c "import numpy, scipy, librosa, soundfile, PIL, pytest" 2>/dev/null \
   || fail "python deps missing for $PY: python3 -m venv .venv && .venv/bin/pip install -r requirements.txt"
+# the ruff of requirements.txt, not any ruff: a new version can change the format
+want=$(sed -n 's/^ruff==//p' requirements.txt)
+have=$("$PY" -m ruff --version 2>/dev/null | awk '{print $2}') || true
+[ -n "$want" ] && [ "$have" = "$want" ] \
+  || fail "ruff $want missing for $PY (found: ${have:-none}): python3 -m venv .venv && .venv/bin/pip install -r requirements.txt"
 
 # Public-repo hygiene: no media, no tokens in tracked files.
 media=$(git ls-files | grep -Ei '\.(mp3|wav|ogg|m4a|flac|mp4|mov|png|jpe?g|webp|gif|woff2?|ttf|otf)$' || true)
 [ -z "$media" ] || fail "media files are tracked (licences, size):"$'\n'"$media"
 secrets=$(git grep -nIE 'bot[0-9]{6,}:|sk-[A-Za-z0-9]{20,}|ghp_[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16}|TELEGRAM' -- . ':!bin/ci' || true)
 [ -z "$secrets" ] || fail "possible secret in tracked files:"$'\n'"$secrets"
+
+# Lint and format check (ruff.toml). ruff reads the files on disk, so an untracked (not gitignored)
+# .py file under skills/ or tests/ that fails them also stops the push.
+"$PY" -m ruff check skills tests
+"$PY" -m ruff format --check skills tests
 
 "$PY" -m pytest -q tests
 echo "bin/ci: ok"

@@ -334,7 +334,7 @@ cd $P && npx --yes hyperframes@0.8.78 render -o renders/raw.mp4 -q delivery --qu
 
 ```bash
 python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt            # analysis, build, finish, tests
+.venv/bin/pip install -r requirements.txt            # analysis, build, finish, tests, the linter
 
 # ACE-Step 1.5 (needs uv, https://docs.astral.sh/uv/)
 git clone https://github.com/ace-step/ACE-Step-1.5 ~/ACE-Step-1.5
@@ -400,6 +400,6 @@ between letters) and the idea of a reading-time check follow the guides of
 
 ```bash
 git config core.hooksPath .githooks   # pre-push runs bin/ci
-bin/ci                                 # deps check, hygiene scan, pytest (no GPU, no network)
+bin/ci                                 # deps check, hygiene scan, ruff lint and format check, pytest (no GPU, no network)
 APR_BROWSER_TESTS=1 bin/ci             # also runs the printed check command in a browser (npx, ~1 min)
 ```
