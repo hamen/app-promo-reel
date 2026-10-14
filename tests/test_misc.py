@@ -490,7 +490,7 @@ def hyperframes_pins(root):
     for name in filter(None, names):
         try:
             text = (root / name).read_text(encoding="utf-8")
-        except (UnicodeDecodeError, IsADirectoryError, FileNotFoundError):  # not text, a submodule, deleted
+        except (UnicodeDecodeError, IsADirectoryError, FileNotFoundError):  # not text, a submodule, deleted, a broken link
             continue
         for n, line in enumerate(text.splitlines(), 1):
             for m in re.finditer(r"hyperframes@([\w.-]+)", line, re.IGNORECASE):
