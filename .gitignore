@@ -220,6 +220,8 @@ __marimo__/
 # app-promo-reel: generated media and projects never enter the repo
 *.wav
 *.mp3
+# ...but the CC0 sound pack ships (skills/app-promo-reel/sfx/SOURCES.md)
+!/skills/app-promo-reel/sfx/*.mp3
 *.mp4
 *.png
 *.jpg
