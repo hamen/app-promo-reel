@@ -21,8 +21,11 @@ have=$("$PY" -m ruff --version 2>/dev/null | awk '{print $2}') || true
 [ -n "$want" ] && [ "$have" = "$want" ] \
   || fail "ruff $want missing for $PY (found: ${have:-none}): python3 -m venv .venv && .venv/bin/pip install -r requirements.txt"
 
-# Public-repo hygiene: no media, no tokens in tracked files.
-media=$(git ls-files | grep -Ei '\.(mp3|wav|ogg|m4a|flac|mp4|mov|png|jpe?g|webp|gif|woff2?|ttf|otf)$' || true)
+# Public-repo hygiene: no media, no tokens in tracked files. The one exception is the CC0 sound pack,
+# the .mp3 files right in skills/app-promo-reel/sfx/: tests/test_sfx_pack.py holds each one to a CC0
+# row in sfx/SOURCES.md and the folder to a size cap.
+media=$(git ls-files | grep -Ei '\.(mp3|wav|ogg|m4a|flac|mp4|mov|png|jpe?g|webp|gif|woff2?|ttf|otf)$' \
+  | grep -v '^skills/app-promo-reel/sfx/[^/]*\.mp3$' || true)
 [ -z "$media" ] || fail "media files are tracked (licences, size):"$'\n'"$media"
 secrets=$(git grep -nIE 'bot[0-9]{6,}:|sk-[A-Za-z0-9]{20,}|ghp_[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16}|TELEGRAM' -- . ':!bin/ci' || true)
 [ -z "$secrets" ] || fail "possible secret in tracked files:"$'\n'"$secrets"
