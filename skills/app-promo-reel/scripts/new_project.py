@@ -2,8 +2,10 @@
 """Scaffold a reel project from template/.
 
 Creates <out>/<app>-<variant>/ with src.html.tmpl, DESIGN.md, project.json, cues.json, motion.js (9:16 and 4:5),
-hyperframes.json and package.json (HyperFrames pinned). If $SFX_DIR is set, the audio files
-in it are COPIED (not linked) into assets/audio/ so the renderer sees real files.
+hyperframes.json and package.json (HyperFrames pinned). The bundled CC0 sound effects (sfx/, one
+file for each sound template/cues.json names) are COPIED (not linked) into assets/audio/ so the
+renderer sees real files; if $SFX_DIR is set, its audio files are copied after them, and a file of
+the same name replaces the bundled one.
 
 The default <out> is ~/app-promo-reels. An <out> inside a git work tree is refused unless
 --force; an <out> inside the app-promo-reel repo itself is always refused.
@@ -38,6 +40,7 @@ from common import (
 
 SKILL_DIR = Path(__file__).resolve().parent.parent
 TEMPLATE = SKILL_DIR / "template"
+SFX_PACK = SKILL_DIR / "sfx"  # CC0 sound effects, listed in sfx/SOURCES.md
 AUDIO_EXT = {".mp3", ".wav", ".ogg", ".m4a", ".flac"}
 
 
@@ -139,13 +142,23 @@ def scaffold(app, variant, out, lang="en", stores=None, duration=None, force=Fal
         else ("assets/audio", "assets/img", "assets/fonts", "renders", "work")
     ):
         (dest / sub).mkdir(parents=True, exist_ok=True)
-    copied = 0
-    if sfx_dir and not silent:
-        for f in sorted(Path(sfx_dir).expanduser().iterdir()):
-            if f.is_file() and f.suffix.lower() in AUDIO_EXT:
-                shutil.copy2(f, dest / "assets" / "audio" / f.name)
-                copied += 1
-    return dest, copied
+    from_pack = from_user = 0
+    if not silent:
+        audio = dest / "assets" / "audio"
+        from_pack = copy_audio(SFX_PACK, audio)
+        if sfx_dir:  # after the pack: a file of the same name replaces the bundled one
+            from_user = copy_audio(Path(sfx_dir).expanduser(), audio)
+    return dest, from_pack, from_user
+
+
+def copy_audio(src, dest):
+    """Copy the audio files of the folder `src` into `dest`; return how many."""
+    n = 0
+    for f in sorted(src.iterdir()):
+        if f.is_file() and f.suffix.lower() in AUDIO_EXT:
+            shutil.copy2(f, dest / f.name)
+            n += 1
+    return n
 
 
 def main():
@@ -162,16 +175,16 @@ def main():
     sfx = os.environ.get("SFX_DIR")
     if sfx and not is_silent(a.format) and not Path(sfx).expanduser().is_dir():
         die(f"SFX_DIR={sfx} is not a folder")
-    dest, copied = scaffold(a.app, a.variant, a.out, a.lang, a.stores.split(","), a.duration, a.force, sfx, a.format)
+    dest, from_pack, from_user = scaffold(
+        a.app, a.variant, a.out, a.lang, a.stores.split(","), a.duration, a.force, sfx, a.format
+    )
     print(f"created {dest}")
     if is_silent(a.format):
         print(f"{a.format} is silent: no SFX copied")
         return
-    print(
-        f"copied {copied} SFX files from $SFX_DIR"
-        if sfx
-        else "no $SFX_DIR: the reel builds without SFX (cues are skipped with a warning)"
-    )
+    print(f"copied {from_pack} bundled CC0 SFX files (sfx/SOURCES.md)")
+    if sfx:
+        print(f"copied {from_user} SFX files from $SFX_DIR (a file of the same name replaces the bundled one)")
 
 
 if __name__ == "__main__":

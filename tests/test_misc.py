@@ -72,23 +72,33 @@ def test_new_project_always_refuses_its_own_repo():
         shutil.rmtree(inside, ignore_errors=True)
 
 
-def test_new_project_copies_sfx_and_works_without(tmp_path):
+def test_new_project_copies_the_bundled_sfx_then_sfx_dir_over_them(tmp_path):
+    pack = sorted(f.name for f in new_project.SFX_PACK.glob("*.mp3"))
+    assert "pop.mp3" in pack
     sfx = tmp_path / "sfx"
     sfx.mkdir()
-    tone_file(sfx / "pop.wav")
+    (sfx / "pop.mp3").write_bytes(b"the user's pop")
+    tone_file(sfx / "extra.wav")
     (sfx / "notes.txt").write_text("x")
     env = {**os.environ, "SFX_DIR": str(sfx)}
     r = run_script("new_project.py", "--app", "x", "--variant", "a", "--out", tmp_path / "out", env=env)
     assert r.returncode == 0, r.stderr
-    dest = tmp_path / "out" / "x-a"
-    copied = dest / "assets" / "audio" / "pop.wav"
-    assert copied.is_file() and not copied.is_symlink()
-    assert not (dest / "assets" / "audio" / "notes.txt").exists()
+    assert f"copied {len(pack)} bundled CC0 SFX files" in r.stdout
+    assert "copied 2 SFX files from $SFX_DIR" in r.stdout
+    audio = tmp_path / "out" / "x-a" / "assets" / "audio"
+    assert sorted(f.name for f in audio.iterdir()) == sorted([*pack, "extra.wav"])
+    assert (audio / "pop.mp3").read_bytes() == b"the user's pop"  # the same name: the user's file wins
+    for name in pack:
+        assert not (audio / name).is_symlink()
+        if name != "pop.mp3":
+            assert (audio / name).read_bytes() == (new_project.SFX_PACK / name).read_bytes()
     env.pop("SFX_DIR")
     r = run_script(
         "new_project.py", "--app", "x", "--variant", "b", "--out", tmp_path / "out", "--stores", "google_play", env=env
     )
-    assert r.returncode == 0 and "no $SFX_DIR" in r.stdout
+    assert r.returncode == 0 and f"copied {len(pack)} bundled CC0 SFX files" in r.stdout
+    assert "$SFX_DIR" not in r.stdout
+    assert sorted(f.name for f in (tmp_path / "out" / "x-b" / "assets" / "audio").iterdir()) == pack
     assert json.loads((tmp_path / "out" / "x-b" / "project.json").read_text())["stores"] == ["google_play"]
     r = run_script("new_project.py", "--app", "x", "--variant", "b", "--out", tmp_path / "out", env=env)
     assert r.returncode == 2 and "already exists" in r.stderr
