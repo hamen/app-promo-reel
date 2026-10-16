@@ -21,8 +21,11 @@ pickup beats before it); `beat` is 0-based inside the bar; `beats_per_bar` is in
 ## 1. Scaffold
 
 ```bash
-SFX_DIR=~/my-sfx $PY $S/new_project.py --app myapp --variant a --lang en --stores <STORES> --format 9:16
+$PY $S/new_project.py --app myapp --variant a --lang en --stores <STORES> --format 9:16
 ```
+A 9:16 or 4:5 project gets the 9 bundled CC0 sound effects (`sfx/`, listed in `sfx/SOURCES.md`).
+To use your own sounds, put `SFX_DIR=~/my-sfx` before the command: its files are copied after
+the bundled ones, so a file of the same name replaces the bundled one.
 `<STORES>` is the stores the app is really on: `app_store`, `google_play`, or
 `app_store,google_play`. The default (both) is wrong for a single-store app: its end card
 would show a badge for a store the app is not in.

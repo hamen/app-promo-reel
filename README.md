@@ -28,9 +28,14 @@ Contents: [What's new](#whats-new) · [Samples](#samples) · [How to use](#how-t
 
 ## What's new
 
-The skill shipped on 2026-09-27 as a 9:16 reel maker. Every merged pull request is listed here, newest
+The skill shipped on 2026-09-27 as a 9:16 reel maker. Every merged change is listed here, newest
 first, in merge order:
 
+- 2026-10-16: sound effects come with the skill. Every new 9:16 and 4:5 project gets 9 CC0 sounds
+  from Freesound (whooshes, impacts, a pop, a click, a chime, a sparkle and a riser), so the first
+  reel has sound with no `SFX_DIR`. Each one is set to about the loudness that the cue volumes of
+  the template were tuned for. A file of the same name in your `SFX_DIR` still replaces the bundled
+  one. [`SOURCES.md`](skills/app-promo-reel/sfx/SOURCES.md) lists each sound and its Freesound page.
 - 2026-10-14: `bin/ci` checks the Python files with ruff 0.17.0, for lint errors and format, before it
   runs the tests ([#29](https://github.com/hamen/app-promo-reel/pull/29)). It stops when that ruff is
   missing, so run `.venv/bin/pip install -r requirements.txt` again after you update. This README,
@@ -163,7 +168,7 @@ What you can give it:
 | Format per variant | `9:16` | `9:16`, `4:5` or `16:9`; see [Formats](#formats). |
 | Output folder | `~/app-promo-reels` | Not inside a git work tree (`new_project.py` refuses a folder inside one unless you pass `--force`), and never inside this repo, even with `--force`. |
 | App source repo | none | Optional, read-only: the agent reads the default branch with `git show`, never edits it. |
-| Sound effects | none | Optional: a folder of your own files in `SFX_DIR`. |
+| Sound effects | 9 bundled CC0 sounds | Optional: a folder of your own files in `SFX_DIR`; a file of the same name replaces a bundled one. |
 | Brand notes | none | Optional: forbidden words, spelling, rules from your notes or memory system. |
 | A reference video or image | none | Optional: sets the palette, type, pacing and motion only; no logo, text, music or claim comes from it. |
 
@@ -353,11 +358,13 @@ export ACESTEP_DIR=~/ACE-Step-1.5                     # the skill uses ACE-Step 
 When `ACESTEP_DIR` is not set, the agent asks you once: install ACE-Step, use MusicGen, or give it a
 track you downloaded yourself. It never downloads music itself.
 
-Sound effects are optional and not included (most SFX licences forbid redistribution). Put your
-own files in a folder and set `SFX_DIR`; `new_project.py` copies them into each project. The
-example `skills/app-promo-reel/template/cues.json` names the files it expects (`whoosh.mp3`, `pop.mp3`,
-`impact-bass-1.mp3`, …); rename the map to match your files. Without `SFX_DIR` the reel builds
-with music only.
+Sound effects come with the skill: 9 CC0 files in `skills/app-promo-reel/sfx/`, one for each sound
+that `template/cues.json` names (`whoosh.mp3`, `pop.mp3`, `impact-bass-1.mp3`, …).
+[`SOURCES.md`](skills/app-promo-reel/sfx/SOURCES.md) lists the Freesound page of each one.
+`new_project.py` copies them into each 9:16 and 4:5 project. To use your own sounds, put them in a
+folder and set `SFX_DIR`. `new_project.py` copies them after the bundled ones, so a file of the
+same name replaces the bundled one. A file with a new name needs a line in the `sfx` map of the
+project's `cues.json`.
 
 ## Install
 
@@ -383,7 +390,10 @@ Then ask Claude Code for "promo reels for <app>" ([How to use](#how-to-use)). Ou
   with MusicGen. The sample videos show what the skill makes; they are not offered for reuse.
 - Your own track: its licence is yours to check. `music_import.py` never downloads anything, and
   many music sites forbid automated downloads.
-- No sound effects, fonts, screenshots, icons or generated audio are distributed here.
+- The 9 sound effects in `skills/app-promo-reel/sfx/` are CC0 1.0: no credit is required, and
+  commercial use is allowed. [`SOURCES.md`](skills/app-promo-reel/sfx/SOURCES.md) gives the
+  author, the Freesound page and the changes for each one.
+- No other sound effects, and no fonts, screenshots, icons or generated audio, are distributed here.
 
 ## Credits
 

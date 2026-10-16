@@ -44,8 +44,10 @@ Detail: `references/copy-rules.md`.
 - Format per variant: `9:16` (Reels, TikTok, Shorts, Stories; the default) or `4:5` (a feed
   post, which starts muted) or `16:9` (a silent 8 s web-hero loop with no music and no sound;
   read `references/hero.md` first; the section "16:9 hero loop" below says which steps change).
-- Optional: a local path to the app's source repo (read-only), a folder of SFX (`$SFX_DIR`),
-  and the user's own brand notes / memory system for app-specific rules.
+- Optional: a local path to the app's source repo (read-only), a folder of the user's own SFX
+  (`$SFX_DIR`; every 9:16 and 4:5 project gets the bundled CC0 sounds of `sfx/` first, and a file
+  of the same name in `$SFX_DIR` replaces one), and the user's own brand notes / memory system for
+  app-specific rules.
 
 ## Workflow
 
