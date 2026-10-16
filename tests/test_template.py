@@ -59,7 +59,9 @@ def test_template_builds_clean(tmp_path):
     assert float(bgm.group(1)) == 30
     # no SFX_DIR: the bundled pack has a file for every cue of the template, so none is skipped
     realized = json.loads((p / "cues.realized.json").read_text())
-    assert [c["id"] for c in realized] == [c["id"] for c in json.loads((TEMPLATE / "cues.json").read_text())["cues"]]
+    cues = json.loads((TEMPLATE / "cues.json").read_text())
+    want = [(c["id"], f"assets/audio/{cues['sfx'][c['sfx']]}") for c in cues["cues"]]
+    assert [(c["id"], c["file"]) for c in realized] == want
 
 
 def test_every_binding_resolves_in_config(tmp_path):

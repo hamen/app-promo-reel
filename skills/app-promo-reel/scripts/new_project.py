@@ -152,7 +152,10 @@ def scaffold(app, variant, out, lang="en", stores=None, duration=None, force=Fal
 
 
 def copy_audio(src, dest):
-    """Copy the audio files of the folder `src` into `dest`; return how many."""
+    """Copy the audio files of the folder `src` into `dest`; return how many (0 when `src` is not a
+    folder: a skill copied without sfx/ still scaffolds, and main() warns)."""
+    if not src.is_dir():
+        return 0
     n = 0
     for f in sorted(src.iterdir()):
         if f.is_file() and f.suffix.lower() in AUDIO_EXT:
@@ -183,6 +186,12 @@ def main():
         print(f"{a.format} is silent: no SFX copied")
         return
     print(f"copied {from_pack} bundled CC0 SFX files (sfx/SOURCES.md)")
+    if not from_pack:
+        print(
+            f"warning: no bundled SFX in {SFX_PACK} (reinstall the skill); build.py skips every cue whose "
+            f"sound file is not in assets/audio/",
+            file=sys.stderr,
+        )
     if sfx:
         print(f"copied {from_user} SFX files from $SFX_DIR (a file of the same name replaces the bundled one)")
 

@@ -680,3 +680,14 @@ def test_bin_ci_stops_on_a_missing_or_different_ruff(tmp_path, installed, found)
     else:
         assert r.returncode == 1 and "ran" not in r.stdout, (r.stdout, r.stderr)
         assert f"bin/ci: ruff {want} missing for .venv/bin/python (found: {found})" in r.stderr, r.stderr
+
+
+def test_new_project_scaffolds_and_warns_when_the_bundled_sfx_are_missing(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(new_project, "SFX_PACK", tmp_path / "gone")
+    monkeypatch.setattr(sys, "argv", ["new_project.py", "--app", "x", "--variant", "a", "--out", str(tmp_path / "out")])
+    new_project.main()
+    out = capsys.readouterr()
+    assert "copied 0 bundled CC0 SFX files" in out.out
+    assert "warning: no bundled SFX" in out.err and "skips every cue" in out.err
+    assert (tmp_path / "out" / "x-a" / "assets" / "audio").is_dir()
+    assert not any((tmp_path / "out" / "x-a" / "assets" / "audio").iterdir())
