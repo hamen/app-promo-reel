@@ -46,8 +46,10 @@ def test_each_sound_starts_at_once_and_never_clips(name):
     assert 0.05 <= len(decode_audio(PACK / name, sr)) / sr <= 3.0
     stereo = np.abs(decode_audio(PACK / name, sr, mono=False))  # L, R, L, R, ...
     assert stereo.max() <= 1.0
-    # SOURCES.md: cut where both channels are quieter than -50 dBFS at the start
-    assert np.argmax(stereo > 10 ** (-50 / 20)) / 2 / sr <= 0.01
+    # SOURCES.md: cut where both channels are quieter than -50 dBFS at the start; a silent file
+    # fails here too (argmax of an all-False mask is 0)
+    loud = stereo > 10 ** (-50 / 20)
+    assert loud.any() and np.argmax(loud) / 2 / sr <= 0.01
 
 
 def media_scan(paths):
