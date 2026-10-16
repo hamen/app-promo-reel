@@ -688,6 +688,6 @@ def test_new_project_scaffolds_and_warns_when_the_bundled_sfx_are_missing(tmp_pa
     new_project.main()
     out = capsys.readouterr()
     assert "copied 0 bundled CC0 SFX files" in out.out
-    assert "warning: no bundled SFX" in out.err and "music only" in out.err
+    assert "warning: no bundled SFX" in out.err and "skips every cue" in out.err
     assert (tmp_path / "out" / "x-a" / "assets" / "audio").is_dir()
     assert not any((tmp_path / "out" / "x-a" / "assets" / "audio").iterdir())
