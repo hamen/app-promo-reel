@@ -12,8 +12,8 @@ web hero (above: an 8-second loop for Bedtime Stories, made by the skill):
 - every cut, word and sound effect placed on a beat, rendered with
   [HyperFrames](https://hyperframes.heygen.com) (GSAP timeline in a headless browser);
 - loudness normalised to -14 LUFS, audio/video sync checked, versioned MP4 output;
-- a critique loop on the rendered frames: the agent scores its own video and fixes the worst
-  problems, at most three rounds.
+- a critique loop on the rendered frames: a fresh subagent, which did not make the video, scores
+  it, and the agent fixes the worst problems, at most three rounds.
 
 The 16:9 hero is a different product: 8 seconds, no music, no sound at all, and a seamless loop. The
 last frame flows into the first, and `finish.py` measures that seam. Details:
@@ -31,6 +31,8 @@ Contents: [What's new](#whats-new) · [Samples](#samples) · [How to use](#how-t
 The skill shipped on 2026-09-27 as a 9:16 reel maker. Every merged change is listed here, newest
 first, in merge order:
 
+- 2026-10-18: a fresh subagent does the critique. The agent that made the reel no longer scores
+  it, and the critique file names its reviewer (`fresh` or `self`).
 - 2026-10-16: sound effects come with the skill. Every new 9:16 and 4:5 project gets 9 CC0 sounds
   from Freesound (whooshes, impacts, a pop, a click, a chime, a sparkle and a riser), so the first
   reel has sound with no `SFX_DIR`. Each one is set to about the loudness that the cue volumes of
@@ -208,10 +210,12 @@ variant, the agent:
    `renders/`), the contact sheet and the poster (`--poster-at <s>` chooses its time). For a 16:9
    hero, `read_check.py` times nothing, and `finish.py` checks the seam and the frame count instead
    of the loudness and the sync.
-6. **Critiques the real frames**, at most three rounds. It scores seven things from 1 to 10 (hook,
-   readability, motion, variety, composition, claims, and sound, or loop for the hero), writes the
-   worst problems with a still as evidence in `reviews/critique-N.md`, fixes each one in the file
-   that controls it, and renders again. It stops when every score is 8 or more.
+6. **Critiques the real frames**, at most three rounds. Each round, a new subagent that did not make
+   the reel and never sees its source does the review (the agent does it itself, marked
+   `reviewer: self`, only on a host that cannot start a subagent). The reviewer scores seven things
+   from 1 to 10 (hook, readability, motion, variety, composition, claims, and sound, or loop for the
+   hero), and writes the worst problems with a still as evidence in `reviews/critique-N.md`. The agent fixes each one in
+   the file that controls it, and renders again. It stops when every score is 8 or more.
 7. **Delivers** a list of MP4 paths, with the angle, the scores and any problem still open; for a
    reel also the music source and seed, the tempo, the sync result and the loudness. Nothing is
    uploaded or sent.
@@ -219,6 +223,7 @@ variant, the agent:
 A critique round looks like this (round 1 of the 4:5 sample; round 2 had no defect):
 
 ```text
+reviewer: self
 scores: hook=8 readability=8 motion=7 variety=8 composition=8 claims=9 sound=8
 
 - t=1.2 evidence=reviews/still-1.2.jpg fix=src.html.tmpl: punch the hero chip on the pickup beat
