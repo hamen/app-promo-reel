@@ -68,12 +68,17 @@ def test_step_6_hands_the_review_to_a_fresh_subagent_with_a_brief():
     skill = " ".join((SCRIPTS.parent / "SKILL.md").read_text().split())
     step6 = skill[skill.index("6. **Critique") : skill.index("7. **Deliver")]
     assert "new subagent" in step6 and '"Reviewer brief"' in step6 and "`reviewer: self`" in step6
+    # the reviewer reads only its own part of step 6: the fixes and the stop rule are the author's
+    author, reviewer = step6.split("**Reviewer steps.**")
+    assert "Fix each problem" in author and "Stop when every score" in author
+    assert "Fix each problem" not in reviewer and "start a new subagent" not in reviewer.lower()
+    assert "starts no subagent" in reviewer and "Judge only the rendered frames" in reviewer
     doc = (SCRIPTS.parent / "references" / "critique.md").read_text()
     brief = doc[doc.index("## Reviewer brief") : doc.index("## Scores with a fixed rule")]
     # the brief keeps the author's plan away from the reviewer, and points at the claims list
     for kept_out in ("src.html.tmpl", "shotlist.md", "cues.json", "reviews/critique-*.md"):
         assert kept_out in brief.split("Do not open", 1)[1]
-    assert '"Copy rules"' in brief and '"reviewer: fresh"' in brief
+    assert '"Copy rules"' in brief and '"reviewer: fresh"' in brief and '"Reviewer steps"' in brief
     design = (SCRIPTS.parent / "template" / "DESIGN.md.tmpl").read_text()
     assert "## Copy rules" in design and "Allowed claims" in design
 

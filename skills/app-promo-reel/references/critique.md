@@ -31,7 +31,7 @@ scores: hook=8 readability=7 motion=8 variety=8 composition=8 claims=9 sound=8
 ## Reviewer brief
 
 The author fills in the parts in `<>` and gives this text, and nothing more, to a new subagent. One
-new subagent per round: a reviewer that saw round 1 judges round 2 against its own notes.
+new subagent per round, so that no reviewer judges a round against what it saw in an earlier one.
 
 ```
 You review a promo reel that you did not make. Judge only what a viewer sees and hears.
@@ -45,17 +45,18 @@ Warnings of finish.py, read_check.py and blur.py (copied as printed):
 <every warning: and fastest: line, or "none">
 Scene start times (s): <t1, t2, ...>
 
-Read <skill>/SKILL.md, step 6, and <skill>/references/critique.md. Do the steps of step 6 that
-look at the reel, and score it. For the claims score, read the allowed claims under
-"Copy rules" in <project>/DESIGN.md. Do not open src.html.tmpl, shotlist.md, cues.json or reviews/critique-*.md
-of earlier rounds: you judge the frames, not the plan. Put your evidence stills in
-<project>/reviews/. Write <project>/reviews/critique-<N>.md, with "reviewer: fresh", and run
-critique_check.py <project> until it exits 0. Reply with the path of the file.
+Read <skill>/SKILL.md, step 6, "Reviewer steps", and <skill>/references/critique.md. Do the
+reviewer steps only: write no file other than your stills, snapshots and critique file, and
+start no subagent. For the claims score, read the allowed claims under "Copy rules" in
+<project>/DESIGN.md. Do not open src.html.tmpl, shotlist.md, cues.json or the
+reviews/critique-*.md of earlier rounds: you judge the frames, not the plan. Put your evidence
+stills in <project>/reviews/. Write <project>/reviews/critique-<N>.md, with "reviewer: fresh",
+and run critique_check.py <project> until it exits 0. Reply with the path of the file.
 ```
 
 `<skill>` is the folder of SKILL.md. The `fix=` file of a defect still names the file that controls
 it (`src.html.tmpl`, `cues.json`, `make_bed.py`): the reviewer knows that from step 6, without
-reading the file.
+reading the file. The scripts are in `<skill>/scripts/`.
 
 ## Scores with a fixed rule
 

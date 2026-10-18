@@ -130,12 +130,22 @@ Commands for every step: `references/pipeline.md`.
      critique below decides.
 6. **Critique, at most 3 rounds.** A fresh reviewer scores the reel; you only fix what it finds.
    The author of a reel reads into its frames what it meant to make, so it does not score them.
-   - Each round, start a new subagent that has seen nothing of this run (in Claude Code, the Agent
-     tool; on another host, its equivalent). Give it the brief in `references/critique.md`,
-     "Reviewer brief", filled in. Never give it `src.html.tmpl`, `shotlist.md`, `cues.json`, the
-     storyboard, an earlier critique file or what you meant to do. When the host cannot start a
-     subagent, do the review yourself with the same brief and write `reviewer: self`.
-   - The reviewer is a harsh motion director. It does the steps below and writes the file.
+   Each round, as the author:
+   - Start a new subagent that has seen nothing of this run (in Claude Code, the Agent tool; on
+     another host, its equivalent). Give it the brief in `references/critique.md`, "Reviewer
+     brief", filled in. Never give it `src.html.tmpl`, `shotlist.md`, `cues.json`, the storyboard,
+     an earlier critique file or what you meant to do. When the host cannot start a subagent, do
+     the reviewer steps below yourself and write `reviewer: self`.
+   - Run `critique_check.py <project>` on the file it writes, before you fix anything. When it
+     exits 1, send the errors back to the same reviewer to correct the form. Never change the
+     scores or the defects of a reviewer's file.
+   - Fix each problem in the file that controls it: scenes, text and motion in `src.html.tmpl`;
+     sound effects in `cues.json`; the music bed with `make_bed.py` (or a new seed, step 3). Then
+     build, check, render and finish again.
+   - Stop when every score is 8 or more, or after 3 critique rounds. Never loop without the cap.
+
+   **Reviewer steps.** The reviewer is a harsh motion director. It only looks, scores and writes
+   the critique file: it edits no other file and starts no subagent.
    - Look at the contact sheet (frames from the real MP4, not the preview) and read every
      `warning:` line from finish.py.
    - Stills around every scene change: for each scene start t, every 0.1 s from t-0.2 to t+0.5
@@ -155,16 +165,11 @@ Commands for every step: `references/pipeline.md`.
      object moves as its class; at most one class overshoots hard at a time; the viewer knows
      where to look after each move);
      **variety** (something new every 2-4 s); **composition**; **claims** (each one is in the
-     DESIGN.md allowed list); **sound** (the sync report, and each cue heard on its hit).
+     DESIGN.md allowed list); **sound** (the sync report in the finish report, and what you hear).
    - Judge only the rendered frames, not what you intended. Write the round to
      `reviews/critique-<N>.md` in the format of `references/critique.md`: the seven scores, then
      the worst 0 to 3 problems, each with its time, a still from the render as evidence, and the
-     file that fixes it. Run `critique_check.py <project>` before you fix anything: it exits 1 on a
-     malformed file. Never change the scores or the defects of a reviewer's file.
-   - Fix each problem in the file that controls it: scenes, text and motion in `src.html.tmpl`;
-     sound effects in `cues.json`; the music bed with `make_bed.py` (or a new seed, step 3). Then
-     build, check, render and finish again.
-   - Stop when every score is 8 or more, or after 3 critique rounds. Never loop without the cap.
+     file that fixes it. Run `critique_check.py <project>` until it exits 0.
 7. **Deliver.** List each final MP4 path with a one-line summary (angle, music source and seed,
    tempo, sync result, loudness), its seven scores and reviewer (from the last `reviews/critique-<N>.md`) and any problem still open. Repeat the music
    licence note; for the user's own track, give the contents of `bgm_user.source.txt`.
