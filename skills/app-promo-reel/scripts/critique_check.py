@@ -4,7 +4,7 @@
 Usage: critique_check.py <project_dir> [--round N]      (default: the highest N)
 Exit 0: the file is well formed. Exit 1: one line per problem on stderr (or no file for the round).
 Exit 2: the file cannot be read, or the project's project.json is missing or not valid.
-It checks form, not quality: that each defect has a time that has a frame, a file that exists as
+It checks form, not quality: who reviewed (fresh or self), that each defect has a time that has a frame, a file that exists as
 evidence and a file to fix. Whether the scores are right is for the reader of the frames.
 """
 
@@ -20,6 +20,7 @@ SCRIPTS = Path(__file__).resolve().parent
 COMMON_SCORES = ("hook", "readability", "motion", "variety", "composition", "claims")
 MAX_DEFECTS = 3
 STOP_SCORE = 8  # every score at or above this ends the critique: no defect is then needed
+REVIEWERS = ("fresh", "self")  # a new subagent, or the reel's author when the host has none
 DEFECT = re.compile(r"^-\s+t=(\S+)\s+evidence=(\S+)\s+fix=([^\s:]+):\s*(\S.*)$")
 
 
@@ -46,11 +47,18 @@ def check(project_dir, text):
     last_t = project["duration"] - 1 / project["fps"]
     seventh = "loop" if is_silent(project) else "sound"
     wanted = (*COMMON_SCORES, seventh)
-    problems, scores, defects = [], None, []
+    problems, scores, defects, reviewer = [], None, [], None
 
     for n, line in enumerate(text.splitlines(), 1):
         s = line.strip()
-        if s.startswith("scores:"):
+        if s.startswith("reviewer:"):
+            if reviewer is not None:
+                problems.append((n, "a second reviewer: line"))
+                continue
+            reviewer = s[len("reviewer:") :].strip()
+            if reviewer not in REVIEWERS:
+                problems.append((n, f"reviewer: {reviewer!r}: must be fresh (a new subagent) or self"))
+        elif s.startswith("scores:"):
             if scores is not None:
                 problems.append((n, "a second scores: line"))
                 continue
@@ -67,6 +75,8 @@ def check(project_dir, text):
         elif s.startswith("-"):
             defects.append((n, s))
 
+    if reviewer is None:
+        problems.append((None, "no reviewer: line (fresh or self, references/critique.md)"))
     if scores is None:
         problems.append((None, "no scores: line"))
     else:
@@ -116,7 +126,7 @@ def check(project_dir, text):
             or (inside(in_scripts, SCRIPTS) and in_scripts.is_file())
         ):
             problems.append((n, f"fix file {fix} is neither a file in the project nor a script of the skill"))
-    return problems, scores, defects
+    return problems, scores, defects, reviewer
 
 
 def main():
@@ -138,12 +148,12 @@ def main():
         text = path.read_text()
     except (OSError, UnicodeDecodeError) as e:
         die(f"cannot read {path}: {e}")
-    problems, scores, defects = check(a.project_dir, text)
+    problems, scores, defects, reviewer = check(a.project_dir, text)
     if problems:
         for line, msg in problems:
             print(f"{path.name}{f': line {line}' if line else ''}: {msg}", file=sys.stderr)
         sys.exit(1)
-    print(f"ok: {path.name}: {len(scores)} scores, {len(defects)} defects")
+    print(f"ok: {path.name}: reviewer {reviewer}, {len(scores)} scores, {len(defects)} defects")
 
 
 if __name__ == "__main__":

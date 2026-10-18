@@ -6,7 +6,7 @@ import pytest
 
 from conftest import SCRIPTS, run_script, write_project
 
-SCORES = "scores: hook=8 readability=7 motion=8 variety=8 composition=8 claims=9 sound=8"
+SCORES = "reviewer: fresh\nscores: hook=8 readability=7 motion=8 variety=8 composition=8 claims=9 sound=8"
 DEFECT = "- t=1.2 evidence=reviews/still-1.2.jpg fix=src.html.tmpl: hold the CTA 0.4 s longer"
 
 
@@ -31,11 +31,11 @@ def test_a_valid_file_passes(proj):
     write(proj, f"# round 1\n\n{SCORES}\n\n{DEFECT}\n")
     r = check(proj)
     assert r.returncode == 0, r.stderr
-    assert "critique-1.md: 7 scores, 1 defects" in r.stdout
+    assert "critique-1.md: reviewer fresh, 7 scores, 1 defects" in r.stdout
 
 
 def test_a_zero_defect_file_needs_every_score_at_8(proj):
-    write(proj, "scores: hook=8 readability=9 motion=8 variety=8 composition=10 claims=9 sound=8\n")
+    write(proj, "reviewer: fresh\nscores: hook=8 readability=9 motion=8 variety=8 composition=10 claims=9 sound=8\n")
     assert check(proj).returncode == 0
     write(proj, SCORES + "\n")  # readability 7
     r = check(proj)
@@ -46,6 +46,36 @@ def test_a_skill_script_is_a_valid_fix_file(proj):
     write(proj, SCORES + "\n- t=0 evidence=reviews/still-1.2.jpg fix=make_bed.py: lower the drop by 3 dB\n")
     assert (SCRIPTS / "make_bed.py").is_file()
     assert check(proj).returncode == 0
+
+
+def test_the_reviewer_line_is_required_and_is_fresh_or_self(proj):
+    body = SCORES.split("\n", 1)[1] + "\n" + DEFECT + "\n"
+    write(proj, body)
+    r = check(proj)
+    assert r.returncode == 1 and "no reviewer: line" in r.stderr
+    write(proj, "reviewer: me\n" + body)
+    r = check(proj)
+    assert r.returncode == 1 and "line 1: reviewer: 'me': must be fresh" in r.stderr
+    write(proj, "reviewer: self\n" + body)
+    r = check(proj)
+    assert r.returncode == 0, r.stderr
+    assert "reviewer self" in r.stdout
+    write(proj, "reviewer: fresh\nreviewer: self\n" + body)
+    assert "line 2: a second reviewer: line" in check(proj).stderr
+
+
+def test_step_6_hands_the_review_to_a_fresh_subagent_with_a_brief():
+    skill = " ".join((SCRIPTS.parent / "SKILL.md").read_text().split())
+    step6 = skill[skill.index("6. **Critique") : skill.index("7. **Deliver")]
+    assert "new subagent" in step6 and '"Reviewer brief"' in step6 and "`reviewer: self`" in step6
+    doc = (SCRIPTS.parent / "references" / "critique.md").read_text()
+    brief = doc[doc.index("## Reviewer brief") : doc.index("## Scores with a fixed rule")]
+    # the brief keeps the author's plan away from the reviewer, and points at the claims list
+    for kept_out in ("src.html.tmpl", "shotlist.md", "cues.json", "reviews/critique-*.md"):
+        assert kept_out in brief.split("Do not open", 1)[1]
+    assert '"Copy rules"' in brief and '"reviewer: fresh"' in brief
+    design = (SCRIPTS.parent / "template" / "DESIGN.md.tmpl").read_text()
+    assert "## Copy rules" in design and "Allowed claims" in design
 
 
 def test_the_default_round_is_the_highest(proj):
@@ -69,7 +99,7 @@ def test_a_silent_project_scores_loop_not_sound(tmp_path):
     p.mkdir()
     (p / "project.json").write_text(json.dumps({"app": "demo", "variant": "a", "format": "16:9"}))
     (p / "reviews").mkdir()
-    loop = "scores: hook=8 readability=8 motion=8 variety=8 composition=8 claims=8 loop=8\n"
+    loop = "reviewer: self\nscores: hook=8 readability=8 motion=8 variety=8 composition=8 claims=8 loop=8\n"
     write(p, loop)
     assert check(p).returncode == 0
     write(p, loop.replace("loop=", "sound="))
@@ -104,7 +134,7 @@ def test_bad_scores_are_reported(proj, line, msg):
 
 def test_a_second_scores_line_fails(proj):
     write(proj, f"{SCORES}\n{SCORES}\n{DEFECT}\n")
-    assert "line 2: a second scores: line" in check(proj).stderr
+    assert "line 4: a second scores: line" in check(proj).stderr
 
 
 def test_four_defects_fail(proj):
@@ -183,9 +213,9 @@ def test_a_fix_file_that_does_not_exist_fails(proj):
 def test_a_malformed_defect_names_its_line(proj):
     write(proj, SCORES + "\n- the hook is weak\n")
     r = check(proj)
-    assert r.returncode == 1 and "line 2: a defect reads: - t=<seconds>" in r.stderr
+    assert r.returncode == 1 and "line 3: a defect reads: - t=<seconds>" in r.stderr
     write(proj, SCORES + "\n" + DEFECT.replace("fix=src.html.tmpl:", "fix=src.html.tmpl") + "\n")
-    assert "line 2: a defect reads" in check(proj).stderr
+    assert "line 3: a defect reads" in check(proj).stderr
 
 
 def test_skill_step_6_runs_the_checker_and_the_format_doc_matches_it():

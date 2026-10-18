@@ -7,11 +7,14 @@ describe what you intended.
 ## Format
 
 ```
+reviewer: fresh
 scores: hook=8 readability=7 motion=8 variety=8 composition=8 claims=9 sound=8
 
 - t=12.4 evidence=reviews/still-12.4.jpg fix=src.html.tmpl: hold the CTA 0.4 s longer
 ```
 
+- One `reviewer:` line: `fresh` when a new subagent wrote the file (SKILL.md, step 6), `self` when
+  the author of the reel wrote it because the host cannot start a subagent.
 - One `scores:` line with seven `name=score` pairs. A score is a whole number from 1 to 10.
   The names are `hook`, `readability`, `motion`, `variety`, `composition`, `claims`, and a seventh:
   `sound` for a 9:16 or 4:5 reel, `loop` for a silent 16:9 hero.
@@ -24,6 +27,35 @@ scores: hook=8 readability=7 motion=8 variety=8 composition=8 claims=9 sound=8
   A score below 8 needs at least one defect.
 - Other lines (a heading, a note) are ignored. A line that starts with `-` must be a defect.
 - A path may not leave the project folder by `..` or by a symlink.
+
+## Reviewer brief
+
+The author fills in the parts in `<>` and gives this text, and nothing more, to a new subagent. One
+new subagent per round: a reviewer that saw round 1 judges round 2 against its own notes.
+
+```
+You review a promo reel that you did not make. Judge only what a viewer sees and hears.
+
+Project folder: <project>
+Round: <N>   Format: <9:16 | 4:5 | 16:9>   Duration: <s> s   fps: <fps>
+Final MP4: <project>/renders/<app>-<variant>-v<M>.mp4
+Contact sheet and poster: the -sheet.jpg and -poster.jpg next to it
+Finish report: <project>/renders/<app>-<variant>-v<M>-report.json
+Warnings of finish.py, read_check.py and blur.py (copied as printed):
+<every warning: and fastest: line, or "none">
+Scene start times (s): <t1, t2, ...>
+
+Read <skill>/SKILL.md, step 6, and <skill>/references/critique.md. Do the steps of step 6 that
+look at the reel, and score it. For the claims score, read the allowed claims under
+"Copy rules" in <project>/DESIGN.md. Do not open src.html.tmpl, shotlist.md, cues.json or reviews/critique-*.md
+of earlier rounds: you judge the frames, not the plan. Put your evidence stills in
+<project>/reviews/. Write <project>/reviews/critique-<N>.md, with "reviewer: fresh", and run
+critique_check.py <project> until it exits 0. Reply with the path of the file.
+```
+
+`<skill>` is the folder of SKILL.md. The `fix=` file of a defect still names the file that controls
+it (`src.html.tmpl`, `cues.json`, `make_bed.py`): the reviewer knows that from step 6, without
+reading the file.
 
 ## Scores with a fixed rule
 
