@@ -165,7 +165,8 @@ Commands for every step: `references/pipeline.md`.
      object moves as its class; at most one class overshoots hard at a time; the viewer knows
      where to look after each move);
      **variety** (something new every 2-4 s); **composition**; **claims** (each one is in the
-     DESIGN.md allowed list); **sound** (the sync report in the finish report, and what you hear).
+     DESIGN.md allowed list); **sound** (the sync, the loudness and the true peak in the finish
+     report: a model cannot hear the mix).
    - Judge only the rendered frames, not what you intended. Write the round to
      `reviews/critique-<N>.md` in the format of `references/critique.md`: the seven scores, then
      the worst 0 to 3 problems, each with its time, a still from the render as evidence, and the
