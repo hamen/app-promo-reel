@@ -73,6 +73,8 @@ def test_step_6_hands_the_review_to_a_fresh_subagent_with_a_brief():
     assert "Fix each problem" in author and "Stop when every score" in author
     assert "Fix each problem" not in reviewer and "start a new subagent" not in reviewer.lower()
     assert "starts no subagent" in reviewer and "Judge only the rendered frames" in reviewer
+    # the reviewer cannot hear: the sound score reads the numbers of the finish report
+    assert "the sync, the loudness and the true peak in the finish report" in reviewer
     doc = (SCRIPTS.parent / "references" / "critique.md").read_text()
     brief = doc[doc.index("## Reviewer brief") : doc.index("## Scores with a fixed rule")]
     # the brief keeps the author's plan away from the reviewer, and points at the claims list
