@@ -102,7 +102,8 @@ Commands for every step: `references/pipeline.md`.
    (all text, colours, screens) and edit the scenes. Rebuild the app's real screens as HTML
    components from the screenshots and strings — no pasted screenshots. Timing uses beat tokens
    only. Put the SFX cues in `cues.json`. Give each object the ease of its motion class
-   (`motion.js`). Mark every text the viewer must read with the `data-read` attribute (the
+   (`motion.js`); the app's own illustrations get an idle layer on holds (`references/motion.md`,
+   "Moving holds"). Mark every text the viewer must read with the `data-read` attribute (the
    template marks its 17 captions; `references/storyboard.md`, "Reading time"). Keep `shotlist.md` in step with the scenes: one row per scene with its
    purpose, entry state and exit state. If you cannot say why a scene exists, it does not belong
    in the render. `build.py` fails when a scene has no row. Never delete `shotlist.md`. In 9:16 and

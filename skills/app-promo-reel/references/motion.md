@@ -54,6 +54,29 @@ benefits whip in from 900 px, the pops grow from scale 0, the slams shrink from 
 end icon turns 20°. The rules above limit them: at most 2 shakes and 2 flashes per reel, and one hard
 overshoot at a time.
 
+## Moving holds
+For a reel that shows the app's own illustrations or mascot. A drawing that stops dead on a hold
+looks like a slideshow; a drawing with a small idle layer looks alive.
+- Only the app's real art moves: a character, a plant or an icon from its screens or its store
+  assets. Never add a pose, an expression or an action the art does not have (truthfulness rule 4
+  of SKILL.md). Text never gets an idle layer: the words stay put.
+- While the drawing is on screen, give it an idle layer: a breath (scale 1 to 1.015), a float
+  (y ±6 px at 1080 px wide) or a sway (rotation ±1.5° around its real pivot, with
+  `transformOrigin`: the base of a plant, the neck of a head). Bigger reads as a wobble.
+- Give each part its own period, a whole number of beats (2, 4 or 8), so the parts never move in
+  step like a machine. Use `sine.inOut` with `yoyo: true`.
+- A trailing part (an ear, a tail, a leaf) repeats the move of its parent 0.08-0.15 s later.
+- An entrance or an action on top of the idle layer keeps its own class ease; the idle layer
+  goes on under it. A hold is a pose with the idle layer on, not a stop.
+- Put the idle tweens on the scene's GSAP timeline, with a finite `repeat` that ends with the
+  scene. With `repeat: -1`, GSAP 3.14.2 gives the
+  timeline a duration of 10^10 s. A CSS animation is not on the timeline.
+- `finish.py` measures the whole frame: a small breath on a small drawing can still give a
+  `still for` warning. The critique decides.
+
+The rules follow [rossark-motion-skill](https://github.com/rossark0/rossark-motion-skill) by
+rossark0 (MIT). No code is copied.
+
 ## Seekable frames
 A frame must depend only on the time `t`: `frame = render(t)`. Then a seek, a re-render and a
 snapshot all show the same picture. `build.py` fails (exit 2) when an inline script of the page

@@ -691,3 +691,14 @@ def test_new_project_scaffolds_and_warns_when_the_bundled_sfx_are_missing(tmp_pa
     assert "warning: no bundled SFX" in out.err and "skips every cue" in out.err
     assert (tmp_path / "out" / "x-a" / "assets" / "audio").is_dir()
     assert not any((tmp_path / "out" / "x-a" / "assets" / "audio").iterdir())
+
+
+def test_motion_doc_has_moving_holds_for_the_apps_own_art_only():
+    motion = (SCRIPTS.parent / "references" / "motion.md").read_text()
+    sec = motion[motion.index("## Moving holds") : motion.index("## Seekable frames")]
+    # truthfulness: only real art moves, no new pose; text stays put
+    assert "Only the app's real art moves" in sec and "Text never gets an idle layer" in sec
+    # seekable and bounded: on the timeline, a finite repeat
+    assert "finite `repeat`" in sec and "CSS animation is not on the timeline" in sec
+    skill = " ".join((SCRIPTS.parent / "SKILL.md").read_text().split())
+    assert '"Moving holds"' in skill

@@ -31,6 +31,9 @@ Contents: [What's new](#whats-new) · [Samples](#samples) · [How to use](#how-t
 The skill shipped on 2026-09-27 as a 9:16 reel maker. Every merged change is listed here, newest
 first, in merge order:
 
+- 2026-10-26: moving holds. When a reel shows the app's own illustrations or mascot, they get a
+  small idle layer on holds (a breath, a float or a sway, each part on its own beat period), so a
+  drawing does not stop dead between moves.
 - 2026-10-18: a fresh subagent does the critique. The agent that made the reel no longer scores
   it, and the critique file names its reviewer (`fresh` or `self`).
 - 2026-10-16: sound effects come with the skill. Every new 9:16 and 4:5 project gets 9 CC0 sounds
@@ -408,6 +411,10 @@ The critique loop and the frame checks (blank opening, pops) follow ideas from R
 The feed safe zones, the readable text minimums, the dead-hold rule and the motion-blur rules (a
 shutter centred on the frame, no blur across a cut, one rounding of a float average) follow
 [cinetic](https://github.com/Leonxlnx/cinetic) by Leonxlnx (MIT). No code is copied.
+
+The moving-holds rules (an idle layer on every part, each part on its own period, trailing parts a
+beat later) follow [rossark-motion-skill](https://github.com/rossark0/rossark-motion-skill) by
+rossark0 (MIT). No code is copied.
 
 The motion ranges (an entrance in 0.3-0.6 s, an exit in 0.2-0.3 s, a stagger of 60-120 ms, 20-40 ms
 between letters) and the idea of a reading-time check follow the guides of
