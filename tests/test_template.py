@@ -523,3 +523,11 @@ def test_a_random_value_added_to_the_template_fails_the_build(tmp_path):
 def test_a_project_without_motion_js_fails_when_the_template_has_the_token(tmp_path):
     _, err = build(tmp_path, edit=lambda p: (p / "motion.js").unlink(), expect=2)
     assert "no motion.js" in err
+
+
+def test_end_card_url_is_big_enough_to_read_and_type():
+    # Ivan, 2026-11-07, on the StreakUp reel: the website URL needs a larger font. At 40 px it was
+    # the smallest text on the end card; the viewer has to read it and type it.
+    css = (TEMPLATE / "src.html.tmpl").read_text()
+    rule = re.search(r"#url \{([^}]*)\}", css).group(1)
+    assert int(re.search(r"font-size: (\d+)px", rule).group(1)) >= 56
